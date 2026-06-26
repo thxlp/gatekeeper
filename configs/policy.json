@@ -1,0 +1,14 @@
+{
+  "plans": {
+    "free": {
+      "allowed_runtimes": ["node", "static"],
+      "allowed_features": ["basic-deploy"],
+      "max_artifact_mb": 20
+    },
+    "pro": {
+      "allowed_runtimes": ["node", "python", "static", "docker"],
+      "allowed_features": ["basic-deploy", "custom-domain", "cron-jobs"],
+      "max_artifact_mb": 200
+    }
+  }
+}

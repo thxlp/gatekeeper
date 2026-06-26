@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ReactFlow overrides */
+.react-flow__background { background: #0d1117; }
+.react-flow__edge-path { stroke: #30363d; stroke-width: 2; }
+.react-flow__edge.selected .react-flow__edge-path { stroke: #58a6ff; }
+.react-flow__controls { background: #161b22; border: 1px solid #21262d; border-radius: 8px; }
+.react-flow__controls-button { background: #161b22; border-bottom: 1px solid #21262d; color: #8b949e; }
+.react-flow__controls-button:hover { background: #21262d; color: #e6edf3; }
+.react-flow__minimap { background: #161b22; border: 1px solid #21262d; border-radius: 8px; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+
+/* status badge pulse */
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:.5} }
+.pulse-green { animation: pulse-green 2s ease-in-out infinite; }

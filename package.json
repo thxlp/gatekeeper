@@ -1,0 +1,20 @@
+{
+  "name": "security-management-gatekeeper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pre-deploy Security & Management Gatekeeper - admission control สำหรับ deployment stage",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "start:v1": "node src/server.js",
+    "start:v2": "cd backend && npm run start:dev",
+    "start:fe": "cd frontend && npm run dev",
+    "start:all": "./start-dev.sh",
+    "test:client": "node scripts/test-client.js",
+    "build:v2": "cd backend && npm run build",
+    "build:fe": "cd frontend && npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

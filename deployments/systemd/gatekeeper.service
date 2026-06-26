@@ -1,0 +1,24 @@
+[Unit]
+Description=Security & Management Gatekeeper
+After=network.target
+
+[Service]
+Type=simple
+User=gatekeeper
+Group=gatekeeper
+WorkingDirectory=/opt/gatekeeper
+EnvironmentFile=/opt/gatekeeper/.env
+ExecStart=/usr/bin/node /opt/gatekeeper/src/server.js
+Restart=on-failure
+RestartSec=5
+
+# --- Hardening ตามแนวคิด "Self-Integrity" ที่คุยกันไว้ตอนออกแบบ architecture ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# เปิดสิทธิ์เขียนได้แค่โฟลเดอร์ data/ เท่านั้น ที่อื่น read-only หมด
+ReadWritePaths=/opt/gatekeeper/data
+
+[Install]
+WantedBy=multi-user.target

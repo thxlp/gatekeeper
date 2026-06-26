@@ -1,0 +1,51 @@
+[
+  {
+    "id": "PHP-EVAL-BASE64",
+    "pattern": "eval\\s*\\(\\s*base64_decode\\s*\\(",
+    "flags": "gi",
+    "severity": "CRITICAL",
+    "description": "รูปแบบคลาสสิกของ webshell: eval ค่าที่ decode จาก base64"
+  },
+  {
+    "id": "PHP-SYSTEM-FROM-REQUEST",
+    "pattern": "(system|exec|passthru|shell_exec|popen)\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+    "flags": "gi",
+    "severity": "CRITICAL",
+    "description": "เรียก system command โดยใช้ค่าจาก user input ของ request ตรงๆ"
+  },
+  {
+    "id": "JS-EVAL-ATOB",
+    "pattern": "eval\\s*\\(\\s*atob\\s*\\(",
+    "flags": "gi",
+    "severity": "HIGH",
+    "description": "JS eval ค่าที่ decode จาก base64 (atob) มักใช้ซ่อน payload"
+  },
+  {
+    "id": "DYNAMIC-FUNC-CREATE",
+    "pattern": "create_function\\s*\\(|new\\s+Function\\s*\\(",
+    "flags": "gi",
+    "severity": "MEDIUM",
+    "description": "สร้างฟังก์ชันแบบ dynamic จาก string ซึ่งมักใช้หลบ static scanner"
+  },
+  {
+    "id": "WIN-ENCODED-PS",
+    "pattern": "powershell(\\.exe)?\\s+(-enc|-e|-EncodedCommand)\\b",
+    "flags": "gi",
+    "severity": "CRITICAL",
+    "description": "เรียก PowerShell ด้วย encoded command ซึ่งมักใช้ซ่อน payload"
+  },
+  {
+    "id": "CERTUTIL-DECODE",
+    "pattern": "certutil(\\.exe)?\\s+-decode",
+    "flags": "gi",
+    "severity": "HIGH",
+    "description": "ใช้ certutil decode ไฟล์ ซึ่งเป็นเทคนิคหลบ AV บน Windows ที่พบบ่อย"
+  },
+  {
+    "id": "SUSPICIOUS-CURL-PIPE-SH",
+    "pattern": "curl[^\\n]{0,80}\\|\\s*(sh|bash)\\b",
+    "flags": "gi",
+    "severity": "HIGH",
+    "description": "ดาวน์โหลดสคริปต์แล้ว pipe เข้า shell ทันทีโดยไม่ผ่านการตรวจสอบ"
+  }
+]

@@ -1,0 +1,5 @@
+[
+  { "id": "acc_demo_free", "api_key": "demo-free-key", "plan": "free", "status": "active" },
+  { "id": "acc_demo_pro",  "api_key": "demo-pro-key",  "plan": "pro",  "status": "active" },
+  { "id": "acc_suspended", "api_key": "demo-suspended-key", "plan": "free", "status": "suspended" }
+]
