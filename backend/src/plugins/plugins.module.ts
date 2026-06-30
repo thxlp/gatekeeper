@@ -7,8 +7,9 @@ import { DependencyAuditService } from '../scanner/dependency-audit.service';
 import { RiskEngineService } from '../decision/risk-engine.service';
 import { TicketService } from '../ticket/ticket.service';
 import { AuditService } from '../audit/audit.service';
-
+import { ChallengeModule } from '../challenge/challenge.module';
 @Module({
+  imports: [ChallengeModule],
   controllers: [PluginsController],
   providers: [PluginsService, PluginStore, ScannerService, DependencyAuditService, RiskEngineService, TicketService, AuditService],
   exports: [PluginsService, AuditService],
