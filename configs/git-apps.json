@@ -1,0 +1,12 @@
+[
+  {
+    "id": "demo-app",
+    "accountId": "acc_demo_pro",
+    "repoFullName": "your-org/your-repo",
+    "cloneUrl": "https://github.com/your-org/your-repo.git",
+    "branch": "main",
+    "webhookSecretEnvVar": "GITHUB_WEBHOOK_SECRET_DEMO_APP",
+    "restartCommand": ["/bin/true"],
+    "enabled": false
+  }
+]

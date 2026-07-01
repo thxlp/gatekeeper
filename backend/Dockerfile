@@ -6,6 +6,9 @@ COPY backend/ ./
 RUN npm run build
 
 FROM node:20-alpine
+# git ต้องมีใน runtime image จริง (ไม่ใช่แค่ build stage) เพราะ GitAutomatorService
+# เรียก `git clone` ผ่าน execFile ตอน container รันอยู่ (webhook auto-deploy)
+RUN apk add --no-cache git openssh-client ca-certificates
 RUN addgroup -S gatekeeper && adduser -S gatekeeper -G gatekeeper
 WORKDIR /app/backend
 COPY --from=builder /app/backend/dist ./dist

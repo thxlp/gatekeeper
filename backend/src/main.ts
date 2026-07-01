@@ -2,9 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
+import * as express from 'express';
 import { AppModule } from './app.module';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // ปิด body parser อัตโนมัติของ Nest แล้วตั้งเอง เพื่อเก็บ raw body ไว้ตรวจ
+  // X-Hub-Signature-256 ของ GitHub webhook (HMAC ต้องคำนวณจาก raw bytes ก่อน parse เป็น JSON)
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(
+    express.json({
+      limit: '25mb',
+      verify: (req: any, _res, buf: Buffer) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
+  app.use(express.urlencoded({ extended: true, limit: '25mb' }));
   app.use(cookieParser());
   app.enableCors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

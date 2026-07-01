@@ -62,6 +62,22 @@ export interface Plugin {
   last_handshake_at?: string;
 }
 
+// ===== Git Auto-Deploy (GitHub Webhook) =====
+export interface GitApp {
+  id: string;
+  accountId: string;
+  repoFullName: string;          // เช่น "octocat/hello-world" — จับคู่กับ payload.repository.full_name
+  cloneUrl: string;               // URL ที่เราเชื่อและใช้ clone จริง (ไม่เชื่อ URL จาก payload กัน SSRF/repo-swap)
+  branch: string;                 // deploy เฉพาะ push ที่เข้า branch นี้ (เช่น "main")
+  webhookSecretEnvVar?: string;   // (แบบ static/ops-managed) ชื่อ env var ที่เก็บ webhook secret จริง
+  webhookSecret?: string;         // (แบบ self-service/dynamic) secret ที่ระบบสุ่มให้ตอนลงทะเบียน เก็บตรงใน store
+  restartCommand: string[];       // argv array รันผ่าน execFile ตรงๆ (ไม่ผ่าน shell กัน command injection)
+  enabled: boolean;
+  runtime?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // ===== Audit =====
 export interface AuditEntry {
   ts: string;

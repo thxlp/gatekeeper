@@ -1,5 +1,5 @@
 node_modules/
-data/staging/
+data/
 backend/node_modules/
 backend/dist/
 frontend/node_modules/
