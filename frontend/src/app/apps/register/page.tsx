@@ -59,6 +59,9 @@ export default function RegisterGitAppPage() {
         <span className="text-sm font-mono font-semibold flex items-center gap-1.5">
           <Github size={14} /> Register Git App
         </span>
+        <Link href="/apps" className="ml-auto text-sub hover:text-text text-xs font-mono">
+          ดูรายการที่ลงทะเบียนแล้ว →
+        </Link>
       </header>
 
       <div className="flex-1 flex items-start justify-center p-6">
@@ -126,10 +129,16 @@ export default function RegisterGitAppPage() {
                 ⚠ เก็บ secret นี้ไว้ให้ดี ระบบจะไม่แสดงซ้ำอีกครั้ง
               </p>
 
-              <button onClick={reset}
-                className="w-full text-sm text-sub hover:text-text border border-border rounded-lg py-2 font-mono">
-                ลงทะเบียนแอปใหม่
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={reset}
+                  className="text-sm text-sub hover:text-text border border-border rounded-lg py-2 font-mono">
+                  ลงทะเบียนแอปใหม่
+                </button>
+                <Link href="/apps"
+                  className="flex items-center justify-center text-sm bg-accent text-surface font-semibold rounded-lg py-2 font-mono hover:bg-accent/90 transition-colors">
+                  ดูรายการแอป →
+                </Link>
+              </div>
             </div>
           )}
         </div>

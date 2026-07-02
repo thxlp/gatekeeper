@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Plugin, CertifiedService } from '@/types';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { Plus, Settings, Activity, Cpu, LayoutGrid, Github } from 'lucide-react';
+import DeployMenu from '@/components/ui/DeployMenu';
+import { Plus, Settings, Activity, LayoutGrid } from 'lucide-react';
 
 const PluginGraphCanvas   = dynamic(() => import('@/components/graph/PluginGraphCanvas'),   { ssr: false });
 const PluginDetailPanel   = dynamic(() => import('@/components/plugins/PluginDetailPanel'), { ssr: false });
@@ -87,17 +88,8 @@ export default function Dashboard() {
             {view === 'graph' ? <><LayoutGrid size={12}/> List</> : <><Activity size={12}/> Graph</>}
           </button>
 
-          {/* deploy + git apps, stacked */}
-          <div className="flex flex-col gap-1">
-            <Link href="/deploy"
-              className="flex items-center gap-1 text-sub hover:text-text text-xs font-mono border border-border rounded-lg px-2 py-1">
-              <Cpu size={12}/> Deploy
-            </Link>
-            <Link href="/apps"
-              className="flex items-center gap-1 text-sub hover:text-text text-xs font-mono border border-border rounded-lg px-2 py-1">
-              <Github size={12}/> Git Apps
-            </Link>
-          </div>
+          {/* deploy + git apps dropdown */}
+          <DeployMenu />
 
           {/* add plugin */}
           <button onClick={() => setShowModal(true)}
