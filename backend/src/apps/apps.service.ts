@@ -80,4 +80,18 @@ export class AppsService {
       events: ['push'],
     };
   }
+
+  listMyApps(account: Account) {
+    // map ทีละฟิลด์แทน spread ทั้งก้อน — กันเผลอ echo webhookSecret ออกทาง endpoint นี้ในอนาคต
+    return this.store.findAll(account.id).map((app) => ({
+      id: app.id,
+      repoFullName: app.repoFullName,
+      branch: app.branch,
+      runtime: app.runtime,
+      enabled: app.enabled,
+      webhookUrl: PUBLIC_WEBHOOK_URL,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+    }));
+  }
 }

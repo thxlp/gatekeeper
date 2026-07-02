@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, getAccount } from '../auth/auth.guard';
 import { CookieChallengeGuard } from '../challenge/challenge.guard';
 import { AppsService } from './apps.service';
@@ -12,5 +12,10 @@ export class AppsController {
   @Post('register')
   register(@Body() dto: RegisterGitAppDto, @Req() req: any) {
     return this.svc.registerGitApp(dto, getAccount(req));
+  }
+
+  @Get()
+  list(@Req() req: any) {
+    return this.svc.listMyApps(getAccount(req));
   }
 }

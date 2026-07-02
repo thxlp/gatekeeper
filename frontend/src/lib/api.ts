@@ -1,3 +1,5 @@
+import { GitAppRegistration, GitAppSummary } from '@/types';
+
 const V1_BASE = '/api/v1';
 const V2_BASE = '/api/v2';
 
@@ -55,4 +57,13 @@ export const api = {
 
   // v0.2 NestJS — combined audit stream
   getMyAudit: () => request<any[]>(V2_BASE, '/audit'),
+
+  // v0.2 NestJS — GitHub Auto-Deploy webhook self-service
+  registerGitApp: (body: { repoUrl: string; branch?: string; runtime?: string }) =>
+    request<GitAppRegistration>(V2_BASE, '/apps/register', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  listGitApps: () => request<GitAppSummary[]>(V2_BASE, '/apps'),
 };

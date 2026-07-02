@@ -48,6 +48,27 @@ export interface AuditEntry {
   pluginId?: string;
 }
 
+export interface GitAppRegistration {
+  id: string;
+  repoFullName: string;
+  branch: string;
+  webhookUrl: string;
+  webhookSecret: string;
+  contentType: string;
+  events: string[];
+}
+
+export interface GitAppSummary {
+  id: string;
+  repoFullName: string;
+  branch: string;
+  runtime?: string;
+  enabled: boolean;
+  webhookUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface CertifiedService {
   id: string;
   name: string;
