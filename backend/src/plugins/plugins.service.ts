@@ -10,7 +10,6 @@ import { Plugin, Account, Finding } from '../common/types';
 import { PluginStore } from './plugin.store';
 import { ScannerService } from '../scanner/scanner.service';
 import { RiskEngineService } from '../decision/risk-engine.service';
-import { TicketService } from '../ticket/ticket.service';
 import { AuditService } from '../audit/audit.service';
 import { RegisterPluginDto, ProxyCallDto } from './plugin.dto';
 
@@ -22,7 +21,6 @@ export class PluginsService {
     private store: PluginStore,
     private scanner: ScannerService,
     private riskEngine: RiskEngineService,
-    private ticket: TicketService,
     private audit: AuditService,
   ) {}
 

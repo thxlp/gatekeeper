@@ -1,4 +1,4 @@
-import { IsString, IsUrl, IsEnum, IsArray, IsOptional, ValidateNested } from 'class-validator';
+import { IsString, IsEnum, IsArray, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PluginEndpointDto {
