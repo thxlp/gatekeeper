@@ -7,6 +7,7 @@ import { GitAppStore } from './git-app.store';
 import { RegisterGitAppDto } from './register-git-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
 import { isSafeBranchName, parseGithubRepoUrl } from './git-url.util';
+import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
 
 const DEFAULT_BRANCH = 'main';
 
@@ -14,6 +15,10 @@ const DEFAULT_BRANCH = 'main';
 // ค่า default อิงจากโดเมนจริงที่ตั้งไว้ใน deployments/nginx/gatekeeper.conf
 const PUBLIC_WEBHOOK_URL =
   process.env.PUBLIC_WEBHOOK_URL || 'https://gatekeeper.studiodup.com/api/v2/webhooks/github';
+
+// หน้า Pipeline Dashboard (GET เดียวกับ webhook endpoint แต่มี ?app= ระบุตัว) — public แต่
+// ต้องรู้ id ที่สุ่มมา (unguessable) เท่านั้นถึงจะเห็นได้ ไม่ list ทุก app แบบไม่ auth
+const dashboardUrl = (id: string) => `${PUBLIC_WEBHOOK_URL}?app=${id}`;
 
 @Injectable()
 export class AppsService {
@@ -57,6 +62,9 @@ export class AppsService {
       restartCommand: ['docker', 'restart', `gatekeeper-app-${id}`],
       enabled: true,
       runtime: dto.runtime,
+      liveUrl: buildLiveUrl(parsed.repoFullName),
+      pipelineStatus: 'idle',
+      pipelineStages: initialPipelineStages(),
       createdAt: now,
       updatedAt: now,
     };
@@ -79,6 +87,7 @@ export class AppsService {
       webhookSecret, // แสดงกลับแค่ครั้งนี้ครั้งเดียว — endpoint อื่นจะไม่ echo secret ตัวนี้ซ้ำอีก
       contentType: 'application/json',
       events: ['push'],
+      dashboardUrl: dashboardUrl(app.id),
     };
   }
 
@@ -91,6 +100,9 @@ export class AppsService {
       runtime: app.runtime,
       enabled: app.enabled,
       webhookUrl: PUBLIC_WEBHOOK_URL,
+      dashboardUrl: dashboardUrl(app.id),
+      liveUrl: app.liveUrl,
+      pipelineStatus: app.pipelineStatus,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
     }));
@@ -124,6 +136,9 @@ export class AppsService {
       runtime: app.runtime,
       enabled: app.enabled,
       webhookUrl: PUBLIC_WEBHOOK_URL,
+      dashboardUrl: dashboardUrl(app.id),
+      liveUrl: app.liveUrl,
+      pipelineStatus: app.pipelineStatus,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
     };

@@ -68,6 +68,24 @@ export interface Plugin {
 }
 
 // ===== Git Auto-Deploy (GitHub Webhook) =====
+export type PipelineStageKey =
+  | 'payload_verification'
+  | 'repo_cloning'
+  | 'security_scan'
+  | 'app_build'
+  | 'production_deploy';
+
+export type PipelineStageStatus = 'pending' | 'running' | 'success' | 'failed';
+
+export interface PipelineStage {
+  key: PipelineStageKey;
+  label: string;
+  status: PipelineStageStatus;
+  at?: string; // ISO timestamp ของครั้งล่าสุดที่ stage นี้เปลี่ยนสถานะ
+}
+
+export type DeployStatus = 'idle' | 'deploying' | 'success' | 'failed';
+
 export interface GitApp {
   id: string;
   accountId: string;
@@ -79,6 +97,12 @@ export interface GitApp {
   restartCommand: string[];       // argv array รันผ่าน execFile ตรงๆ (ไม่ผ่าน shell กัน command injection)
   enabled: boolean;
   runtime?: string;
+  // ลิงก์ auto-generate ไปที่โดเมนเราเอง (https://<domain>/live/<slug>) — หมายเหตุ: ระบบยังไม่มี
+  // reverse-proxy/hosting จริงแยกต่อแอปที่ deploy (restartCommand เป็นแค่ docker restart placeholder)
+  // ลิงก์นี้จึงยังไม่ serve เนื้อหาจริงจนกว่าจะมี infra ส่วนนั้น — ปุ่มบน dashboard จะ disable ไว้จนกว่า deploy สำเร็จ
+  liveUrl?: string;
+  pipelineStatus?: DeployStatus;
+  pipelineStages?: PipelineStage[];
   createdAt?: string;
   updatedAt?: string;
 }
