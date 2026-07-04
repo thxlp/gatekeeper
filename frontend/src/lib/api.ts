@@ -70,6 +70,12 @@ export const api = {
   revokePlugin: (id: string) =>
     request<any>(V2_BASE, `/plugins/${id}/revoke`, { method: 'DELETE' }),
 
+  updatePlugin: (id: string, body: unknown) =>
+    request<any>(V2_BASE, `/plugins/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deletePlugin: (id: string) =>
+    request<{ ok: boolean }>(V2_BASE, `/plugins/${id}`, { method: 'DELETE' }),
+
   getPluginLogs: (id: string) => request<any[]>(V2_BASE, `/plugins/${id}/logs`),
 
   // v0.2 NestJS — combined audit stream
@@ -83,4 +89,10 @@ export const api = {
     }),
 
   listGitApps: () => request<GitAppSummary[]>(V2_BASE, '/apps'),
+
+  updateGitApp: (id: string, body: { branch?: string; runtime?: string; enabled?: boolean }) =>
+    request<GitAppSummary>(V2_BASE, `/apps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteGitApp: (id: string) =>
+    request<{ ok: boolean }>(V2_BASE, `/apps/${id}`, { method: 'DELETE' }),
 };

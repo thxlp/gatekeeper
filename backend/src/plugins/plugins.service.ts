@@ -11,7 +11,7 @@ import { PluginStore } from './plugin.store';
 import { ScannerService } from '../scanner/scanner.service';
 import { RiskEngineService } from '../decision/risk-engine.service';
 import { AuditService } from '../audit/audit.service';
-import { RegisterPluginDto, ProxyCallDto } from './plugin.dto';
+import { RegisterPluginDto, ProxyCallDto, UpdatePluginDto } from './plugin.dto';
 
 const TICKET_SECRET = process.env.GATEKEEPER_TICKET_SECRET || 'dev-secret-change-me';
 
@@ -397,6 +397,51 @@ export class PluginsService {
     });
 
     return plugin;
+  }
+
+  // ── Edit Plugin ───────────────────────────────────────────────────────────────
+  async update(pluginId: string, dto: UpdatePluginDto, account: Account): Promise<Plugin> {
+    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+
+    if (dto.name !== undefined) plugin.name = dto.name;
+    if (dto.description !== undefined) plugin.description = dto.description;
+    if (dto.base_url !== undefined) plugin.base_url = dto.base_url;
+    if (dto.auth_type !== undefined) plugin.auth_type = dto.auth_type;
+    if (dto.auth_header !== undefined) plugin.auth_header = dto.auth_header;
+    if (dto.endpoints !== undefined) plugin.endpoints = dto.endpoints;
+
+    // แก้ base_url/endpoints แล้ว signature/connection file เดิมอาจไม่ตรงของจริงอีกต่อไป
+    // ต้อง reset แล้วให้ screening (Step 3) รันใหม่ทั้งชุดเหมือนตอน register ครั้งแรก
+    plugin.signature = undefined;
+    plugin.connection_file = undefined;
+    plugin.status = 'pending';
+    this.store.save(plugin);
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'plugin:update',
+      decision: 'INFO',
+      pluginId,
+    });
+
+    return this.runScreening(pluginId, account);
+  }
+
+  // ── Delete Plugin (ลบออกจาก store จริง ต่างจาก revoke ที่แค่ block ไว้) ────────────
+  remove(pluginId: string, account: Account): { ok: boolean } {
+    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    this.store.delete(plugin.id);
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'plugin:delete',
+      decision: 'INFO',
+      pluginId,
+    });
+
+    return { ok: true };
   }
 
   // ── Step 10: Fetch Verification & Audit Logs ─────────────────────────────────

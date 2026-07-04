@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Param,
   Body,
@@ -12,7 +13,7 @@ import {
 import { AuthGuard, getAccount } from '../auth/auth.guard';
 import { CookieChallengeGuard } from '../challenge/challenge.guard';
 import { PluginsService } from './plugins.service';
-import { RegisterPluginDto, ProxyCallDto } from './plugin.dto';
+import { RegisterPluginDto, ProxyCallDto, UpdatePluginDto } from './plugin.dto';
 @Controller('plugins')
 @UseGuards(CookieChallengeGuard, AuthGuard)
 export class PluginsController {
@@ -32,6 +33,14 @@ export class PluginsController {
   @Post()
   register(@Body() dto: RegisterPluginDto, @Req() req: any) {
     return this.svc.register(dto, getAccount(req));
+  }
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdatePluginDto, @Req() req: any) {
+    return this.svc.update(id, dto, getAccount(req));
+  }
+  @Delete(':id')
+  remove(@Param('id') id: string, @Req() req: any) {
+    return this.svc.remove(id, getAccount(req));
   }
   @Post(':id/screen')
   screen(@Param('id') id: string, @Req() req: any) {

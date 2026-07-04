@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Account, GitApp } from '../common/types';
 import { AuditService } from '../audit/audit.service';
 import { GitAppStore } from './git-app.store';
 import { RegisterGitAppDto } from './register-git-app.dto';
+import { UpdateGitAppDto } from './update-git-app.dto';
 import { isSafeBranchName, parseGithubRepoUrl } from './git-url.util';
 
 const DEFAULT_BRANCH = 'main';
@@ -93,5 +94,60 @@ export class AppsService {
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
     }));
+  }
+
+  updateGitApp(id: string, dto: UpdateGitAppDto, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+
+    if (dto.branch !== undefined) {
+      const branch = dto.branch.trim();
+      if (!isSafeBranchName(branch)) throw new BadRequestException('branch ไม่ถูกต้อง');
+      app.branch = branch;
+    }
+    if (dto.runtime !== undefined) app.runtime = dto.runtime;
+    if (dto.enabled !== undefined) app.enabled = dto.enabled;
+    app.updatedAt = new Date().toISOString();
+
+    this.store.save(app);
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:update',
+      decision: 'INFO',
+      reason: `updated:${app.repoFullName}`,
+    });
+
+    return {
+      id: app.id,
+      repoFullName: app.repoFullName,
+      branch: app.branch,
+      runtime: app.runtime,
+      enabled: app.enabled,
+      webhookUrl: PUBLIC_WEBHOOK_URL,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+    };
+  }
+
+  removeGitApp(id: string, account: Account): { ok: boolean } {
+    const app = this.getOwnedOrThrow(id, account.id);
+    this.store.delete(app.id);
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:delete',
+      decision: 'INFO',
+      reason: `deleted:${app.repoFullName}`,
+    });
+
+    return { ok: true };
+  }
+
+  private getOwnedOrThrow(id: string, accountId: string): GitApp {
+    const app = this.store.findById(id);
+    if (!app) throw new NotFoundException(`gitapp_not_found:${id}`);
+    if (app.accountId !== accountId) throw new ForbiddenException('not_your_app');
+    return app;
   }
 }

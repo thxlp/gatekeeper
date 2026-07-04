@@ -37,6 +37,34 @@ export class RegisterPluginDto {
   endpoints: PluginEndpointDto[];
 }
 
+export class UpdatePluginDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  base_url?: string;
+
+  @IsOptional()
+  @IsEnum(['bearer', 'api_key', 'basic', 'none'])
+  auth_type?: 'bearer' | 'api_key' | 'basic' | 'none';
+
+  @IsOptional()
+  @IsString()
+  auth_header?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PluginEndpointDto)
+  endpoints?: PluginEndpointDto[];
+}
+
 export class ProxyCallDto {
   @IsString()
   endpoint_path: string;

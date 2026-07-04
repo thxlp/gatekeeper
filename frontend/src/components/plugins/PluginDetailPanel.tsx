@@ -4,8 +4,9 @@ import { Plugin, AuditEntry } from '@/types';
 import { api } from '@/lib/api';
 import StatusBadge from '../ui/StatusBadge';
 import FindingsList from '../ui/FindingsList';
+import RegisterPluginModal from './RegisterPluginModal';
 import {
-  Shield, Wifi, Zap, Trash2, ClipboardList, X,
+  Shield, Wifi, Zap, Trash2, ClipboardList, X, Pencil,
   ChevronDown, ChevronRight, ExternalLink, Copy, Check
 } from 'lucide-react';
 
@@ -26,6 +27,7 @@ export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props)
   const [selectedEp, setSelectedEp] = useState(plugin.endpoints[0]?.path || '');
   const [proxyBody, setProxyBody] = useState('{}');
   const [copied, setCopied] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const run = async (action: string, fn: () => Promise<any>) => {
     setLoading(action);
@@ -61,6 +63,18 @@ export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props)
     setTab('logs');
     setLoading('logs');
     try { setLogs(await api.getPluginLogs(plugin.id)); } finally { setLoading(''); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`ลบ ${plugin.name} ออกจากระบบถาวร? action นี้ย้อนกลับไม่ได้`)) return;
+    setLoading('delete');
+    try {
+      await api.deletePlugin(plugin.id);
+      onRefresh();
+      onClose();
+    } finally {
+      setLoading('');
+    }
   };
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
@@ -111,8 +125,20 @@ export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props)
             <ActionBtn label="Revoke" icon={Trash2} loading={loading === 'revoke'} danger
               onClick={() => run('revoke', () => api.revokePlugin(plugin.id))} />
           )}
+          <ActionBtn label="Edit" icon={Pencil} loading={false}
+            onClick={() => setShowEdit(true)} />
+          <ActionBtn label="Delete" icon={Trash2} loading={loading === 'delete'} danger
+            onClick={handleDelete} />
         </div>
       </div>
+
+      {showEdit && (
+        <RegisterPluginModal
+          plugin={plugin}
+          onClose={() => setShowEdit(false)}
+          onCreated={onRefresh}
+        />
+      )}
 
       {/* tabs */}
       <div className="flex border-b border-border">

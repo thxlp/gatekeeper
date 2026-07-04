@@ -57,4 +57,12 @@ export class GitAppStore {
     this.writeAll(all);
     return app;
   }
+
+  delete(id: string): boolean {
+    const all = this.readAll();
+    const next = all.filter((a) => a.id !== id);
+    const existed = next.length !== all.length;
+    if (existed) this.writeAll(next);
+    return existed;
+  }
 }
