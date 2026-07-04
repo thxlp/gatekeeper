@@ -1,6 +1,24 @@
 # Full stack: gatekeeper (v1) + backend (v2 NestJS, 2 instances load-balanced) + frontend (Next.js) + nginx
 # หมายเหตุ: นี่คือ docker-compose.yml ตัวจริงที่ใช้งาน (ไม่มีไฟล์แยกที่ repo root)
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gatekeeper-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=gatekeeper
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?ต้องตั้งค่าใน .env ก่อน}
+      - POSTGRES_DB=gatekeeper
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gatekeeper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
   gatekeeper:
     build:
       context: ../..
@@ -25,12 +43,19 @@ services:
       - PORT=8089
       - NODE_ENV=production
       - COOKIE_CHALLENGE_SECRET=${COOKIE_CHALLENGE_SECRET:?ต้องตั้งค่าใน .env ก่อน}
+      - DATABASE_URL=postgres://gatekeeper:${POSTGRES_PASSWORD:?ต้องตั้งค่าใน .env ก่อน}@postgres:5432/gatekeeper
+      - FRONTEND_URL=${FRONTEND_URL:?ต้องตั้งค่าใน .env ก่อน}
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:?ต้องตั้งค่าใน .env ก่อน}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:?ต้องตั้งค่าใน .env ก่อน}
     volumes:
       - backend-data:/app/data
     expose:
       - "8089"
     depends_on:
-      - gatekeeper
+      gatekeeper:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     mem_limit: 150m
   backend-2:
     build:
@@ -42,17 +67,27 @@ services:
       - PORT=8089
       - NODE_ENV=production
       - COOKIE_CHALLENGE_SECRET=${COOKIE_CHALLENGE_SECRET:?ต้องตั้งค่าใน .env ก่อน}
+      - DATABASE_URL=postgres://gatekeeper:${POSTGRES_PASSWORD:?ต้องตั้งค่าใน .env ก่อน}@postgres:5432/gatekeeper
+      - FRONTEND_URL=${FRONTEND_URL:?ต้องตั้งค่าใน .env ก่อน}
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:?ต้องตั้งค่าใน .env ก่อน}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:?ต้องตั้งค่าใน .env ก่อน}
     volumes:
       - backend-data:/app/data
     expose:
       - "8089"
     depends_on:
-      - gatekeeper
+      gatekeeper:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     mem_limit: 150m
   frontend:
     build:
       context: ../../frontend
       dockerfile: Dockerfile # หรือตามชื่อ Dockerfile ของฝั่ง frontend คุณ
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?ต้องตั้งค่าใน .env ก่อน}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?ต้องตั้งค่าใน .env ก่อน}
     container_name: frontend
     restart: unless-stopped
     environment:
@@ -83,3 +118,4 @@ services:
 volumes:
   gatekeeper-data:
   backend-data:
+  postgres-data:

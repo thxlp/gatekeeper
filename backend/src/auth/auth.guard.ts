@@ -4,30 +4,30 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
 import { Account } from '../common/types';
-import { CONFIGS_DIR } from '../common/paths';
+import { AccountsService } from '../account/accounts.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private accounts: Account[];
+  constructor(private accounts: AccountsService) {}
 
-  constructor() {
-    const configPath = path.join(CONFIGS_DIR, 'accounts.json');
-    this.accounts = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  }
-
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const authHeader: string = req.headers['authorization'] || '';
     const apiKey = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    const account = this.accounts.find((a) => a.api_key === apiKey);
+    const account = await this.accounts.findByApiKey(apiKey);
     if (!account) throw new UnauthorizedException('invalid_api_key');
     if (account.status !== 'active') throw new UnauthorizedException('account_suspended');
 
-    req.account = account;
+    req.account = {
+      id: account.id,
+      api_key: account.apiKey,
+      plan: account.plan,
+      status: account.status,
+      email: account.email,
+      auth_provider: account.authProvider,
+    } as Account;
     return true;
   }
 }

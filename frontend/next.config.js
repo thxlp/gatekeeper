@@ -42,6 +42,14 @@ const nextConfig = {
         source: '/api/v2/challenge/:path*',
         destination: `${V2_URL}/challenge/:path*`,
       },
+      {
+        source: '/api/v2/auth',
+        destination: `${V2_URL}/auth`,
+      },
+      {
+        source: '/api/v2/auth/:path*',
+        destination: `${V2_URL}/auth/:path*`,
+      },
     ];
   },
 };

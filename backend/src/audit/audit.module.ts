@@ -1,6 +1,7 @@
 import { Module, Controller, Get, UseGuards, Req } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { AuthGuard, getAccount } from '../auth/auth.guard';
+import { AccountModule } from '../account/account.module';
 
 @Controller('audit')
 @UseGuards(AuthGuard)
@@ -14,6 +15,7 @@ export class AuditController {
 }
 
 @Module({
+  imports: [AccountModule],
   controllers: [AuditController],
   providers: [AuditService],
   exports: [AuditService],

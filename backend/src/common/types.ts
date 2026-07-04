@@ -1,9 +1,13 @@
 // ===== Account / Auth =====
+// 'password' = 3 demo rows แบบ static เดิม, 'supabase' = user จริงที่ login ผ่าน Supabase Auth
+// (email/password, GitHub, Google รวมอยู่ในค่านี้ค่าเดียว เพราะ Supabase abstract ให้แล้ว)
 export interface Account {
   id: string;
   api_key: string;
   plan: 'free' | 'pro';
   status: 'active' | 'suspended';
+  email: string;
+  auth_provider: 'password' | 'supabase';
 }
 
 // ===== Scanner =====

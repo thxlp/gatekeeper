@@ -22,10 +22,27 @@ async function request<T>(base: string, path: string, init: RequestInit = {}): P
   return data as T;
 }
 
+export interface AuthResult {
+  apiKey: string;
+  email: string;
+  plan: 'free' | 'pro';
+}
+
 export const api = {
   // v0.1 Node.js — deploy pipeline
   deploy: (body: unknown) =>
     request<any>(V1_BASE, '/deploy', { method: 'POST', body: JSON.stringify(body) }),
+
+  // v0.2 NestJS — เรียกหลัง Supabase auth สำเร็จ (ไม่ว่า email/password, GitHub, Google) พร้อม
+  // supabase access token แทน gatekeeper api_key ปกติ (override header เอง ไม่ผ่าน getKey())
+  // เพื่อแลกเป็น gatekeeper api_key ของบัญชีนั้น (สร้างให้ใหม่ถ้ายังไม่เคยมี)
+  auth: {
+    syncSession: (supabaseAccessToken: string) =>
+      request<AuthResult>(V2_BASE, '/auth/session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${supabaseAccessToken}` },
+      }),
+  },
 
   // v0.2 NestJS — plugin lifecycle
   getCertified: () => request<any[]>(V2_BASE, '/plugins/certified'),
