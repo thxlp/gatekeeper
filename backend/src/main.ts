@@ -8,15 +8,15 @@ async function bootstrap() {
   // ปิด body parser อัตโนมัติของ Nest แล้วตั้งเอง เพื่อเก็บ raw body ไว้ตรวจ
   // X-Hub-Signature-256 ของ GitHub webhook (HMAC ต้องคำนวณจาก raw bytes ก่อน parse เป็น JSON)
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  app.use(
-    express.json({
-      limit: '25mb',
-      verify: (req: any, _res, buf: Buffer) => {
-        req.rawBody = buf;
-      },
-    }),
-  );
-  app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+  // ต้องเก็บ rawBody ทั้ง json และ urlencoded parser — GitHub webhook ตั้งได้ทั้ง
+  // Content-Type: application/json หรือ application/x-www-form-urlencoded (เป็นค่า default
+  // ตอนสร้าง webhook จาก GitHub UI เอง) ถ้า capture แค่ json parser ตัวเดียว webhook แบบ
+  // form-urlencoded จะ verify signature ไม่ผ่านตลอดเวลา (rawBody หายไปเงียบๆ ไม่ error ให้เห็น)
+  const captureRawBody = (req: any, _res: any, buf: Buffer) => {
+    req.rawBody = buf;
+  };
+  app.use(express.json({ limit: '25mb', verify: captureRawBody }));
+  app.use(express.urlencoded({ extended: true, limit: '25mb', verify: captureRawBody }));
   app.use(cookieParser());
   app.enableCors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
