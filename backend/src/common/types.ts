@@ -55,6 +55,7 @@ export interface Plugin {
   auth_header?: string;       // เช่น 'Authorization', 'X-API-Key'
   endpoints: PluginEndpoint[];
   owner_account_id: string;
+  project_id?: string;        // อ้างถึง GitApp.id — ผูก plugin นี้เข้ากับโปรเจกต์ที่ลงทะเบียนไว้ (ไม่บังคับ)
   status: PluginStatus;
   risk_score?: number;
   findings?: Finding[];

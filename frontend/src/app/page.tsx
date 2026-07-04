@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Plugin, CertifiedService } from '@/types';
+import { Plugin, CertifiedService, GitAppSummary } from '@/types';
+import { buildProjectOptions } from '@/lib/projects';
 import StatusBadge from '@/components/ui/StatusBadge';
 import DeployMenu from '@/components/ui/DeployMenu';
-import { Plus, Settings, Activity, LayoutGrid, LogOut } from 'lucide-react';
+import { Plus, Settings, Activity, LayoutGrid, LogOut, Boxes } from 'lucide-react';
 
 const PluginGraphCanvas   = dynamic(() => import('@/components/graph/PluginGraphCanvas'),   { ssr: false });
 const PluginDetailPanel   = dynamic(() => import('@/components/plugins/PluginDetailPanel'), { ssr: false });
@@ -18,6 +19,8 @@ export default function Dashboard() {
   const router = useRouter();
   const [plugins,     setPlugins]     = useState<Plugin[]>([]);
   const [certified,   setCertified]   = useState<CertifiedService[]>([]);
+  const [gitApps,     setGitApps]     = useState<GitAppSummary[]>([]);
+  const [projectId,   setProjectId]   = useState(''); // '' = ทุกโปรเจกต์ (All)
   const [selected,    setSelected]    = useState<Plugin | null>(null);
   const [showModal,   setShowModal]   = useState(false);
   const [view,        setView]        = useState<'graph' | 'list'>('graph');
@@ -60,9 +63,10 @@ export default function Dashboard() {
     if (!apiKey) return;
     setLoading(true);
     try {
-      const [p, c] = await Promise.all([api.listPlugins(), api.getCertified()]);
+      const [p, c, a] = await Promise.all([api.listPlugins(), api.getCertified(), api.listGitApps()]);
       setPlugins(p);
       setCertified(c);
+      setGitApps(a);
       // refresh selected plugin ถ้ามี
       if (selected) {
         const fresh = p.find(pl => pl.id === selected.id);
@@ -77,13 +81,20 @@ export default function Dashboard() {
 
   useEffect(() => { refresh(); }, [apiKey]);
 
+  // กรอง plugin ตามโปรเจกต์ที่เลือกใน dropdown ('' = แสดงทุกโปรเจกต์เหมือนเดิม)
+  const projectOptions = buildProjectOptions(gitApps);
+  const visiblePlugins = projectId ? plugins.filter(p => p.project_id === projectId) : plugins;
+  const hubLabel = projectId
+    ? projectOptions.find(p => p.id === projectId)?.label || 'Project'
+    : '🔐 Gatekeeper';
+
   // stats
   const counts = {
-    total:      plugins.length,
-    active:     plugins.filter(p => p.status === 'active').length,
-    blocked:    plugins.filter(p => p.status === 'blocked' || p.status === 'revoked').length,
-    quarantine: plugins.filter(p => p.status === 'quarantine').length,
-    pending:    plugins.filter(p => ['pending','screening','generating'].includes(p.status)).length,
+    total:      visiblePlugins.length,
+    active:     visiblePlugins.filter(p => p.status === 'active').length,
+    blocked:    visiblePlugins.filter(p => p.status === 'blocked' || p.status === 'revoked').length,
+    quarantine: visiblePlugins.filter(p => p.status === 'quarantine').length,
+    pending:    visiblePlugins.filter(p => ['pending','screening','generating'].includes(p.status)).length,
   };
 
   if (!authChecked) {
@@ -101,6 +112,16 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 mr-2">
           <span className="text-accent font-mono font-bold text-sm">🔐 Gatekeeper</span>
           <span className="text-muted text-xs font-mono">v0.2</span>
+        </div>
+
+        {/* project selector */}
+        <div className="flex items-center gap-1.5">
+          <Boxes size={12} className="text-sub shrink-0" />
+          <select value={projectId} onChange={e => setProjectId(e.target.value)}
+            className="bg-surface border border-border rounded-lg px-2 py-1 text-xs font-mono text-text focus:outline-none focus:border-accent max-w-[180px]">
+            <option value="">All Projects</option>
+            {projectOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
         </div>
 
         {/* stats pills */}
@@ -140,9 +161,9 @@ export default function Dashboard() {
           )}
 
           {view === 'graph' ? (
-            <PluginGraphCanvas plugins={plugins} onSelectPlugin={setSelected} />
+            <PluginGraphCanvas plugins={visiblePlugins} hubLabel={hubLabel} onSelectPlugin={setSelected} />
           ) : (
-            <PluginListView plugins={plugins} onSelect={setSelected} selected={selected} />
+            <PluginListView plugins={visiblePlugins} onSelect={setSelected} selected={selected} />
           )}
         </div>
 
@@ -150,6 +171,7 @@ export default function Dashboard() {
         {selected && (
           <PluginDetailPanel
             plugin={selected}
+            gitApps={gitApps}
             onClose={() => setSelected(null)}
             onRefresh={refresh}
           />
@@ -160,6 +182,7 @@ export default function Dashboard() {
       {showModal && (
         <RegisterPluginModal
           certified={certified}
+          gitApps={gitApps}
           onClose={() => setShowModal(false)}
           onCreated={refresh}
         />
@@ -175,7 +198,7 @@ export default function Dashboard() {
           <LogOut size={11} /> Logout
         </button>
         <span className="ml-auto text-[10px] text-muted font-mono">
-          {plugins.length} plugins
+          {visiblePlugins.length} plugins
         </span>
       </footer>
     </div>

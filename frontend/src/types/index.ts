@@ -17,6 +17,7 @@ export interface Plugin {
   auth_header?: string;
   endpoints: PluginEndpoint[];
   owner_account_id: string;
+  project_id?: string;
   status: PluginStatus;
   risk_score?: number;
   findings?: Finding[];

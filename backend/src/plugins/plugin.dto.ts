@@ -35,6 +35,11 @@ export class RegisterPluginDto {
   @ValidateNested({ each: true })
   @Type(() => PluginEndpointDto)
   endpoints: PluginEndpointDto[];
+
+  // GitApp.id ของโปรเจกต์ที่จะผูก plugin นี้เข้าไว้ด้วย (ไม่บังคับ, ว่าง = ไม่ผูกโปรเจกต์ไหน)
+  @IsOptional()
+  @IsString()
+  project_id?: string;
 }
 
 export class UpdatePluginDto {
@@ -63,6 +68,11 @@ export class UpdatePluginDto {
   @ValidateNested({ each: true })
   @Type(() => PluginEndpointDto)
   endpoints?: PluginEndpointDto[];
+
+  // ส่ง '' มาเพื่อเอาออกจากโปรเจกต์เดิม (unset) — ไม่ส่ง field นี้มาเลย = ไม่แก้ค่าเดิม
+  @IsOptional()
+  @IsString()
+  project_id?: string;
 }
 
 export class ProxyCallDto {

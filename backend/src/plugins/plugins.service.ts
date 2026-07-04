@@ -97,6 +97,7 @@ export class PluginsService {
       auth_header: dto.auth_header,
       endpoints: dto.endpoints,
       owner_account_id: account.id,
+      project_id: dto.project_id || undefined,
       status: 'pending',
       created_at: now,
       updated_at: now,
@@ -409,6 +410,7 @@ export class PluginsService {
     if (dto.auth_type !== undefined) plugin.auth_type = dto.auth_type;
     if (dto.auth_header !== undefined) plugin.auth_header = dto.auth_header;
     if (dto.endpoints !== undefined) plugin.endpoints = dto.endpoints;
+    if (dto.project_id !== undefined) plugin.project_id = dto.project_id || undefined;
 
     // แก้ base_url/endpoints แล้ว signature/connection file เดิมอาจไม่ตรงของจริงอีกต่อไป
     // ต้อง reset แล้วให้ screening (Step 3) รันใหม่ทั้งชุดเหมือนตอน register ครั้งแรก

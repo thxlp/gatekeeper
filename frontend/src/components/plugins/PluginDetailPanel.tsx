@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
-import { Plugin, AuditEntry } from '@/types';
+import { Plugin, AuditEntry, GitAppSummary } from '@/types';
 import { api } from '@/lib/api';
 import StatusBadge from '../ui/StatusBadge';
 import FindingsList from '../ui/FindingsList';
 import RegisterPluginModal from './RegisterPluginModal';
+import { buildProjectOptions } from '@/lib/projects';
 import {
   Shield, Wifi, Zap, Trash2, ClipboardList, X, Pencil,
   ChevronDown, ChevronRight, ExternalLink, Copy, Check
@@ -12,13 +13,14 @@ import {
 
 interface Props {
   plugin: Plugin;
+  gitApps?: GitAppSummary[];
   onClose: () => void;
   onRefresh: () => void;
 }
 
 type Tab = 'overview' | 'findings' | 'proxy' | 'logs';
 
-export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props) {
+export default function PluginDetailPanel({ plugin, gitApps = [], onClose, onRefresh }: Props) {
   const [tab, setTab] = useState<Tab>('overview');
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState('');
@@ -135,6 +137,7 @@ export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props)
       {showEdit && (
         <RegisterPluginModal
           plugin={plugin}
+          gitApps={gitApps}
           onClose={() => setShowEdit(false)}
           onCreated={onRefresh}
         />
@@ -167,6 +170,11 @@ export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props)
             </Field>
             <Field label="Auth Type">
               <span className="font-mono text-xs text-purple">{plugin.auth_type}</span>
+            </Field>
+            <Field label="Project">
+              <span className="font-mono text-xs text-sub">
+                {projectLabel(plugin.project_id, gitApps) || '— ไม่ผูกโปรเจกต์ —'}
+              </span>
             </Field>
             <Field label="Endpoints">
               <ul className="space-y-1 mt-1">
@@ -278,6 +286,11 @@ export default function PluginDetailPanel({ plugin, onClose, onRefresh }: Props)
       </div>
     </div>
   );
+}
+
+function projectLabel(projectId: string | undefined, gitApps: GitAppSummary[]): string | undefined {
+  if (!projectId) return undefined;
+  return buildProjectOptions(gitApps).find(p => p.id === projectId)?.label;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

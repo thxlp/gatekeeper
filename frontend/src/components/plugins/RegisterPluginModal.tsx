@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { CertifiedService, Plugin, PluginEndpoint } from '@/types';
+import { CertifiedService, GitAppSummary, Plugin, PluginEndpoint } from '@/types';
+import { buildProjectOptions } from '@/lib/projects';
 import { Plus, Trash2, X, Shield } from 'lucide-react';
 
 interface Props {
   certified?: CertifiedService[];
+  gitApps?: GitAppSummary[];
   plugin?: Plugin; // ถ้าส่งมา = edit mode, ไม่ส่ง = register mode ปกติ
   onClose: () => void;
   onCreated: () => void;
@@ -13,14 +15,16 @@ interface Props {
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
-export default function RegisterPluginModal({ certified = [], plugin, onClose, onCreated }: Props) {
+export default function RegisterPluginModal({ certified = [], gitApps = [], plugin, onClose, onCreated }: Props) {
   const isEdit = !!plugin;
+  const projectOptions = buildProjectOptions(gitApps);
   const [form, setForm] = useState({
     name: plugin?.name || '',
     description: plugin?.description || '',
     base_url: plugin?.base_url || '',
     auth_type: (plugin?.auth_type || 'bearer') as 'bearer' | 'api_key' | 'basic' | 'none',
     auth_header: plugin?.auth_header || '',
+    project_id: plugin?.project_id || '',
   });
   const [endpoints, setEndpoints] = useState<PluginEndpoint[]>(
     plugin?.endpoints?.length ? plugin.endpoints : [{ method: 'GET', path: '/', description: '' }],
@@ -101,6 +105,14 @@ export default function RegisterPluginModal({ certified = [], plugin, onClose, o
             <Input label="Plugin Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="My API" />
             <Input label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="อธิบาย plugin นี้" />
             <Input label="Base URL *" value={form.base_url} onChange={v => setForm(f => ({ ...f, base_url: v }))} placeholder="https://api.example.com/v1" mono />
+            <div>
+              <label className="text-xs text-sub font-mono block mb-1">Project (optional)</label>
+              <select value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
+                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent">
+                <option value="">— ไม่ผูกโปรเจกต์ —</option>
+                {projectOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </div>
           </div>
 
           {/* auth */}

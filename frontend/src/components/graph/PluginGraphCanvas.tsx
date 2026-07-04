@@ -12,16 +12,17 @@ const nodeTypes = { plugin: PluginNode };
 
 interface Props {
   plugins: Plugin[];
+  hubLabel?: string;
   onSelectPlugin: (p: Plugin) => void;
 }
 
-function buildGraph(plugins: Plugin[], onSelect: (p: Plugin) => void) {
-  // Gateway node ตรงกลาง
+function buildGraph(plugins: Plugin[], hubLabel: string, onSelect: (p: Plugin) => void) {
+  // Gateway node ตรงกลาง — เปลี่ยน label ตามโปรเจกต์ที่เลือกใน dropdown (default = Gatekeeper รวมทุกโปรเจกต์)
   const gatewayNode: Node = {
     id: 'gateway',
     type: 'default',
     position: { x: 300, y: 200 },
-    data: { label: '🔐 Gatekeeper' },
+    data: { label: hubLabel },
     style: {
       background: '#161b22',
       border: '2px solid #58a6ff',
@@ -68,15 +69,15 @@ function buildGraph(plugins: Plugin[], onSelect: (p: Plugin) => void) {
   return { nodes: [gatewayNode, ...pluginNodes], edges };
 }
 
-export default function PluginGraphCanvas({ plugins, onSelectPlugin }: Props) {
+export default function PluginGraphCanvas({ plugins, hubLabel = '🔐 Gatekeeper', onSelectPlugin }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(plugins, onSelectPlugin);
+    const { nodes: n, edges: e } = buildGraph(plugins, hubLabel, onSelectPlugin);
     setNodes(n);
     setEdges(e);
-  }, [plugins, onSelectPlugin]);
+  }, [plugins, hubLabel, onSelectPlugin]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges(eds => addEdge(params, eds)),
