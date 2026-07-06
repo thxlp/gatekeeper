@@ -22,7 +22,8 @@ export class AuthGuard implements CanActivate {
 
     req.account = {
       id: account.id,
-      api_key: account.apiKey,
+      // plaintext key ไม่ถูกเก็บที่ไหนแล้ว (DB มีแค่ hash) — ไม่มี consumer ฝั่งเราอ่านค่านี้ต่อ
+      api_key: '',
       plan: account.plan,
       status: account.status,
       email: account.email,

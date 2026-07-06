@@ -16,8 +16,8 @@ export class Account {
   @Column({ unique: true })
   email: string;
 
-  @Column({ name: 'api_key', unique: true })
-  apiKey: string;
+  // api_key ไม่อยู่ในตารางนี้แล้ว — ย้ายไปเก็บเป็น SHA-256 hash ในตาราง api_keys
+  // (ดู api-key.entity.ts + migration HashApiKeys) plaintext แสดงครั้งเดียวตอนออก key
 
   @Column({ type: 'varchar', default: 'free' })
   plan: 'free' | 'pro';

@@ -2,11 +2,6 @@ import { Controller, Post, Headers, UseGuards, UnauthorizedException } from '@ne
 import { AccountsService } from '../account/accounts.service';
 import { SupabaseAuthService } from './supabase-auth.service';
 import { CookieChallengeGuard } from '../challenge/challenge.guard';
-import { Account } from '../account/account.entity';
-
-function toAuthResult(account: Account) {
-  return { apiKey: account.apiKey, email: account.email, plan: account.plan };
-}
 
 @Controller('auth')
 @UseGuards(CookieChallengeGuard)
@@ -19,8 +14,9 @@ export class AuthController {
   /**
    * เรียกจาก frontend ทันทีหลัง Supabase auth สำเร็จ (email/password, GitHub, Google —
    * หน้าตาเหมือนกันหมดตรงนี้) พร้อม Supabase access token ใน Authorization header
-   * คืน gatekeeper api_key ของบัญชีนั้น (สร้างให้ใหม่ถ้ายังไม่เคยมี) ให้ frontend เก็บไว้ใช้
-   * เรียก endpoint อื่นๆ ของ gatekeeper ต่อ (ระบบ Bearer api_key เดิมไม่เปลี่ยนแปลง)
+   * ออก gatekeeper api_key "ตัวใหม่" ให้เสมอ (DB เก็บแค่ hash — ระบบไม่รู้ plaintext ของ key
+   * เดิมอีกแล้ว) frontend เรียกเฉพาะตอนยังไม่มี key ในเครื่อง จึงไม่ churn โดยไม่จำเป็น
+   * key เก่าของเครื่องอื่นยังใช้ได้ต่อจนหลุดโควตา (ดู AccountsService.issueApiKey)
    */
   @Post('session')
   async session(@Headers('authorization') authHeader: string | undefined) {
@@ -31,6 +27,7 @@ export class AuthController {
     const account = await this.accounts.findOrCreateFromSupabase(identity.id, identity.email);
     if (account.status !== 'active') throw new UnauthorizedException('account_suspended');
 
-    return toAuthResult(account);
+    const apiKey = await this.accounts.issueApiKey(account);
+    return { apiKey, email: account.email, plan: account.plan };
   }
 }

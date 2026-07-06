@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { GitApp } from '../common/types';
 import { DATA_DIR } from '../common/paths';
+import { decryptSecret, encryptSecret, isEncryptedSecret } from '../common/crypto.util';
 
 /**
  * Store สำหรับ GitApp ที่ลูกค้าลงทะเบียนเองผ่าน API (ต่างจาก configs/git-apps.json
@@ -22,18 +23,42 @@ export class GitAppStore {
     if (!fs.existsSync(this.storePath)) {
       fs.writeFileSync(this.storePath, '[]\n', 'utf8');
     }
-  }
 
-  private readAll(): GitApp[] {
+    // migrate ครั้งเดียวตอน boot: entry เก่าที่ webhookSecret ยังเป็น plaintext ในไฟล์
+    // ถูกเข้ารหัสทับทันที (writeAll จัดการให้) ไม่ต้องรอ save รอบถัดไปของแต่ละ app
     try {
-      return JSON.parse(fs.readFileSync(this.storePath, 'utf8'));
+      const raw: GitApp[] = JSON.parse(fs.readFileSync(this.storePath, 'utf8'));
+      if (raw.some((a) => a.webhookSecret && !isEncryptedSecret(a.webhookSecret))) {
+        this.writeAll(raw);
+      }
     } catch {
-      return [];
+      // ไฟล์ว่าง/เพิ่งสร้าง — ไม่มีอะไรต้อง migrate
     }
   }
 
+  // webhookSecret ในไฟล์ถูกเข้ารหัส AES-256-GCM (encrypt ตอนเขียน / decrypt ตอนอ่าน — โค้ดนอก
+  // store เห็น plaintext อย่างเดียว) entry เก่าที่ยังเป็น plaintext อ่านผ่านได้ (decryptSecret
+  // ปล่อยค่าที่ไม่มี version prefix ผ่านตรงๆ) และจะถูกเข้ารหัสทับตอน save ครั้งถัดไปเอง
+
+  private readAll(): GitApp[] {
+    let apps: GitApp[];
+    try {
+      apps = JSON.parse(fs.readFileSync(this.storePath, 'utf8'));
+    } catch {
+      return [];
+    }
+    // ตั้งใจให้ decrypt อยู่นอก try — master key ผิดต้อง throw ดังๆ (fail-closed) ไม่ใช่เงียบๆ
+    // คืน list ว่างแล้วระบบทำเหมือนไม่มี app ลงทะเบียนอยู่เลย
+    return apps.map((a) => (a.webhookSecret ? { ...a, webhookSecret: decryptSecret(a.webhookSecret) } : a));
+  }
+
   private writeAll(apps: GitApp[]): void {
-    fs.writeFileSync(this.storePath, JSON.stringify(apps, null, 2) + '\n', 'utf8');
+    const stored = apps.map((a) =>
+      a.webhookSecret && !isEncryptedSecret(a.webhookSecret)
+        ? { ...a, webhookSecret: encryptSecret(a.webhookSecret) }
+        : a,
+    );
+    fs.writeFileSync(this.storePath, JSON.stringify(stored, null, 2) + '\n', 'utf8');
   }
 
   findAll(accountId?: string): GitApp[] {

@@ -83,6 +83,9 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # master key เข้ารหัส secret ลูกค้า (hex 64 ตัว) — ไม่ตั้งก็ได้ backend จะ generate
+      # ไฟล์ data/master.key บน shared volume ให้เอง (แนะนำตั้งใน .env เพื่อแยก key ออกจาก data disk)
+      - GATEKEEPER_MASTER_KEY=${GATEKEEPER_MASTER_KEY:-}
     volumes:
       - backend-data:/app/data
     expose:
@@ -115,6 +118,9 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # master key เข้ารหัส secret ลูกค้า (hex 64 ตัว) — ไม่ตั้งก็ได้ backend จะ generate
+      # ไฟล์ data/master.key บน shared volume ให้เอง (แนะนำตั้งใน .env เพื่อแยก key ออกจาก data disk)
+      - GATEKEEPER_MASTER_KEY=${GATEKEEPER_MASTER_KEY:-}
     volumes:
       - backend-data:/app/data
     expose:
