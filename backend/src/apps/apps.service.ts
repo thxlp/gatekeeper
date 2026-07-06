@@ -2,12 +2,15 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Account, GitApp } from '../common/types';
-import { AuditService } from '../audit/audit.service';
 import { GitAppStore } from './git-app.store';
 import { RegisterGitAppDto } from './register-git-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
+import { ManualDeployDto } from './manual-deploy.dto';
 import { isSafeBranchName, parseGithubRepoUrl } from './git-url.util';
+import { extractZipSafely } from './zip-extract.util';
 import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
+import { AuditService } from '../audit/audit.service';
+import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
 
 const DEFAULT_BRANCH = 'main';
 
@@ -25,6 +28,7 @@ export class AppsService {
   constructor(
     private store: GitAppStore,
     private audit: AuditService,
+    private deployPipeline: DeployPipelineService,
   ) {}
 
   registerGitApp(dto: RegisterGitAppDto, account: Account) {
@@ -51,18 +55,14 @@ export class AppsService {
     const app: GitApp = {
       id,
       accountId: account.id,
+      sourceType: 'git',
       repoFullName: parsed.repoFullName,
       cloneUrl: parsed.cloneUrl,
       branch,
       webhookSecret,
-      // Hardcoded ตัวอย่างคำสั่งคุม container ต่อแอปลูกค้า — ใช้ id ที่ server สร้างเอง (ไม่ใช่ input
-      // ลูกค้า) เป็นส่วนเดียวที่แทรกเข้า argv จึงยังไม่มีช่อง injection แต่ต้อง mount
-      // /var/run/docker.sock เข้า backend container ก่อนถึงจะรันได้จริง (เท่ากับให้สิทธิ์ระดับ root
-      // บน host — ต้องตัดสินใจร่วมกับทีม infra ก่อน ยังไม่ได้ทำใน docker-compose ตอนนี้)
-      restartCommand: ['docker', 'restart', `gatekeeper-app-${id}`],
       enabled: true,
       runtime: dto.runtime,
-      liveUrl: buildLiveUrl(parsed.repoFullName),
+      liveUrl: buildLiveUrl(id),
       pipelineStatus: 'idle',
       pipelineStages: initialPipelineStages(),
       createdAt: now,
@@ -91,21 +91,107 @@ export class AppsService {
     };
   }
 
+  /**
+   * Manual zip-upload deploy — สร้าง app ใหม่ (ไม่ส่ง appId มา) หรือ redeploy app manual เดิม
+   * (ส่ง appId มา) แล้ววิ่งผ่าน pipeline เดียวกับ git-webhook deploy ทุกตัวอักษร
+   * (DeployPipelineService.runPipeline) ต่างกันแค่วิธีได้ source code มา (แตก zip แทน git clone)
+   */
+  async deployManual(dto: ManualDeployDto, file: Express.Multer.File | undefined, account: Account) {
+    if (!file || !file.buffer?.length) {
+      throw new BadRequestException('ต้องแนบไฟล์ archive (.zip)');
+    }
+
+    let app: GitApp;
+    if (dto.appId) {
+      app = this.getOwnedOrThrow(dto.appId, account.id);
+      if ((app.sourceType ?? 'git') !== 'manual') {
+        throw new BadRequestException('appId นี้ไม่ใช่ manual app');
+      }
+      if (dto.runtime) app.runtime = dto.runtime;
+      if (dto.projectName?.trim()) app.projectName = dto.projectName.trim();
+    } else {
+      if (!dto.runtime) {
+        throw new BadRequestException('runtime จำเป็นตอนสร้าง app ใหม่');
+      }
+      const now = new Date().toISOString();
+      const id = `gitapp_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
+      app = {
+        id,
+        accountId: account.id,
+        sourceType: 'manual',
+        projectName: dto.projectName?.trim() || id,
+        enabled: true,
+        runtime: dto.runtime,
+        liveUrl: buildLiveUrl(id),
+        pipelineStatus: 'idle',
+        pipelineStages: initialPipelineStages(),
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+
+    app.updatedAt = new Date().toISOString();
+    this.store.save(app);
+
+    const requestId = uuidv4();
+    this.deployPipeline.resetStages(app);
+    this.deployPipeline.persistStage(app, 'payload_verification', 'success');
+
+    const buffer = file.buffer;
+    const result = await this.deployPipeline.runPipeline(app, requestId, 'manual-deploy', (stagingDir) =>
+      extractZipSafely(buffer, stagingDir),
+    );
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:manual-deploy',
+      decision: 'INFO',
+      reason: dto.appId ? `redeployed:${app.id}` : `created:${app.id}`,
+    });
+
+    return { id: app.id, ...result };
+  }
+
   listMyApps(account: Account) {
     // map ทีละฟิลด์แทน spread ทั้งก้อน — กันเผลอ echo webhookSecret ออกทาง endpoint นี้ในอนาคต
     return this.store.findAll(account.id).map((app) => ({
       id: app.id,
+      sourceType: app.sourceType ?? 'git',
+      projectName: app.projectName,
       repoFullName: app.repoFullName,
       branch: app.branch,
       runtime: app.runtime,
       enabled: app.enabled,
-      webhookUrl: PUBLIC_WEBHOOK_URL,
+      webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
       dashboardUrl: dashboardUrl(app.id),
       liveUrl: app.liveUrl,
       pipelineStatus: app.pipelineStatus,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
     }));
+  }
+
+  // ใช้เป็น endpoint ที่ frontend poll ระหว่าง deploy กำลังวิ่งอยู่ — ต่างจาก listMyApps ตรงที่
+  // endpoint นี้ส่ง pipelineStages (รายละเอียดทั้ง 5 stage) กลับไปด้วย ของเดิม listMyApps ไม่ส่ง
+  getAppDetail(id: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    return {
+      id: app.id,
+      sourceType: app.sourceType ?? 'git',
+      projectName: app.projectName,
+      repoFullName: app.repoFullName,
+      branch: app.branch,
+      runtime: app.runtime,
+      enabled: app.enabled,
+      webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
+      dashboardUrl: dashboardUrl(app.id),
+      liveUrl: app.liveUrl,
+      pipelineStatus: app.pipelineStatus,
+      pipelineStages: app.pipelineStages,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+    };
   }
 
   updateGitApp(id: string, dto: UpdateGitAppDto, account: Account) {
@@ -126,16 +212,17 @@ export class AppsService {
       accountId: account.id,
       stage: 'gitapp:update',
       decision: 'INFO',
-      reason: `updated:${app.repoFullName}`,
+      reason: `updated:${app.repoFullName ?? app.id}`,
     });
 
     return {
       id: app.id,
+      sourceType: app.sourceType ?? 'git',
       repoFullName: app.repoFullName,
       branch: app.branch,
       runtime: app.runtime,
       enabled: app.enabled,
-      webhookUrl: PUBLIC_WEBHOOK_URL,
+      webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
       dashboardUrl: dashboardUrl(app.id),
       liveUrl: app.liveUrl,
       pipelineStatus: app.pipelineStatus,
@@ -153,7 +240,7 @@ export class AppsService {
       accountId: account.id,
       stage: 'gitapp:delete',
       decision: 'INFO',
-      reason: `deleted:${app.repoFullName}`,
+      reason: `deleted:${app.repoFullName ?? app.id}`,
     });
 
     return { ok: true };

@@ -1,0 +1,192 @@
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Finding, GitApp, PipelineStageKey, PipelineStageStatus } from '../common/types';
+import { DATA_DIR } from '../common/paths';
+import { ScannerService } from '../scanner/scanner.service';
+import { RiskEngineService } from '../decision/risk-engine.service';
+import { TicketService } from '../ticket/ticket.service';
+import { AuditService } from '../audit/audit.service';
+import { UsageCollectorService } from '../entitlement/usage-collector.service';
+import { GitAppStore } from '../apps/git-app.store';
+import { GitAutomatorService } from '../webhook/git-automator.service';
+import { DockerRuntimeService } from './docker-runtime.service';
+import { initialPipelineStages } from '../common/pipeline.util';
+
+export interface PipelineOutcome {
+  decision: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  requestId: string;
+  score?: number;
+  findings?: Finding[];
+  reason?: string;
+  message?: string;
+  deployedPath?: string;
+  restartOk?: boolean;
+}
+
+/**
+ * Pipeline หลัก (clone/extract -> scan -> risk engine -> ticket -> build -> deploy) ที่ใช้ร่วมกัน
+ * ทั้ง git-webhook deploy (github-webhook.service.ts) และ manual zip-upload deploy
+ * (apps.service.ts deployManual) — สอง source ต่างกันแค่วิธีได้ source code มาลง stagingDir
+ * (acquireSource callback: clone จาก git หรือแตก zip) ส่วนที่เหลือทั้งหมดใช้โค้ดเดียวกันทุกตัวอักษร
+ * ย้ายมาจาก github-webhook.service.ts เดิม (ของเดิมทำ inline ทั้งหมดในที่เดียว เฉพาะ git เท่านั้น)
+ */
+@Injectable()
+export class DeployPipelineService {
+  private readonly logger = new Logger(DeployPipelineService.name);
+  private stagingRoot = path.join(DATA_DIR, 'git-staging');
+  private deployedRoot = path.join(DATA_DIR, 'git-deployed');
+  private quarantineRoot = path.join(DATA_DIR, 'git-quarantine');
+
+  constructor(
+    private automator: GitAutomatorService,
+    private scanner: ScannerService,
+    private riskEngine: RiskEngineService,
+    private ticket: TicketService,
+    private audit: AuditService,
+    private usageCollector: UsageCollectorService,
+    private gitAppStore: GitAppStore,
+    private dockerRuntime: DockerRuntimeService,
+  ) {
+    fs.mkdirSync(this.stagingRoot, { recursive: true });
+    fs.mkdirSync(this.deployedRoot, { recursive: true });
+    fs.mkdirSync(this.quarantineRoot, { recursive: true });
+  }
+
+  /**
+   * บันทึกสถานะแต่ละ pipeline stage ลง GitAppStore ให้หน้า dashboard อ่านมาแสดงได้ — เขียนกลับ
+   * เฉพาะ app ที่เป็น dynamic/self-service (มีอยู่จริงใน store) เท่านั้น เพราะ app แบบ
+   * static/ops-managed (configs/git-apps.json) เป็น read-only ไม่มี record ให้เขียนกลับ
+   */
+  persistStage(app: GitApp, key: PipelineStageKey, status: PipelineStageStatus): void {
+    if (!this.gitAppStore.findById(app.id)) return;
+
+    const stages = (app.pipelineStages?.length ? app.pipelineStages : initialPipelineStages()).map((s) =>
+      s.key === key ? { ...s, status, at: new Date().toISOString() } : s,
+    );
+    app.pipelineStages = stages;
+    app.pipelineStatus =
+      status === 'failed' ? 'failed' : stages.every((s) => s.status === 'success') ? 'success' : 'deploying';
+    this.gitAppStore.save(app);
+  }
+
+  resetStages(app: GitApp): void {
+    app.pipelineStages = initialPipelineStages();
+  }
+
+  async runPipeline(
+    app: GitApp,
+    requestId: string,
+    usageFeature: string,
+    acquireSource: (stagingDir: string) => Promise<void> | void,
+  ): Promise<PipelineOutcome> {
+    try {
+      this.automator.acquireLock(app.id);
+    } catch {
+      this.audit.append({ requestId, accountId: app.accountId, stage: 'deploy', decision: 'BLOCK', reason: 'deploy_in_progress' });
+      throw new ConflictException('deploy_already_in_progress');
+    }
+
+    const stagingDir = path.join(this.stagingRoot, `${app.id}-${requestId}`);
+    let currentStage: PipelineStageKey = 'repo_cloning';
+
+    try {
+      this.persistStage(app, 'repo_cloning', 'running');
+      await acquireSource(stagingDir);
+      this.persistStage(app, 'repo_cloning', 'success');
+
+      currentStage = 'security_scan';
+      this.persistStage(app, 'security_scan', 'running');
+      const files = this.automator.listTextFiles(stagingDir);
+      let findings: Finding[] = [];
+      for (const f of files) {
+        findings = findings.concat(this.scanner.scanText(f.relPath, f.content));
+      }
+      findings = findings.concat(this.scanner.scanDependencies(files.map((f) => ({ path: f.relPath }))));
+
+      const result = this.riskEngine.evaluate(findings);
+
+      this.usageCollector.recordUsage({
+        requestId,
+        accountId: app.accountId,
+        feature: usageFeature,
+        allowed: result.decision === 'ALLOW',
+        stage: usageFeature,
+      });
+
+      if (result.decision === 'ALLOW') {
+        this.persistStage(app, 'security_scan', 'success');
+
+        currentStage = 'app_build';
+        this.persistStage(app, 'app_build', 'running');
+        const buildResult = await this.dockerRuntime.buildImage(stagingDir, app, requestId);
+        if (!buildResult.ok) {
+          this.persistStage(app, 'app_build', 'failed');
+          this.audit.append({ requestId, accountId: app.accountId, stage: 'app_build', decision: 'BLOCK', reason: buildResult.reason });
+          return { decision: 'BLOCK', requestId, reason: buildResult.reason, score: result.score, findings: result.findings };
+        }
+        this.persistStage(app, 'app_build', 'success');
+
+        currentStage = 'production_deploy';
+        this.persistStage(app, 'production_deploy', 'running');
+
+        // Fail-closed boundary: ต้องมี signed ticket ที่ verify ผ่านก่อนถึงจะ deploy ได้จริง
+        const signed = this.ticket.sign({ request_id: requestId, account_id: app.accountId });
+        try {
+          this.ticket.verify(signed);
+        } catch (err: any) {
+          this.persistStage(app, 'production_deploy', 'failed');
+          this.audit.append({ requestId, accountId: app.accountId, stage: 'deploy', decision: 'BLOCK', reason: err.message });
+          return { decision: 'BLOCK', requestId, reason: 'ticket_rejected' };
+        }
+
+        const runResult = await this.dockerRuntime.runContainer(app, buildResult.imageTag!);
+        if (!runResult.ok) {
+          this.persistStage(app, 'production_deploy', 'failed');
+          this.audit.append({ requestId, accountId: app.accountId, stage: 'deploy', decision: 'BLOCK', reason: runResult.reason });
+          return { decision: 'BLOCK', requestId, reason: runResult.reason, score: result.score, findings: result.findings };
+        }
+
+        // เก็บสำเนา source ที่ deploy สำเร็จล่าสุดไว้บน disk เพื่อ audit/debug (ตัว serving จริง
+        // มาจาก container ผ่าน DockerRuntimeService แล้ว ไม่ได้พึ่งไฟล์ในนี้โดยตรงอีกต่อไป)
+        const deployedDir = path.join(this.deployedRoot, app.id);
+        this.automator.promote(stagingDir, deployedDir);
+        this.persistStage(app, 'production_deploy', 'success');
+
+        this.audit.append({
+          requestId,
+          accountId: app.accountId,
+          stage: 'decision',
+          decision: 'ALLOW',
+          score: result.score,
+          findings: result.findings,
+          deployResult: { deployedPath: deployedDir, port: runResult.port },
+        });
+
+        return { decision: 'ALLOW', requestId, score: result.score, deployedPath: deployedDir, restartOk: true };
+      }
+
+      if (result.decision === 'QUARANTINE') {
+        this.persistStage(app, 'security_scan', 'failed');
+        const qDir = path.join(this.quarantineRoot, `${app.id}-${requestId}`);
+        fs.renameSync(stagingDir, qDir);
+        this.audit.append({ requestId, accountId: app.accountId, stage: 'decision', decision: 'QUARANTINE', score: result.score, findings: result.findings });
+        return { decision: 'QUARANTINE', requestId, message: 'รอตรวจสอบจากทีม SecOps', score: result.score, findings: result.findings };
+      }
+
+      // BLOCK — ปล่อยให้ finally เก็บกวาด staging ทิ้ง ไม่แตะ deployedDir เดิม (แอปเวอร์ชันก่อนหน้ายังรันอยู่)
+      this.persistStage(app, 'security_scan', 'failed');
+      this.audit.append({ requestId, accountId: app.accountId, stage: 'decision', decision: 'BLOCK', score: result.score, findings: result.findings });
+      return { decision: 'BLOCK', requestId, reason: 'deploy_blocked_by_security_policy', score: result.score, findings: result.findings };
+    } catch (err: any) {
+      this.persistStage(app, currentStage, 'failed');
+      this.audit.append({ requestId, accountId: app.accountId, stage: 'fatal', decision: 'BLOCK', reason: err.message });
+      return { decision: 'BLOCK', requestId, reason: 'internal_error_fail_closed' };
+    } finally {
+      if (fs.existsSync(stagingDir)) {
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+      }
+      this.automator.releaseLock(app.id);
+    }
+  }
+}

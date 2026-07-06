@@ -103,6 +103,9 @@ export function renderDashboardPage(app: GitApp): string {
   const meta = STATUS_META[status] || STATUS_META.idle;
   const stages = app.pipelineStages?.length ? app.pipelineStages : initialPipelineStages();
   const canVisit = status === 'success' && !!app.liveUrl;
+  // manual app ไม่มี repoFullName/branch (มาจาก zip upload ไม่ใช่ git) — fallback ไป projectName/id แทน
+  const displayName = app.repoFullName || app.projectName || app.id;
+  const isGit = (app.sourceType ?? 'git') === 'git';
 
   const stepsHtml = stages
     .map((s) => {
@@ -123,7 +126,7 @@ export function renderDashboardPage(app: GitApp): string {
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<title>${escapeHtml(app.repoFullName)} — Gatekeeper Deployment</title>
+<title>${escapeHtml(displayName)} — Gatekeeper Deployment</title>
 <style>
   body {
     margin: 0;
@@ -230,8 +233,8 @@ export function renderDashboardPage(app: GitApp): string {
 <body>
   <div class="panel">
     <div class="header">
-      <div class="repo-name">📁 ${escapeHtml(app.repoFullName)}</div>
-      <div class="branch">branch: ${escapeHtml(app.branch)}${app.runtime ? ` · runtime: ${escapeHtml(app.runtime)}` : ''}</div>
+      <div class="repo-name">${isGit ? '📁' : '📦'} ${escapeHtml(displayName)}</div>
+      <div class="branch">${isGit ? `branch: ${escapeHtml(app.branch || '')}` : 'manual upload'}${app.runtime ? ` · runtime: ${escapeHtml(app.runtime)}` : ''}</div>
       <div class="status-badge" style="color:${meta.color};">
         <span class="status-dot"></span>${meta.label}
       </div>

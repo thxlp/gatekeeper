@@ -1,8 +1,10 @@
 import { PipelineStage, PipelineStageKey } from './types';
 
+// label ใช้คำกลางๆ ที่ใช้ได้ทั้ง git-webhook deploy และ manual zip-upload deploy (สอง source
+// ต่างกันที่ขั้นตอนได้ source code มา — git = clone, manual = แตก zip — key เดิมใช้ร่วมกันได้)
 const STAGE_DEFS: { key: PipelineStageKey; label: string }[] = [
-  { key: 'payload_verification', label: '📦 Payload Verification' },
-  { key: 'repo_cloning',         label: '🧬 Repository Cloning' },
+  { key: 'payload_verification', label: '📦 Input Verification' },
+  { key: 'repo_cloning',         label: '🧬 Source Acquisition' },
   { key: 'security_scan',        label: '🛡️ Security Vulnerability Scanning' },
   { key: 'app_build',            label: '🏗️ Application Building' },
   { key: 'production_deploy',    label: '🚀 Production Deployment' },
@@ -22,15 +24,11 @@ function publicDomain(): string {
   }
 }
 
-function slugifyRepo(repoFullName: string): string {
-  return repoFullName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
-}
-
 /**
- * ลิงก์ auto-generate ให้สั้นๆ ผูกกับโดเมนเราเอง — หมายเหตุ: ระบบยังไม่มี reverse-proxy/hosting
- * จริงแยกต่อแอปที่ deploy (restartCommand เป็นแค่ docker restart placeholder ดู apps.service.ts)
- * ลิงก์นี้จึงเป็นแค่ตัวจองไว้ก่อน ยังไม่ serve เนื้อหาจริงจนกว่าจะมี infra ส่วนนั้น
+ * Path-based live URL ต่อแอป — ผูกกับ app id เอง (ไม่ใช่ repo slug) เพราะต้องใช้ได้ทั้ง
+ * git app และ manual app (manual ไม่มี repoFullName) และ id สุ่มมาแล้วไม่ซ้ำกันอยู่แล้ว
+ * เส้นทางนี้ proxy เข้า container ชื่อ gatekeeper-app-<id> ผ่าน backend เอง (ดู live/live.controller.ts)
  */
-export function buildLiveUrl(repoFullName: string): string {
-  return `${publicDomain()}/live/${slugifyRepo(repoFullName)}`;
+export function buildLiveUrl(appId: string): string {
+  return `${publicDomain()}/live/${appId}`;
 }

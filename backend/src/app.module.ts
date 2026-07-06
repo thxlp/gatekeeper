@@ -8,6 +8,7 @@ import { WebhookModule } from './webhook/webhook.module';
 import { AppsModule } from './apps/apps.module';
 import { AccountModule } from './account/account.module';
 import { AuthModule } from './auth/auth.module';
+import { LiveModule } from './live/live.module';
 import { databaseConfig } from './common/database.config';
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { databaseConfig } from './common/database.config';
     AppsModule,
     AccountModule,
     AuthModule,
+    LiveModule,
   ],
 })
 export class AppModule {}

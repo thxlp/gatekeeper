@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AppsController } from './apps.controller';
 import { AppsService } from './apps.service';
-import { GitAppStore } from './git-app.store';
-import { AuditService } from '../audit/audit.service';
 import { ChallengeModule } from '../challenge/challenge.module';
 import { AccountModule } from '../account/account.module';
+import { DeployModule } from '../deploy/deploy.module';
 
 @Module({
-  imports: [ChallengeModule, AccountModule],
+  imports: [ChallengeModule, AccountModule, DeployModule],
   controllers: [AppsController],
-  providers: [AppsService, GitAppStore, AuditService],
+  providers: [AppsService],
 })
 export class AppsModule {}

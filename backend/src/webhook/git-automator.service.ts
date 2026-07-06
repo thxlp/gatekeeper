@@ -9,7 +9,6 @@ import { DATA_DIR } from '../common/paths';
 const execFileAsync = promisify(execFile);
 
 const CLONE_TIMEOUT_MS = 5 * 60 * 1000;
-const RESTART_TIMEOUT_MS = 2 * 60 * 1000;
 const STALE_LOCK_MS = 10 * 60 * 1000;
 const MAX_SCAN_FILE_BYTES = 2 * 1024 * 1024; // ไฟล์ใหญ่กว่านี้ข้าม (ไม่ใช่ source code ทั่วไป)
 
@@ -130,18 +129,6 @@ export class GitAutomatorService {
     fs.renameSync(stagingDir, deployedDir);
   }
 
-  /**
-   * รันคำสั่ง restart/rebuild ที่ผูกไว้กับ app นี้โดยเฉพาะ (มาจาก config ที่ admin ตั้งไว้ล่วงหน้า)
-   * argv array รันตรงผ่าน execFile — ไม่ประกอบเป็น shell string จาก input ภายนอกใดๆ
-   * TODO (production): ต่อ process manager จริง (pm2/systemd) หรือ docker socket ที่นี่
-   */
-  async runRestartCommand(app: GitApp, cwd: string): Promise<void> {
-    if (!app.restartCommand || app.restartCommand.length === 0) {
-      throw new Error('restart_command_not_configured');
-    }
-    const [cmd, ...args] = app.restartCommand;
-    await execFileAsync(cmd, args, { cwd, timeout: RESTART_TIMEOUT_MS });
-  }
 }
 
 function isLikelyBinary(buf: Buffer): boolean {

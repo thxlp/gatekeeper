@@ -86,20 +86,27 @@ export interface PipelineStage {
 
 export type DeployStatus = 'idle' | 'deploying' | 'success' | 'failed';
 
+// 'git' = จาก GitHub webhook push (ของเดิม), 'manual' = จาก manual zip upload (/apps/manual/deploy)
+// อ่านค่านี้แบบ (app.sourceType ?? 'git') เสมอตอนอ่านจาก store — entry เก่าก่อนหน้านี้ไม่มี field
+// นี้เลย (สร้างมาก่อนมี manual deploy) ต้อง default เป็น 'git' เพื่อ backward-compat กับ
+// git-apps-store.json ที่มีอยู่แล้ว โดยไม่ต้องเขียน migration script
+export type AppSourceType = 'git' | 'manual';
+
+// ชื่อ "GitApp" เป็นชื่อเดิมตั้งแต่ตอนที่มีแค่ git-webhook deploy — ตอนนี้ type นี้ครอบคลุมทั้ง
+// git และ manual-upload app แล้ว (ตั้งใจไม่ rename ทั้ง codebase เป็น "App" เพื่อไม่ให้ diff ใหญ่เกินจำเป็น)
 export interface GitApp {
   id: string;
   accountId: string;
-  repoFullName: string;          // เช่น "octocat/hello-world" — จับคู่กับ payload.repository.full_name
-  cloneUrl: string;               // URL ที่เราเชื่อและใช้ clone จริง (ไม่เชื่อ URL จาก payload กัน SSRF/repo-swap)
-  branch: string;                 // deploy เฉพาะ push ที่เข้า branch นี้ (เช่น "main")
+  sourceType: AppSourceType;
+  projectName?: string;           // ชื่อที่ผู้ใช้ตั้งเอง (มีความหมายเฉพาะ manual app — git app ใช้ repoFullName แทน)
+  repoFullName?: string;          // เฉพาะ sourceType==='git': เช่น "octocat/hello-world" — จับคู่กับ payload.repository.full_name
+  cloneUrl?: string;              // เฉพาะ sourceType==='git': URL ที่เราเชื่อและใช้ clone จริง (ไม่เชื่อ URL จาก payload กัน SSRF/repo-swap)
+  branch?: string;                // เฉพาะ sourceType==='git': deploy เฉพาะ push ที่เข้า branch นี้ (เช่น "main")
   webhookSecretEnvVar?: string;   // (แบบ static/ops-managed) ชื่อ env var ที่เก็บ webhook secret จริง
   webhookSecret?: string;         // (แบบ self-service/dynamic) secret ที่ระบบสุ่มให้ตอนลงทะเบียน เก็บตรงใน store
-  restartCommand: string[];       // argv array รันผ่าน execFile ตรงๆ (ไม่ผ่าน shell กัน command injection)
   enabled: boolean;
   runtime?: string;
-  // ลิงก์ auto-generate ไปที่โดเมนเราเอง (https://<domain>/live/<slug>) — หมายเหตุ: ระบบยังไม่มี
-  // reverse-proxy/hosting จริงแยกต่อแอปที่ deploy (restartCommand เป็นแค่ docker restart placeholder)
-  // ลิงก์นี้จึงยังไม่ serve เนื้อหาจริงจนกว่าจะมี infra ส่วนนั้น — ปุ่มบน dashboard จะ disable ไว้จนกว่า deploy สำเร็จ
+  // ลิงก์ auto-generate ไปที่โดเมนเราเอง (https://<domain>/live/<app-id>)
   liveUrl?: string;
   pipelineStatus?: DeployStatus;
   pipelineStages?: PipelineStage[];
