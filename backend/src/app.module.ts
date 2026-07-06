@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module';
 import { ChallengeModule } from './challenge/challenge.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { AppsModule } from './apps/apps.module';
+import { GithubModule } from './github/github.module';
 import { AccountModule } from './account/account.module';
 import { AuthModule } from './auth/auth.module';
 import { LiveModule } from './live/live.module';
@@ -19,6 +20,7 @@ import { databaseConfig } from './common/database.config';
     ChallengeModule,
     WebhookModule,
     AppsModule,
+    GithubModule,
     AccountModule,
     AuthModule,
     LiveModule,

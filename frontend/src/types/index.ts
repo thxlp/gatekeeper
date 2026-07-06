@@ -113,6 +113,37 @@ export interface DeployOutcome {
   restartOk?: boolean;
 }
 
+// ===== GitHub connection (Railway-style repo picker) =====
+export interface GithubStatus {
+  connected: boolean;
+  username?: string;
+  scopes?: string[];
+  connectedAt?: string;
+}
+
+export interface GithubRepo {
+  fullName: string;
+  name: string;
+  owner: string;
+  private: boolean;
+  defaultBranch: string;
+  description: string | null;
+  updatedAt: string;
+}
+
+// ผลจาก POST /apps/register-github — webhook ถูกสร้างใน GitHub ให้แล้ว + first deploy กำลังวิ่ง
+export interface GithubRegisterResult {
+  id: string;
+  repoFullName: string;
+  branch: string;
+  runtime?: string;
+  webhookUrl: string;
+  autoWebhook: boolean;
+  dashboardUrl: string;
+  liveUrl?: string;
+  pipelineStatus: DeployStatus;
+}
+
 export interface CertifiedService {
   id: string;
   name: string;

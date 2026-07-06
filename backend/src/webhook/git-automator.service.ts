@@ -66,11 +66,21 @@ export class GitAutomatorService {
    * ใช้ execFile (ไม่ใช่ exec) — args ส่งเป็น array แยกช่อง ไม่ผ่าน shell จึงไม่มีช่องให้ shell injection
    * ใช้ cloneUrl/branch จาก config ที่เราลงทะเบียนเองเท่านั้น ไม่เชื่อค่าจาก webhook payload
    */
-  async cloneShallow(app: GitApp, targetDir: string): Promise<void> {
+  async cloneShallow(app: GitApp, targetDir: string, token?: string): Promise<void> {
     fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+
+    // repo private ต้องมี token ของเจ้าของ app แนบไปด้วย — ส่งผ่าน http.extraheader แบบเดียวกับ
+    // actions/checkout (ไม่ฝัง token ลงใน URL เพื่อไม่ให้หลุดไปอยู่ใน error message/.git/config)
+    const authArgs: string[] = [];
+    if (token) {
+      const basic = Buffer.from(`x-access-token:${token}`).toString('base64');
+      authArgs.push('-c', `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`);
+    }
+
     await execFileAsync(
       'git',
       [
+        ...authArgs,
         'clone',
         '--depth',
         '1',

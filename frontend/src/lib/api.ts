@@ -1,4 +1,12 @@
-import { DeployOutcome, GitAppDetail, GitAppRegistration, GitAppSummary } from '@/types';
+import {
+  DeployOutcome,
+  GitAppDetail,
+  GitAppRegistration,
+  GitAppSummary,
+  GithubRegisterResult,
+  GithubRepo,
+  GithubStatus,
+} from '@/types';
 
 const V2_BASE = '/api/v2';
 
@@ -77,6 +85,30 @@ export const api = {
 
   // v0.2 NestJS — combined audit stream
   getMyAudit: () => request<any[]>(V2_BASE, '/audit'),
+
+  // v0.2 NestJS — GitHub connection (repo picker + auto webhook แบบ Railway)
+  github: {
+    status: () => request<GithubStatus>(V2_BASE, '/github/status'),
+    // token = PAT ที่ user paste เอง หรือ provider_token จาก Supabase GitHub OAuth (scope repo)
+    connect: (token: string) =>
+      request<GithubStatus>(V2_BASE, '/github/connect', { method: 'POST', body: JSON.stringify({ token }) }),
+    disconnect: () => request<GithubStatus>(V2_BASE, '/github/connect', { method: 'DELETE' }),
+    repos: () => request<GithubRepo[]>(V2_BASE, '/github/repos'),
+    branches: (owner: string, repo: string) =>
+      request<string[]>(V2_BASE, `/github/repos/${owner}/${repo}/branches`),
+  },
+
+  // เลือก repo จาก picker → backend สร้าง webhook ใน GitHub ให้อัตโนมัติ + ยิง first deploy ทันที
+  // (ตอบเร็ว — poll สถานะ pipeline ต่อผ่าน getApp(id))
+  registerGithubApp: (body: { repoFullName: string; branch?: string; runtime?: string; projectName?: string }) =>
+    request<GithubRegisterResult>(V2_BASE, '/apps/register-github', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // สั่ง deploy git app ทันที (Deploy now / Redeploy) — poll สถานะต่อผ่าน getApp(id)
+  deployGitApp: (id: string) =>
+    request<{ ok: boolean; id: string; pipelineStatus: string }>(V2_BASE, `/apps/${id}/deploy`, { method: 'POST' }),
 
   // v0.2 NestJS — GitHub Auto-Deploy webhook self-service
   registerGitApp: (body: { repoUrl: string; branch?: string; runtime?: string }) =>

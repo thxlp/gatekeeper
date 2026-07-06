@@ -1,9 +1,17 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Account, GitApp } from '../common/types';
 import { GitAppStore } from './git-app.store';
 import { RegisterGitAppDto } from './register-git-app.dto';
+import { RegisterGithubAppDto } from './register-github-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
 import { ManualDeployDto } from './manual-deploy.dto';
 import { isSafeBranchName, parseGithubRepoUrl } from './git-url.util';
@@ -11,6 +19,9 @@ import { extractZipSafely } from './zip-extract.util';
 import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
 import { AuditService } from '../audit/audit.service';
 import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
+import { GitAutomatorService } from '../webhook/git-automator.service';
+import { GithubApiService } from '../github/github-api.service';
+import { GithubTokenStore } from '../github/github-token.store';
 
 const DEFAULT_BRANCH = 'main';
 
@@ -25,10 +36,15 @@ const dashboardUrl = (id: string) => `${PUBLIC_WEBHOOK_URL}?app=${id}`;
 
 @Injectable()
 export class AppsService {
+  private readonly logger = new Logger(AppsService.name);
+
   constructor(
     private store: GitAppStore,
     private audit: AuditService,
     private deployPipeline: DeployPipelineService,
+    private automator: GitAutomatorService,
+    private githubApi: GithubApiService,
+    private githubTokens: GithubTokenStore,
   ) {}
 
   registerGitApp(dto: RegisterGitAppDto, account: Account) {
@@ -89,6 +105,125 @@ export class AppsService {
       events: ['push'],
       dashboardUrl: dashboardUrl(app.id),
     };
+  }
+
+  /**
+   * ลงทะเบียนจาก GitHub repo picker (Railway-style) — ต่างจาก registerGitApp ตรงที่ user เชื่อม
+   * บัญชี GitHub ไว้แล้ว (GET /github/repos) เราจึงสร้าง push webhook ใน GitHub ให้อัตโนมัติผ่าน
+   * API ได้เลย (ไม่ต้อง copy secret ไปตั้งเอง) แล้วยิง first deploy ทันทีแบบ async ให้ UI poll ดูสถานะ
+   */
+  async registerFromGithub(dto: RegisterGithubAppDto, account: Account) {
+    const conn = this.githubTokens.get(account.id);
+    if (!conn) throw new BadRequestException('github_not_connected — เชื่อมบัญชี GitHub ก่อน');
+
+    // ตรวจรูปแบบ owner/repo ด้วย validator ชุดเดียวกับ flow paste-URL เดิม (กัน input แปลกๆ ก่อนถึง git)
+    const parsed = parseGithubRepoUrl(`https://github.com/${(dto.repoFullName || '').trim()}`);
+    if (!parsed) throw new BadRequestException('repoFullName ต้องอยู่ในรูปแบบ <owner>/<repo>');
+
+    const existing = this.store.findByRepo(parsed.repoFullName);
+    if (existing) {
+      throw new BadRequestException(`repo นี้ถูกลงทะเบียนไว้แล้ว (app_id=${existing.id})`);
+    }
+
+    // ยืนยันว่า token เข้าถึง repo ได้จริง + ใช้ default branch เมื่อ user ไม่ได้เลือกเอง
+    const repoInfo = await this.githubApi.getRepo(conn.token, parsed.owner, parsed.repo);
+    const branch = dto.branch?.trim() || repoInfo.defaultBranch || DEFAULT_BRANCH;
+    if (!isSafeBranchName(branch)) throw new BadRequestException('branch ไม่ถูกต้อง');
+
+    // สร้าง webhook ฝั่ง GitHub ให้สำเร็จก่อนค่อย save app — พังตรงนี้ = ไม่มี app ค้างครึ่งๆ กลางๆ
+    const webhookSecret = crypto.randomBytes(32).toString('hex');
+    const githubHookId = await this.githubApi.createOrUpdatePushWebhook(
+      conn.token,
+      parsed.owner,
+      parsed.repo,
+      PUBLIC_WEBHOOK_URL,
+      webhookSecret,
+    );
+
+    const now = new Date().toISOString();
+    const id = `gitapp_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
+    const app: GitApp = {
+      id,
+      accountId: account.id,
+      sourceType: 'git',
+      projectName: dto.projectName?.trim() || undefined,
+      repoFullName: parsed.repoFullName,
+      cloneUrl: parsed.cloneUrl,
+      branch,
+      webhookSecret,
+      githubHookId,
+      enabled: true,
+      runtime: dto.runtime,
+      liveUrl: buildLiveUrl(id),
+      pipelineStatus: 'idle',
+      pipelineStages: initialPipelineStages(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.store.save(app);
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:register-github',
+      decision: 'INFO',
+      reason: `registered_auto_webhook:${app.repoFullName}#${githubHookId}`,
+    });
+
+    // first deploy ทันทีแบบ Railway — ไม่ await ให้ endpoint ตอบเร็ว UI poll GET /apps/:id เอง
+    this.startGitDeploy(app, conn.token);
+
+    return {
+      id: app.id,
+      repoFullName: app.repoFullName,
+      branch: app.branch,
+      runtime: app.runtime,
+      webhookUrl: PUBLIC_WEBHOOK_URL,
+      autoWebhook: true,
+      dashboardUrl: dashboardUrl(app.id),
+      liveUrl: app.liveUrl,
+      pipelineStatus: 'deploying' as const,
+    };
+  }
+
+  /**
+   * สั่ง deploy git app ทันที (ปุ่ม "Deploy now" — ไม่ต้องรอ push ใหม่เข้า repo) ใช้ pipeline
+   * เดียวกับ webhook ทุกตัวอักษร ต่างแค่จุด trigger — ตอบกลับทันทีแล้วให้ UI poll สถานะเอา
+   */
+  triggerGitDeploy(id: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    if ((app.sourceType ?? 'git') !== 'git') {
+      throw new BadRequestException('app นี้เป็น manual app — ใช้ /apps/manual/deploy แทน');
+    }
+    if (app.pipelineStatus === 'deploying') {
+      throw new ConflictException('deploy_already_in_progress');
+    }
+
+    const token = this.githubTokens.get(account.id)?.token;
+    this.startGitDeploy(app, token);
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:manual-trigger',
+      decision: 'INFO',
+      reason: `deploy_triggered:${app.repoFullName}`,
+    });
+
+    return { ok: true, id: app.id, pipelineStatus: 'deploying' as const };
+  }
+
+  /** clone + pipeline แบบ fire-and-forget — สถานะทั้งหมดอ่านผ่าน pipelineStages ใน store */
+  private startGitDeploy(app: GitApp, token?: string): void {
+    const requestId = uuidv4();
+    this.deployPipeline.resetStages(app);
+    this.deployPipeline.persistStage(app, 'payload_verification', 'success');
+
+    this.deployPipeline
+      .runPipeline(app, requestId, 'git-manual-trigger', (stagingDir) =>
+        this.automator.cloneShallow(app, stagingDir, token),
+      )
+      .catch((err) => this.logger.warn(`trigger deploy ${app.id} failed: ${err.message}`));
   }
 
   /**
@@ -234,6 +369,14 @@ export class AppsService {
   removeGitApp(id: string, account: Account): { ok: boolean } {
     const app = this.getOwnedOrThrow(id, account.id);
     this.store.delete(app.id);
+
+    // ถ้า webhook ฝั่ง GitHub เป็นของที่เราสร้างให้อัตโนมัติ ตามไปเก็บกวาดด้วย (best-effort —
+    // token อาจถูก revoke หรือ repo ถูกลบไปแล้ว ไม่ต้อง fail การลบ app เพราะเรื่องนี้)
+    const parsed = app.repoFullName ? parseGithubRepoUrl(`https://github.com/${app.repoFullName}`) : null;
+    const token = this.githubTokens.get(account.id)?.token;
+    if (app.githubHookId && parsed && token) {
+      void this.githubApi.deleteWebhook(token, parsed.owner, parsed.repo, app.githubHookId);
+    }
 
     this.audit.append({
       requestId: uuidv4(),

@@ -17,6 +17,7 @@ import { AuthGuard, getAccount } from '../auth/auth.guard';
 import { CookieChallengeGuard } from '../challenge/challenge.guard';
 import { AppsService } from './apps.service';
 import { RegisterGitAppDto } from './register-git-app.dto';
+import { RegisterGithubAppDto } from './register-github-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
 import { ManualDeployDto } from './manual-deploy.dto';
 
@@ -32,6 +33,13 @@ export class AppsController {
     return this.svc.registerGitApp(dto, getAccount(req));
   }
 
+  // Railway-style: เลือก repo จาก picker (ต้องเชื่อม GitHub ก่อน) → สร้าง webhook ให้อัตโนมัติ
+  // ผ่าน GitHub API + ยิง first deploy ทันที — ตอบเร็ว ให้ UI poll GET /apps/:id ดูสถานะ pipeline
+  @Post('register-github')
+  registerGithub(@Body() dto: RegisterGithubAppDto, @Req() req: any) {
+    return this.svc.registerFromGithub(dto, getAccount(req));
+  }
+
   // Manual deploy — อัปโหลด .zip ตรงๆ (แทนที่ endpoint v0.1 เดิมที่รับเป็น base64 JSON) วิ่งผ่าน
   // pipeline เดียวกับ git-webhook deploy ทุกตัวอักษร (ดู DeployPipelineService)
   @Post('manual/deploy')
@@ -45,6 +53,13 @@ export class AppsController {
       throw new BadRequestException('ต้องแนบไฟล์ archive (.zip) ในฟิลด์ "archive"');
     }
     return this.svc.deployManual(dto, file, getAccount(req));
+  }
+
+  // สั่ง deploy git app ทันทีโดยไม่ต้องรอ push ใหม่ (ปุ่ม Deploy now / Redeploy บนหน้าหลัก)
+  // ต้องประกาศหลัง 'manual/deploy' — ':id/deploy' เป็น wildcard จะกิน POST /apps/manual/deploy ถ้าอยู่ก่อน
+  @Post(':id/deploy')
+  triggerDeploy(@Param('id') id: string, @Req() req: any) {
+    return this.svc.triggerGitDeploy(id, getAccount(req));
   }
 
   @Get()

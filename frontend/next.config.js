@@ -35,6 +35,10 @@ const nextConfig = {
         destination: `${V2_URL}/apps/:path*`,
       },
       {
+        source: '/api/v2/github/:path*',
+        destination: `${V2_URL}/github/:path*`,
+      },
+      {
         source: '/api/v2/challenge',
         destination: `${V2_URL}/challenge`,
       },

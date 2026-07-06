@@ -4,6 +4,7 @@ import { GitAppRegistryService } from './git-app-registry.service';
 import { GitAutomatorService } from './git-automator.service';
 import { AuditService } from '../audit/audit.service';
 import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
+import { GithubTokenStore } from '../github/github-token.store';
 import { isValidGithubSignature } from './webhook-signature.util';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class GithubWebhookService {
     private automator: GitAutomatorService,
     private audit: AuditService,
     private deployPipeline: DeployPipelineService,
+    private githubTokens: GithubTokenStore,
   ) {}
 
   async handleWebhook(rawBody: Buffer, headers: Record<string, string>, payload: any) {
@@ -63,8 +65,11 @@ export class GithubWebhookService {
       return { ok: true, ignored: true, reason: 'branch_not_watched' };
     }
 
+    // ถ้าเจ้าของ app เชื่อม GitHub token ไว้ ใช้ตอน clone ด้วย — จำเป็นกับ private repo
+    // (public repo มี token ติดไปก็ไม่เสียอะไร)
+    const token = app.accountId ? this.githubTokens.get(app.accountId)?.token : undefined;
     return this.deployPipeline.runPipeline(app, requestId, 'git-auto-deploy', (stagingDir) =>
-      this.automator.cloneShallow(app, stagingDir),
+      this.automator.cloneShallow(app, stagingDir, token),
     );
   }
 }

@@ -104,6 +104,7 @@ export interface GitApp {
   branch?: string;                // เฉพาะ sourceType==='git': deploy เฉพาะ push ที่เข้า branch นี้ (เช่น "main")
   webhookSecretEnvVar?: string;   // (แบบ static/ops-managed) ชื่อ env var ที่เก็บ webhook secret จริง
   webhookSecret?: string;         // (แบบ self-service/dynamic) secret ที่ระบบสุ่มให้ตอนลงทะเบียน เก็บตรงใน store
+  githubHookId?: number;          // id ของ webhook ฝั่ง GitHub ถ้าเราสร้างให้อัตโนมัติ (ใช้ตามลบตอน user ลบ app)
   enabled: boolean;
   runtime?: string;
   // ลิงก์ auto-generate ไปที่โดเมนเราเอง (https://<domain>/live/<app-id>)

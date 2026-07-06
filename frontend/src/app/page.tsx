@@ -1,97 +1,78 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Plugin, CertifiedService, GitAppSummary } from '@/types';
-import { buildProjectOptions } from '@/lib/projects';
-import StatusBadge from '@/components/ui/StatusBadge';
-import DeployMenu from '@/components/ui/DeployMenu';
+import { GitAppSummary } from '@/types';
+import { useApiKey } from '@/lib/use-api-key';
+import NavTabs from '@/components/ui/NavTabs';
+import NewProjectModal from '@/components/projects/NewProjectModal';
+import ProjectCard from '@/components/projects/ProjectCard';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { Plus, Settings, Activity, LayoutGrid, LogOut, Boxes } from 'lucide-react';
+import { LogOut, Plus, Rocket } from 'lucide-react';
 
-const PluginGraphCanvas   = dynamic(() => import('@/components/graph/PluginGraphCanvas'),   { ssr: false });
-const PluginDetailPanel   = dynamic(() => import('@/components/plugins/PluginDetailPanel'), { ssr: false });
-const RegisterPluginModal = dynamic(() => import('@/components/plugins/RegisterPluginModal'),{ ssr: false });
+const LIST_POLL_MS = 4000;
 
-export default function Dashboard() {
+export default function ProjectsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProjectsPageInner />
+    </Suspense>
+  );
+}
+
+// หน้าหลักแบบ Railway: project cards ของแอปที่ deploy ผ่าน gatekeeper pipeline (ทั้ง git และ
+// manual) + ปุ่ม New Project — ส่วนกราฟ plugin เดิมย้ายไปอยู่ที่ /plugins
+function ProjectsPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { apiKey, authChecked } = useApiKey();
   const { logout } = useAuth();
-  const [plugins,     setPlugins]     = useState<Plugin[]>([]);
-  const [certified,   setCertified]   = useState<CertifiedService[]>([]);
-  const [gitApps,     setGitApps]     = useState<GitAppSummary[]>([]);
-  const [projectId,   setProjectId]   = useState(''); // '' = ทุกโปรเจกต์ (All)
-  const [selected,    setSelected]    = useState<Plugin | null>(null);
-  const [showModal,   setShowModal]   = useState(false);
-  const [view,        setView]        = useState<'graph' | 'list'>('graph');
-  const [apiKey,      setApiKey]      = useState('');
-  const [authChecked, setAuthChecked] = useState(false);
-  const [loading,     setLoading]     = useState(false);
 
-  // ต้อง login ก่อนถึงจะเข้า dashboard ได้ — ถ้ามี key เก็บไว้แล้วใช้เลย ถ้าไม่มีลองกู้ session
-  // จาก Supabase ก่อน (เช่นเพิ่งกลับมาจาก OAuth redirect ที่ supabase-js auto-detect ให้จาก URL)
-  // แล้วแลกเป็น gatekeeper api_key ผ่าน /auth/session ถ้ายังไม่มี session เลยค่อย redirect ไป /login
-  useEffect(() => {
-    const k = localStorage.getItem('gk_api_key') || '';
-    if (k) {
-      setApiKey(k);
-      setAuthChecked(true);
-      return;
-    }
-    supabase.auth
-      .getSession()
-      .then(async ({ data }) => {
-        if (!data.session) {
-          router.replace('/login');
-          return;
-        }
-        const res = await api.auth.syncSession(data.session.access_token);
-        localStorage.setItem('gk_api_key', res.apiKey);
-        setApiKey(res.apiKey);
-        setAuthChecked(true);
-      })
-      .catch(() => router.replace('/login'));
-  }, [router]);
+  const [apps, setApps] = useState<GitAppSummary[] | null>(null);
+  const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [modalStep, setModalStep] = useState<'source' | 'github'>('source');
 
   const refresh = useCallback(async () => {
     if (!apiKey) return;
-    setLoading(true);
     try {
-      const [p, c, a] = await Promise.all([api.listPlugins(), api.getCertified(), api.listGitApps()]);
-      setPlugins(p);
-      setCertified(c);
-      setGitApps(a);
-      // refresh selected plugin ถ้ามี
-      if (selected) {
-        const fresh = p.find(pl => pl.id === selected.id);
-        if (fresh) setSelected(fresh);
-      }
-    } catch (e) {
-      // จะ throw ถ้า key ไม่ถูก — ไม่ต้อง handle เพิ่ม
-    } finally {
-      setLoading(false);
+      setApps(await api.listGitApps());
+      setError('');
+    } catch (e: any) {
+      setError(e.message);
     }
-  }, [apiKey, selected?.id]);
+  }, [apiKey]);
 
-  useEffect(() => { refresh(); }, [apiKey]);
+  useEffect(() => { refresh(); }, [refresh]);
 
-  // กรอง plugin ตามโปรเจกต์ที่เลือกใน dropdown ('' = แสดงทุกโปรเจกต์เหมือนเดิม)
-  const projectOptions = buildProjectOptions(gitApps);
-  const visiblePlugins = projectId ? plugins.filter(p => p.project_id === projectId) : plugins;
-  const hubLabel = projectId
-    ? projectOptions.find(p => p.id === projectId)?.label || 'Project'
-    : '🔐 Gatekeeper';
+  // มีแอปกำลัง deploy อยู่ → poll รายการซ้ำเพื่อให้สถานะบนการ์ดขยับสด (นอกนั้นไม่ต้อง poll)
+  useEffect(() => {
+    if (!apps?.some((a) => a.pipelineStatus === 'deploying')) return;
+    const t = setInterval(refresh, LIST_POLL_MS);
+    return () => clearInterval(t);
+  }, [apps, refresh]);
 
-  // stats
-  const counts = {
-    total:      visiblePlugins.length,
-    active:     visiblePlugins.filter(p => p.status === 'active').length,
-    blocked:    visiblePlugins.filter(p => p.status === 'blocked' || p.status === 'revoked').length,
-    quarantine: visiblePlugins.filter(p => p.status === 'quarantine').length,
-    pending:    visiblePlugins.filter(p => ['pending','screening','generating'].includes(p.status)).length,
-  };
+  // กลับมาจาก GitHub OAuth (connect flow ของ modal): จับ provider_token จาก Supabase session
+  // ส่งให้ backend เก็บเป็น GitHub token ของบัญชีนี้ แล้วเปิด modal กลับไปที่ step GitHub ต่อ
+  useEffect(() => {
+    if (!apiKey) return;
+    const wantsGithub = searchParams.get('github') === 'connect';
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const providerToken = (data.session as any)?.provider_token as string | undefined;
+        if (providerToken) await api.github.connect(providerToken).catch(() => undefined);
+      } finally {
+        if (wantsGithub) {
+          setModalStep('github');
+          setShowModal(true);
+          router.replace('/', { scroll: false });
+        }
+      }
+    })();
+  }, [apiKey]);
 
   if (!authChecked) {
     return (
@@ -100,6 +81,9 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  const deploying = apps?.filter((a) => a.pipelineStatus === 'deploying').length || 0;
+  const live = apps?.filter((a) => a.pipelineStatus === 'success').length || 0;
 
   return (
     <div className="flex flex-col h-screen bg-surface text-text">
@@ -110,77 +94,70 @@ export default function Dashboard() {
           <span className="text-muted text-xs font-mono">v0.2</span>
         </div>
 
-        {/* project selector */}
-        <div className="flex items-center gap-1.5">
-          <Boxes size={12} className="text-sub shrink-0" />
-          <select value={projectId} onChange={e => setProjectId(e.target.value)}
-            className="bg-surface border border-border rounded-lg px-2 py-1 text-xs font-mono text-text focus:outline-none focus:border-accent max-w-[180px]">
-            <option value="">All Projects</option>
-            {projectOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        </div>
+        <NavTabs active="projects" />
 
-        {/* stats pills */}
         <div className="flex items-center gap-2 text-[11px] font-mono">
-          <Pill label="active"     value={counts.active}     color="text-green" />
-          <Pill label="blocked"    value={counts.blocked}    color="text-red" />
-          <Pill label="quarantine" value={counts.quarantine} color="text-yellow" />
-          <Pill label="pending"    value={counts.pending}    color="text-purple" />
+          <span className="flex items-center gap-1 px-2 py-0.5 bg-surface border border-border rounded-full text-green">
+            <span className="font-bold">{live}</span><span className="text-sub">live</span>
+          </span>
+          {deploying > 0 && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-surface border border-border rounded-full text-accent">
+              <span className="font-bold">{deploying}</span><span className="text-sub">deploying</span>
+            </span>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* view toggle */}
-          <button onClick={() => setView(v => v === 'graph' ? 'list' : 'graph')}
-            className="flex items-center gap-1 text-sub hover:text-text text-xs font-mono border border-border rounded-lg px-2 py-1">
-            {view === 'graph' ? <><LayoutGrid size={12}/> List</> : <><Activity size={12}/> Graph</>}
-          </button>
-
-          {/* deploy + git apps dropdown */}
-          <DeployMenu />
-
-          {/* add plugin */}
-          <button onClick={() => setShowModal(true)}
+          <Link href="/apps" className="text-sub hover:text-text text-xs font-mono border border-border rounded-lg px-2 py-1">
+            จัดการแอป
+          </Link>
+          <button onClick={() => { setModalStep('source'); setShowModal(true); }}
             className="flex items-center gap-1.5 bg-accent text-surface text-xs font-mono font-semibold rounded-lg px-3 py-1.5 hover:bg-accent/90 transition-colors">
-            <Plus size={12}/> Add Plugin
+            <Plus size={12} /> New Project
           </button>
         </div>
       </header>
 
-      {/* ── Main area ──────────────────────────────────────────── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Graph / List */}
-        <div className="flex-1 overflow-hidden relative">
-          {loading && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-panel border border-border rounded-full px-3 py-1 text-xs font-mono text-sub">
-              กำลังโหลด…
+      {/* ── Cards ──────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-5xl mx-auto space-y-4">
+          {error && (
+            <p className="text-xs text-red font-mono bg-red/10 border border-red/30 rounded-lg px-3 py-2">{error}</p>
+          )}
+
+          {!apps && !error && <p className="text-xs text-sub font-mono">กำลังโหลด…</p>}
+
+          {apps && apps.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+              <Rocket size={40} className="text-sub" />
+              <div>
+                <p className="text-sm font-mono font-semibold">ยังไม่มีโปรเจกต์</p>
+                <p className="text-xs font-mono text-sub mt-1">
+                  deploy จาก GitHub repo หรืออัปโหลด folder/zip — ทุก deploy วิ่งผ่าน security pipeline
+                </p>
+              </div>
+              <button onClick={() => { setModalStep('source'); setShowModal(true); }}
+                className="flex items-center gap-1.5 bg-accent text-surface text-xs font-mono font-semibold rounded-lg px-4 py-2 hover:bg-accent/90 transition-colors">
+                <Plus size={12} /> New Project
+              </button>
             </div>
           )}
 
-          {view === 'graph' ? (
-            <PluginGraphCanvas plugins={visiblePlugins} hubLabel={hubLabel} onSelectPlugin={setSelected} />
-          ) : (
-            <PluginListView plugins={visiblePlugins} onSelect={setSelected} selected={selected} />
+          {apps && apps.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {apps.map((app) => (
+                <ProjectCard key={app.id} app={app} onChanged={refresh} />
+              ))}
+            </div>
           )}
         </div>
-
-        {/* Detail Panel */}
-        {selected && (
-          <PluginDetailPanel
-            plugin={selected}
-            gitApps={gitApps}
-            onClose={() => setSelected(null)}
-            onRefresh={refresh}
-          />
-        )}
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <RegisterPluginModal
-          certified={certified}
-          gitApps={gitApps}
+        <NewProjectModal
+          initialStep={modalStep}
           onClose={() => setShowModal(false)}
-          onCreated={refresh}
+          onChanged={refresh}
         />
       )}
 
@@ -194,55 +171,9 @@ export default function Dashboard() {
           <LogOut size={11} /> Logout
         </button>
         <span className="ml-auto text-[10px] text-muted font-mono">
-          {visiblePlugins.length} plugins
+          {apps?.length ?? 0} projects
         </span>
       </footer>
-    </div>
-  );
-}
-
-function Pill({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <span className={`flex items-center gap-1 px-2 py-0.5 bg-surface border border-border rounded-full ${color}`}>
-      <span className="font-bold">{value}</span>
-      <span className="text-sub">{label}</span>
-    </span>
-  );
-}
-
-function PluginListView({ plugins, onSelect, selected }: {
-  plugins: Plugin[]; onSelect: (p: Plugin) => void; selected: Plugin | null;
-}) {
-  return (
-    <div className="p-4 overflow-y-auto h-full">
-      {plugins.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-full text-sub font-mono text-sm gap-2">
-          <span className="text-4xl">🔌</span>
-          <p>ยังไม่มี plugin — กด Add Plugin เพื่อเริ่มต้น</p>
-        </div>
-      )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {plugins.map(p => (
-          <button key={p.id} onClick={() => onSelect(p)}
-            className={`text-left rounded-xl border bg-panel p-4 transition-all hover:border-muted
-              ${selected?.id === p.id ? 'border-accent ring-1 ring-accent' : 'border-border'}`}>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <span className="font-semibold text-sm truncate">{p.name}</span>
-              <StatusBadge status={p.status} />
-            </div>
-            <p className="text-xs font-mono text-sub truncate mb-2">{p.base_url}</p>
-            <div className="flex items-center gap-3 text-[10px] font-mono text-muted">
-              <span>{p.auth_type}</span>
-              <span>{p.endpoints.length} ep</span>
-              {p.risk_score !== undefined && (
-                <span className={p.risk_score >= 50 ? 'text-red' : p.risk_score > 0 ? 'text-yellow' : 'text-green'}>
-                  score {p.risk_score}
-                </span>
-              )}
-            </div>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

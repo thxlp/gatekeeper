@@ -4,9 +4,10 @@ import { AppsService } from './apps.service';
 import { ChallengeModule } from '../challenge/challenge.module';
 import { AccountModule } from '../account/account.module';
 import { DeployModule } from '../deploy/deploy.module';
+import { GithubModule } from '../github/github.module';
 
 @Module({
-  imports: [ChallengeModule, AccountModule, DeployModule],
+  imports: [ChallengeModule, AccountModule, DeployModule, GithubModule],
   controllers: [AppsController],
   providers: [AppsService],
 })
