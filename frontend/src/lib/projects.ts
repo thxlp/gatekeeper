@@ -1,18 +1,16 @@
 import { GitAppSummary } from '@/types';
 
-// "โปรเจกต์" ในระบบมี 2 แบบ: Git App ที่ลงทะเบียน auto-deploy ผ่าน webhook (จาก /apps)
-// กับ manual deploy ผ่านหน้า /deploy (v1 pipeline) ที่ไม่มี identity ต่อการ upload แต่ละครั้ง
-// เลยนับรวมเป็น "โปรเจกต์" คงที่อันเดียวแทน ไม่ใช่ list แบบ dynamic เหมือน Git App
-export const MANUAL_DEPLOY_PROJECT_ID = 'manual-deploy';
-
+// "โปรเจกต์" ในระบบตอนนี้คือทุก app ที่ลงทะเบียนไว้ (จาก /apps) ไม่ว่าจะมาจาก git webhook หรือ
+// manual zip upload — ทั้งสองแบบมี id จริงของตัวเองแล้ว (ต่างจากเดิมที่ manual deploy ยังไม่มี
+// identity ต่อการ upload แต่ละครั้ง เลยเคยรวมเป็น "โปรเจกต์" คงที่อันเดียวแทน)
 export interface ProjectOption {
   id: string;
   label: string;
 }
 
 export function buildProjectOptions(gitApps: GitAppSummary[]): ProjectOption[] {
-  return [
-    ...gitApps.map((a) => ({ id: a.id, label: a.repoFullName })),
-    { id: MANUAL_DEPLOY_PROJECT_ID, label: '🚀 Manual Deploy (/deploy)' },
-  ];
+  return gitApps.map((a) => ({
+    id: a.id,
+    label: a.sourceType === 'git' ? a.repoFullName || a.id : `📦 ${a.projectName || a.id}`,
+  }));
 }

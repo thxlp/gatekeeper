@@ -50,6 +50,10 @@ const nextConfig = {
         source: '/api/v2/auth/:path*',
         destination: `${V2_URL}/auth/:path*`,
       },
+      {
+        source: '/live/:path*',
+        destination: `${V2_URL}/live/:path*`,
+      },
     ];
   },
 };

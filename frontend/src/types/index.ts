@@ -59,15 +59,58 @@ export interface GitAppRegistration {
   events: string[];
 }
 
+export type AppSourceType = 'git' | 'manual';
+
+export type PipelineStageKey =
+  | 'payload_verification'
+  | 'repo_cloning'
+  | 'security_scan'
+  | 'app_build'
+  | 'production_deploy';
+
+export type PipelineStageStatus = 'pending' | 'running' | 'success' | 'failed';
+
+export interface PipelineStage {
+  key: PipelineStageKey;
+  label: string;
+  status: PipelineStageStatus;
+  at?: string;
+}
+
+export type DeployStatus = 'idle' | 'deploying' | 'success' | 'failed';
+
 export interface GitAppSummary {
   id: string;
-  repoFullName: string;
-  branch: string;
+  sourceType: AppSourceType;
+  projectName?: string;
+  repoFullName?: string;
+  branch?: string;
   runtime?: string;
   enabled: boolean;
-  webhookUrl: string;
+  webhookUrl?: string;
+  dashboardUrl?: string;
+  liveUrl?: string;
+  pipelineStatus?: DeployStatus;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// รายละเอียดเต็มของ app เดียว (GET /apps/:id) — ต่างจาก GitAppSummary ตรงมี pipelineStages
+// (ทั้ง 5 stage) ด้วย ใช้สำหรับ poll ระหว่าง deploy กำลังวิ่งอยู่
+export interface GitAppDetail extends GitAppSummary {
+  pipelineStages?: PipelineStage[];
+}
+
+export interface DeployOutcome {
+  id?: string;
+  decision: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  requestId: string;
+  score?: number;
+  findings?: Finding[];
+  reason?: string;
+  message?: string;
+  deployedPath?: string;
+  restartOk?: boolean;
 }
 
 export interface CertifiedService {

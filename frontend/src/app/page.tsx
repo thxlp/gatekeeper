@@ -9,6 +9,7 @@ import { Plugin, CertifiedService, GitAppSummary } from '@/types';
 import { buildProjectOptions } from '@/lib/projects';
 import StatusBadge from '@/components/ui/StatusBadge';
 import DeployMenu from '@/components/ui/DeployMenu';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { Plus, Settings, Activity, LayoutGrid, LogOut, Boxes } from 'lucide-react';
 
 const PluginGraphCanvas   = dynamic(() => import('@/components/graph/PluginGraphCanvas'),   { ssr: false });
@@ -17,6 +18,7 @@ const RegisterPluginModal = dynamic(() => import('@/components/plugins/RegisterP
 
 export default function Dashboard() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [plugins,     setPlugins]     = useState<Plugin[]>([]);
   const [certified,   setCertified]   = useState<CertifiedService[]>([]);
   const [gitApps,     setGitApps]     = useState<GitAppSummary[]>([]);
@@ -52,12 +54,6 @@ export default function Dashboard() {
       })
       .catch(() => router.replace('/login'));
   }, [router]);
-
-  const logout = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem('gk_api_key');
-    router.push('/login');
-  };
 
   const refresh = useCallback(async () => {
     if (!apiKey) return;
