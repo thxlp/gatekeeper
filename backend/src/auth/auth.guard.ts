@@ -16,8 +16,12 @@ export class AuthGuard implements CanActivate {
     const authHeader: string = req.headers['authorization'] || '';
     const apiKey = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    const account = await this.accounts.findByApiKey(apiKey);
-    if (!account) throw new UnauthorizedException('invalid_api_key');
+    const lookup = await this.accounts.findByApiKey(apiKey);
+    // แยก session_expired ออกจาก invalid_api_key ให้ frontend รู้ว่าควรพาไป login
+    // พร้อมข้อความ "หมดเวลาเพราะไม่ได้ใช้งาน" ไม่ใช่ "key ผิด"
+    if (lookup.status === 'expired') throw new UnauthorizedException('session_expired');
+    if (lookup.status === 'invalid') throw new UnauthorizedException('invalid_api_key');
+    const account = lookup.account;
     if (account.status !== 'active') throw new UnauthorizedException('account_suspended');
 
     req.account = {

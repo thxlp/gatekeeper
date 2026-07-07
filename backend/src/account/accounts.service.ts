@@ -11,6 +11,15 @@ import { sha256Hex } from '../common/crypto.util';
 // เกินโควตาแล้วตัวเก่าสุดถูกลบ (เครื่องที่ถือ key นั้นต้อง login ใหม่)
 const MAX_KEYS_PER_ACCOUNT = 5;
 
+// Idle timeout: key ที่ไม่ถูกใช้ยิง request เกินช่วงนี้ถือว่า session หมดอายุ ต้อง login ใหม่
+// ใช้กับทุก key (รวม script ที่ยิง API ตรง) — ตัดสินใจร่วมกับ user 2026-07-07
+const SESSION_IDLE_MS = Number(process.env.SESSION_IDLE_MINUTES || 15) * 60 * 1000;
+
+export type ApiKeyLookup =
+  | { status: 'ok'; account: Account }
+  | { status: 'expired' }
+  | { status: 'invalid' };
+
 @Injectable()
 export class AccountsService {
   constructor(
@@ -18,12 +27,24 @@ export class AccountsService {
     @InjectRepository(ApiKey) private apiKeys: Repository<ApiKey>,
   ) {}
 
-  /** lookup ด้วย hash ของ key ที่ client ส่งมา — DB ไม่เคยเห็น plaintext */
-  async findByApiKey(apiKey: string): Promise<Account | null> {
-    if (!apiKey) return null;
+  /**
+   * lookup ด้วย hash ของ key ที่ client ส่งมา — DB ไม่เคยเห็น plaintext
+   * พร้อมบังคับ idle timeout: key ที่เงียบเกิน SESSION_IDLE_MS ตอบ expired (แถวยังอยู่
+   * ให้ตอบ session_expired ได้ตรงๆ จนหลุดโควตา MAX_KEYS_PER_ACCOUNT เอง) key ที่ยังไม่หมด
+   * อายุถูก touch last_used_at ทุกครั้ง = การใช้งานต่อเนื่องเลื่อนเวลาหมดอายุออกไปเรื่อยๆ
+   */
+  async findByApiKey(apiKey: string): Promise<ApiKeyLookup> {
+    if (!apiKey) return { status: 'invalid' };
     const keyRow = await this.apiKeys.findOne({ where: { keyHash: sha256Hex(apiKey) } });
-    if (!keyRow) return null;
-    return this.repo.findOne({ where: { id: keyRow.accountId } });
+    if (!keyRow) return { status: 'invalid' };
+
+    if (Date.now() - keyRow.lastUsedAt.getTime() > SESSION_IDLE_MS) {
+      return { status: 'expired' };
+    }
+    await this.apiKeys.update(keyRow.id, { lastUsedAt: new Date() });
+
+    const account = await this.repo.findOne({ where: { id: keyRow.accountId } });
+    return account ? { status: 'ok', account } : { status: 'invalid' };
   }
 
   findByEmail(email: string): Promise<Account | null> {

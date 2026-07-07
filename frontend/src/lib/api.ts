@@ -27,7 +27,18 @@ async function request<T>(base: string, path: string, init: RequestInit = {}): P
 
   const res = await fetch(`${base}${path}`, { ...init, headers });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const message = data.message || data.error || `HTTP ${res.status}`;
+    // key หมดอายุ (idle เกิน 15 นาที) หรือถูกลบไปแล้ว (หลุดโควตา) — ล้าง key แล้วพาไป login
+    // ทันที ไม่ปล่อยให้ทุกหน้าค้างอยู่กับ key ที่ใช้ไม่ได้ (invalid_supabase_session ของ
+    // /auth/session ไม่เข้าเงื่อนไขนี้ — หน้า login จัดการ error ของตัวเองอยู่แล้ว)
+    if (res.status === 401 && (message === 'session_expired' || message === 'invalid_api_key')) {
+      localStorage.removeItem('gk_api_key');
+      localStorage.removeItem('gk_last_activity');
+      window.location.href = `/login?reason=${message === 'session_expired' ? 'idle' : 'expired'}`;
+    }
+    throw new Error(message);
+  }
   return data as T;
 }
 

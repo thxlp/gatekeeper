@@ -1,11 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Github, CheckCircle2, Lock, Mail } from 'lucide-react';
+import { Github, CheckCircle2, Lock, Mail, Clock } from 'lucide-react';
 
 type Mode = 'login' | 'register';
+
+// ข้อความแจ้งเหตุที่ถูกพากลับมาหน้านี้ (จาก AuthProvider idle timer / api.ts ดัก 401)
+const REASON_NOTICES: Record<string, string> = {
+  idle: 'ออกจากระบบอัตโนมัติ เนื่องจากไม่มีการใช้งานเกิน 15 นาที — เข้าสู่ระบบใหม่อีกครั้ง',
+  expired: 'เซสชันหมดอายุแล้ว — เข้าสู่ระบบใหม่อีกครั้ง',
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,12 +21,23 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  // อ่าน ?reason= จาก URL ตรงๆ ใน effect แทน useSearchParams — เลี่ยงข้อบังคับ Suspense
+  // boundary ของ Next ตอน prerender หน้า client component
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('reason') || '';
+    if (REASON_NOTICES[reason]) setNotice(REASON_NOTICES[reason]);
+  }, []);
 
   // หลัง Supabase auth สำเร็จ (มี access token จริงในมือ) ไปแลกเป็น gatekeeper api_key
   // ที่ backend สร้าง/หาให้ตาม supabase_user_id แล้วเก็บไว้ใช้เรียก API ตัวอื่นๆ ต่อ
   const syncAndEnter = async (accessToken: string) => {
     const res = await api.auth.syncSession(accessToken);
     localStorage.setItem('gk_api_key', res.apiKey);
+    // เริ่มนับ idle ใหม่จากตอน login — ถ้าปล่อย stamp เก่าค้างไว้ (เช่นแช่หน้า login นาน)
+    // AuthProvider จะเตะออกทันทีที่เข้า dashboard
+    localStorage.setItem('gk_last_activity', String(Date.now()));
     router.push('/');
   };
 
@@ -77,6 +94,12 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-start justify-center p-6">
         <div className="w-full max-w-sm space-y-6">
+          {notice && !checkEmail && (
+            <div className="flex items-start gap-2 bg-panel border border-border rounded-xl px-3 py-2.5">
+              <Clock size={14} className="text-sub mt-0.5 shrink-0" />
+              <p className="text-xs font-mono text-sub">{notice}</p>
+            </div>
+          )}
           {checkEmail ? (
             <div className="bg-panel border border-green/50 rounded-2xl p-5 space-y-4">
               <div className="flex items-center gap-2">

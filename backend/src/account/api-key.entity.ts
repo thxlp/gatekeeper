@@ -24,4 +24,8 @@ export class ApiKey {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  // เวลาที่ key ถูกใช้ยิง request ล่าสุด — ฐานของ idle timeout (ดู AccountsService.findByApiKey)
+  @Column({ name: 'last_used_at', type: 'timestamptz', default: () => 'now()' })
+  lastUsedAt: Date;
 }
