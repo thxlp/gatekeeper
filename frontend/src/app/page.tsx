@@ -27,7 +27,7 @@ export default function ProjectsPage() {
 function ProjectsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { apiKey, authChecked } = useApiKey();
+  const { keyPrefix, authChecked } = useApiKey();
   const { logout } = useAuth();
 
   const [apps, setApps] = useState<GitAppSummary[] | null>(null);
@@ -36,14 +36,14 @@ function ProjectsPageInner() {
   const [modalStep, setModalStep] = useState<'source' | 'github'>('source');
 
   const refresh = useCallback(async () => {
-    if (!apiKey) return;
+    if (!authChecked) return;
     try {
       setApps(await api.listGitApps());
       setError('');
     } catch (e: any) {
       setError(e.message);
     }
-  }, [apiKey]);
+  }, [authChecked]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -57,7 +57,7 @@ function ProjectsPageInner() {
   // กลับมาจาก GitHub OAuth (connect flow ของ modal): จับ provider_token จาก Supabase session
   // ส่งให้ backend เก็บเป็น GitHub token ของบัญชีนี้ แล้วเปิด modal กลับไปที่ step GitHub ต่อ
   useEffect(() => {
-    if (!apiKey) return;
+    if (!authChecked) return;
     const wantsGithub = searchParams.get('github') === 'connect';
     (async () => {
       try {
@@ -72,7 +72,7 @@ function ProjectsPageInner() {
         }
       }
     })();
-  }, [apiKey]);
+  }, [authChecked]);
 
   if (!authChecked) {
     return (
@@ -164,7 +164,7 @@ function ProjectsPageInner() {
       {/* footer: API key (read-only) + logout */}
       <footer className="shrink-0 flex items-center gap-3 px-4 py-1.5 border-t border-border bg-panel">
         <span className="text-[10px] text-sub font-mono">
-          API Key: <span className="text-muted">{apiKey.slice(0, 4)}…{apiKey.slice(-4)}</span>
+          API Key: <span className="text-muted">{keyPrefix}…</span>
         </span>
         <button onClick={logout}
           className="flex items-center gap-1 text-[10px] font-mono text-sub hover:text-red transition-colors">

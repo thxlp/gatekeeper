@@ -55,16 +55,20 @@ export class AccountsService {
    * ออก api_key ใหม่ให้บัญชี — คืน plaintext กลับไป "ครั้งเดียวตรงนี้เท่านั้น" ใน DB เก็บแค่
    * SHA-256 hash เรียกทุกครั้งที่ /auth/session (เครื่องที่ยังไม่มี key ในมือ) key เก่ายังใช้ได้
    * จนกว่าจะหลุดโควตา MAX_KEYS_PER_ACCOUNT
+   *
+   * คืน keyPrefix (8 ตัวแรก) มาด้วย — controller ใช้แสดงผลแทน plaintext เต็ม (key จริงเซ็ตผ่าน
+   * httpOnly cookie เท่านั้น ไม่ echo ใน JSON body อีกแล้ว กัน XSS บน dashboard origin อ่านได้)
    */
-  async issueApiKey(account: Account): Promise<string> {
+  async issueApiKey(account: Account): Promise<{ plainKey: string; keyPrefix: string }> {
     const plainKey = crypto.randomBytes(32).toString('hex');
+    const keyPrefix = plainKey.slice(0, 8);
 
     await this.apiKeys.save(
       this.apiKeys.create({
         id: `key_${uuidv4().replace(/-/g, '').slice(0, 12)}`,
         accountId: account.id,
         keyHash: sha256Hex(plainKey),
-        keyPrefix: plainKey.slice(0, 8),
+        keyPrefix,
       }),
     );
 
@@ -77,7 +81,7 @@ export class AccountsService {
       await this.apiKeys.remove(all.slice(MAX_KEYS_PER_ACCOUNT));
     }
 
-    return plainKey;
+    return { plainKey, keyPrefix };
   }
 
   /**

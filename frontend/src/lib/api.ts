@@ -10,30 +10,29 @@ import {
 
 const V2_BASE = '/api/v2';
 
-function getKey(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('gk_api_key') || '';
-}
-
 async function request<T>(base: string, path: string, init: RequestInit = {}): Promise<T> {
   // FormData (multipart upload) ต้องปล่อยให้ browser ตั้ง Content-Type เอง (มี boundary แนบมาด้วย)
   // ห้ามตั้ง 'application/json' ทับ ไม่งั้น multer ฝั่ง backend parse ไม่ออก
   const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${getKey()}`,
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(init.headers as Record<string, string> | undefined),
   };
 
-  const res = await fetch(`${base}${path}`, { ...init, headers });
+  // ไม่ใส่ Authorization header จาก browser แล้ว — api key เดินทางผ่าน httpOnly cookie
+  // (เซ็ตตอน /auth/session) แนบไปเองอัตโนมัติเพราะเป็น same-origin request ผ่าน nginx อยู่แล้ว
+  // ใส่ credentials ชัดเจนกันพลาดข้ามเบราว์เซอร์รุ่นเก่า
+  const res = await fetch(`${base}${path}`, { ...init, headers, credentials: 'same-origin' });
   const data = await res.json();
   if (!res.ok) {
     const message = data.message || data.error || `HTTP ${res.status}`;
-    // key หมดอายุ (idle เกิน 15 นาที) หรือถูกลบไปแล้ว (หลุดโควตา) — ล้าง key แล้วพาไป login
-    // ทันที ไม่ปล่อยให้ทุกหน้าค้างอยู่กับ key ที่ใช้ไม่ได้ (invalid_supabase_session ของ
-    // /auth/session ไม่เข้าเงื่อนไขนี้ — หน้า login จัดการ error ของตัวเองอยู่แล้ว)
+    // key หมดอายุ (idle เกิน 15 นาที) หรือถูกลบไปแล้ว (หลุดโควตา) — ล้าง flag แล้วพาไป login
+    // ทันที ไม่ปล่อยให้ทุกหน้าค้างอยู่กับ session ที่ใช้ไม่ได้ (invalid_supabase_session ของ
+    // /auth/session ไม่เข้าเงื่อนไขนี้ — หน้า login จัดการ error ของตัวเองอยู่แล้ว) cookie จริง
+    // เป็น httpOnly ลบเองจาก JS ไม่ได้ — จะหมดอายุเองฝั่ง server ตาม idle timeout อยู่แล้ว
     if (res.status === 401 && (message === 'session_expired' || message === 'invalid_api_key')) {
-      localStorage.removeItem('gk_api_key');
+      localStorage.removeItem('gk_authed');
+      localStorage.removeItem('gk_key_prefix');
       localStorage.removeItem('gk_last_activity');
       window.location.href = `/login?reason=${message === 'session_expired' ? 'idle' : 'expired'}`;
     }
@@ -43,21 +42,23 @@ async function request<T>(base: string, path: string, init: RequestInit = {}): P
 }
 
 export interface AuthResult {
-  apiKey: string;
+  keyPrefix: string;
   email: string;
   plan: 'free' | 'pro';
 }
 
 export const api = {
   // v0.2 NestJS — เรียกหลัง Supabase auth สำเร็จ (ไม่ว่า email/password, GitHub, Google) พร้อม
-  // supabase access token แทน gatekeeper api_key ปกติ (override header เอง ไม่ผ่าน getKey())
-  // เพื่อแลกเป็น gatekeeper api_key ของบัญชีนั้น (สร้างให้ใหม่ถ้ายังไม่เคยมี)
+  // supabase access token แทน gatekeeper api_key ปกติ (override header เอง) เพื่อแลกเป็น
+  // gatekeeper api_key ของบัญชีนั้น (สร้างให้ใหม่ถ้ายังไม่เคยมี) — key จริงมาทาง Set-Cookie
+  // ไม่ใช่ response body (ดู AuthResult) — logout เคลียร์ cookie ฝั่ง server เพราะเป็น httpOnly
   auth: {
     syncSession: (supabaseAccessToken: string) =>
       request<AuthResult>(V2_BASE, '/auth/session', {
         method: 'POST',
         headers: { Authorization: `Bearer ${supabaseAccessToken}` },
       }),
+    logout: () => request<{ ok: boolean }>(V2_BASE, '/auth/logout', { method: 'POST' }),
   },
 
   // v0.2 NestJS — plugin lifecycle

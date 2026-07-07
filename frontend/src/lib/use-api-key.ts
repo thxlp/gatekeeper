@@ -5,20 +5,20 @@ import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 /**
- * ต้อง login ก่อนถึงจะเข้า dashboard ได้ — ถ้ามี key เก็บไว้แล้วใช้เลย ถ้าไม่มีลองกู้ session
+ * ต้อง login ก่อนถึงจะเข้า dashboard ได้ — ถ้ามี flag "login แล้ว" เก็บไว้ก็ใช้เลย (key จริง
+ * อยู่ใน httpOnly cookie แนบไปกับ fetch เองอัตโนมัติ ไม่มีให้ JS อ่าน) ถ้ายังไม่มีลองกู้ session
  * จาก Supabase ก่อน (เช่นเพิ่งกลับมาจาก OAuth redirect ที่ supabase-js auto-detect ให้จาก URL)
  * แล้วแลกเป็น gatekeeper api_key ผ่าน /auth/session ถ้ายังไม่มี session เลยค่อย redirect ไป /login
  * (แยกออกมาเป็น hook เพราะใช้ทั้งหน้า Projects และหน้า Plugins)
  */
 export function useApiKey() {
   const router = useRouter();
-  const [apiKey, setApiKey] = useState('');
+  const [keyPrefix, setKeyPrefix] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const k = localStorage.getItem('gk_api_key') || '';
-    if (k) {
-      setApiKey(k);
+    if (localStorage.getItem('gk_authed')) {
+      setKeyPrefix(localStorage.getItem('gk_key_prefix') || '');
       setAuthChecked(true);
       return;
     }
@@ -30,12 +30,13 @@ export function useApiKey() {
           return;
         }
         const res = await api.auth.syncSession(data.session.access_token);
-        localStorage.setItem('gk_api_key', res.apiKey);
-        setApiKey(res.apiKey);
+        localStorage.setItem('gk_authed', '1');
+        localStorage.setItem('gk_key_prefix', res.keyPrefix);
+        setKeyPrefix(res.keyPrefix);
         setAuthChecked(true);
       })
       .catch(() => router.replace('/login'));
   }, [router]);
 
-  return { apiKey, authChecked };
+  return { keyPrefix, authChecked };
 }

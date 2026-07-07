@@ -30,11 +30,14 @@ export default function LoginPage() {
     if (REASON_NOTICES[reason]) setNotice(REASON_NOTICES[reason]);
   }, []);
 
-  // หลัง Supabase auth สำเร็จ (มี access token จริงในมือ) ไปแลกเป็น gatekeeper api_key
-  // ที่ backend สร้าง/หาให้ตาม supabase_user_id แล้วเก็บไว้ใช้เรียก API ตัวอื่นๆ ต่อ
+  // หลัง Supabase auth สำเร็จ (มี access token จริงในมือ) ไปแลกเป็น gatekeeper api_key —
+  // backend เซ็ต key จริงผ่าน httpOnly cookie เอง (ดู api.ts) เราเก็บแค่ flag ไม่ลับ
+  // "gk_authed" ไว้บอก UI/idle-timer ว่า login แล้ว (ไม่ใช่ secret — อ่านค่านี้ไม่ช่วยปลอมตัว)
   const syncAndEnter = async (accessToken: string) => {
     const res = await api.auth.syncSession(accessToken);
-    localStorage.setItem('gk_api_key', res.apiKey);
+    localStorage.setItem('gk_authed', '1');
+    // keyPrefix ไม่ใช่ secret (8 ตัวแรกของ key สุ่ม 64 ตัว) — เก็บไว้แสดงผลใน UI เฉยๆ
+    localStorage.setItem('gk_key_prefix', res.keyPrefix);
     // เริ่มนับ idle ใหม่จากตอน login — ถ้าปล่อย stamp เก่าค้างไว้ (เช่นแช่หน้า login นาน)
     // AuthProvider จะเตะออกทันทีที่เข้า dashboard
     localStorage.setItem('gk_last_activity', String(Date.now()));

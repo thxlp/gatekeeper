@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Account } from '../common/types';
 import { AccountsService } from '../account/accounts.service';
+import { SESSION_COOKIE_NAME } from './auth.controller';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -13,8 +14,11 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
+    // Bearer header ก่อน (script/curl — เช่น demo key จาก configs/accounts.json) ถ้าไม่มี
+    // ค่อย fallback ไปอ่าน httpOnly cookie ที่ dashboard เซ็ตไว้ตอน /auth/session (browser)
     const authHeader: string = req.headers['authorization'] || '';
-    const apiKey = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const fromHeader = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const apiKey = fromHeader || req.cookies?.[SESSION_COOKIE_NAME] || '';
 
     const lookup = await this.accounts.findByApiKey(apiKey);
     // แยก session_expired ออกจาก invalid_api_key ให้ frontend รู้ว่าควรพาไป login

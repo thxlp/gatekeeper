@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 // Idle timeout ฝั่ง UI — ต้องตรงกับ SESSION_IDLE_MINUTES ฝั่ง backend (default 15 นาที)
@@ -26,19 +27,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const router = useRouter();
 
   const logout = useCallback(async () => {
+    // เคลียร์ cookie จริงฝั่ง server ก่อน — httpOnly เลยลบตรงๆ จาก JS ไม่ได้
+    await api.auth.logout().catch(() => undefined);
     await supabase.auth.signOut().catch(() => undefined);
-    localStorage.removeItem('gk_api_key');
+    localStorage.removeItem('gk_authed');
+    localStorage.removeItem('gk_key_prefix');
     localStorage.removeItem(LAST_ACTIVITY_KEY);
     router.push('/login');
   }, [router]);
 
   useEffect(() => {
-    const isLoggedIn = () => !!localStorage.getItem('gk_api_key');
+    const isLoggedIn = () => !!localStorage.getItem('gk_authed');
     const idleFor = () => Date.now() - Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now());
 
     const idleLogout = async () => {
+      await api.auth.logout().catch(() => undefined);
       await supabase.auth.signOut().catch(() => undefined);
-      localStorage.removeItem('gk_api_key');
+      localStorage.removeItem('gk_authed');
+      localStorage.removeItem('gk_key_prefix');
       localStorage.removeItem(LAST_ACTIVITY_KEY);
       router.push('/login?reason=idle');
     };
