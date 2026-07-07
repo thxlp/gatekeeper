@@ -181,7 +181,9 @@ export class AppsService {
       webhookUrl: PUBLIC_WEBHOOK_URL,
       autoWebhook: true,
       dashboardUrl: dashboardUrl(app.id),
-      liveUrl: app.liveUrl,
+      // คำนวณสดทุกครั้งแทนอ่านค่าที่ persist ไว้ตอนสร้าง — กัน URL ค้างชี้โดเมนเก่าถ้า
+      // PUBLIC_LIVE_URL เปลี่ยนหลังจาก app ถูกสร้างไปแล้ว (ดู buildLiveUrl ใน pipeline.util.ts)
+      liveUrl: buildLiveUrl(app.id),
       pipelineStatus: 'deploying' as const,
     };
   }
@@ -300,7 +302,9 @@ export class AppsService {
       enabled: app.enabled,
       webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
       dashboardUrl: dashboardUrl(app.id),
-      liveUrl: app.liveUrl,
+      // คำนวณสดทุกครั้งแทนอ่านค่าที่ persist ไว้ตอนสร้าง — กัน URL ค้างชี้โดเมนเก่าถ้า
+      // PUBLIC_LIVE_URL เปลี่ยนหลังจาก app ถูกสร้างไปแล้ว (ดู buildLiveUrl ใน pipeline.util.ts)
+      liveUrl: buildLiveUrl(app.id),
       pipelineStatus: app.pipelineStatus,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
@@ -321,7 +325,9 @@ export class AppsService {
       enabled: app.enabled,
       webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
       dashboardUrl: dashboardUrl(app.id),
-      liveUrl: app.liveUrl,
+      // คำนวณสดทุกครั้งแทนอ่านค่าที่ persist ไว้ตอนสร้าง — กัน URL ค้างชี้โดเมนเก่าถ้า
+      // PUBLIC_LIVE_URL เปลี่ยนหลังจาก app ถูกสร้างไปแล้ว (ดู buildLiveUrl ใน pipeline.util.ts)
+      liveUrl: buildLiveUrl(app.id),
       pipelineStatus: app.pipelineStatus,
       pipelineStages: app.pipelineStages,
       createdAt: app.createdAt,
@@ -359,7 +365,9 @@ export class AppsService {
       enabled: app.enabled,
       webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
       dashboardUrl: dashboardUrl(app.id),
-      liveUrl: app.liveUrl,
+      // คำนวณสดทุกครั้งแทนอ่านค่าที่ persist ไว้ตอนสร้าง — กัน URL ค้างชี้โดเมนเก่าถ้า
+      // PUBLIC_LIVE_URL เปลี่ยนหลังจาก app ถูกสร้างไปแล้ว (ดู buildLiveUrl ใน pipeline.util.ts)
+      liveUrl: buildLiveUrl(app.id),
       pipelineStatus: app.pipelineStatus,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,

@@ -83,6 +83,10 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
+      # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
+      # buildLiveUrl ใน common/pipeline.util.ts)
+      - PUBLIC_LIVE_URL=${PUBLIC_LIVE_URL:-https://live.studiodup.com}
       # master key เข้ารหัส secret ลูกค้า (hex 64 ตัว) — ไม่ตั้งก็ได้ backend จะ generate
       # ไฟล์ data/master.key บน shared volume ให้เอง (แนะนำตั้งใน .env เพื่อแยก key ออกจาก data disk)
       - GATEKEEPER_MASTER_KEY=${GATEKEEPER_MASTER_KEY:-}
@@ -118,6 +122,10 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
+      # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
+      # buildLiveUrl ใน common/pipeline.util.ts)
+      - PUBLIC_LIVE_URL=${PUBLIC_LIVE_URL:-https://live.studiodup.com}
       # master key เข้ารหัส secret ลูกค้า (hex 64 ตัว) — ไม่ตั้งก็ได้ backend จะ generate
       # ไฟล์ data/master.key บน shared volume ให้เอง (แนะนำตั้งใน .env เพื่อแยก key ออกจาก data disk)
       - GATEKEEPER_MASTER_KEY=${GATEKEEPER_MASTER_KEY:-}
