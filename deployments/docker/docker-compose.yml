@@ -175,7 +175,13 @@ services:
       - "443:443"
       - "80:80"
     volumes:
-      - ../nginx/gatekeeper.conf:/etc/nginx/conf.d/default.conf:ro
+      # mount ทั้ง directory แทนไฟล์เดียว — bind mount ของไฟล์เดี่ยวผูกกับ inode ตอน container
+      # start ถ้าแก้ไฟล์ด้วยเครื่องมือที่เขียนแบบ write-then-rename (เปลี่ยน inode) container
+      # ที่รันอยู่แล้วจะยังเห็นไฟล์เก่าค้างอยู่ (nginx -t/-s reload ผ่านแต่ไม่ได้ config ใหม่จริง
+      # ต้อง recreate container ถึงจะเห็น) — mount directory ไม่มีปัญหานี้เพราะ resolve ผ่าน
+      # dentry ของ dir ทุกครั้งที่เปิดไฟล์ ไม่ได้ pin ที่ inode ของไฟล์ตรงๆ (เจอปัญหานี้จริงตอน
+      # deploy live.studiodup.com — เดินไปเดินมาสองรอบกว่าจะจับได้ 2026-07-07)
+      - ../nginx:/etc/nginx/conf.d:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
     mem_limit: 128m
