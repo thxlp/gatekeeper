@@ -178,17 +178,36 @@ function GithubTab() {
     }).catch((e) => setError(e.message));
   }, []);
 
-  // ผลลัพธ์ OAuth connect flow ที่หน้า dashboard ส่งต่อมา (ดู (dashboard)/page.tsx) — แสดง
-  // เหตุผลที่เชื่อมไม่สำเร็จแล้วล้าง query ออกจาก URL กัน error เด้งซ้ำตอน refresh
+  // กลับจาก GitHub OAuth (เด้งกลับหน้านี้ตรงๆ ไม่ผ่านหน้าหลัก): จับ provider_token จาก
+  // Supabase session ส่งให้ backend เก็บ แล้วล้าง query ออกจาก URL กันทำงานซ้ำตอน refresh
+  // ถ้าไม่สำเร็จแสดงเหตุผลใน banner แทนการกลืนเงียบ
   useEffect(() => {
-    const ghError = searchParams.get('github_error');
-    if (!ghError) return;
-    setError(
-      ghError === 'no_token'
-        ? 'OAuth สำเร็จแต่ไม่ได้รับ GitHub token กลับมา — มักเกิดจาก Redirect URL ใน Supabase Dashboard ไม่ครอบคลุมโดเมนนี้ (ต้องมี https://studiodup.com/** ใน allowlist) หรือลองเชื่อมด้วย Personal Access Token ด้านล่างแทน'
-        : `เชื่อม GitHub ไม่สำเร็จ: ${ghError}`,
-    );
-    router.replace('/deploy', { scroll: false });
+    if (searchParams.get('github') !== 'connect') return;
+    (async () => {
+      setConnecting(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        const providerToken = (data.session as any)?.provider_token as string | undefined;
+        if (!providerToken) {
+          // Supabase ให้ provider_token มาเฉพาะ session สดๆ หลัง OAuth เท่านั้น — ถ้าไม่มีแปลว่า
+          // redirect ไม่ได้มาจาก OAuth ตรงๆ (เช่น Supabase เด้งกลับ Site URL เพราะ redirectTo
+          // ไม่อยู่ใน allowlist) หรือ session ถูก refresh ไปก่อนแล้ว
+          setError(
+            'OAuth สำเร็จแต่ไม่ได้รับ GitHub token กลับมา — มักเกิดจาก Redirect URL ใน Supabase Dashboard ไม่ครอบคลุมโดเมนนี้ (ต้องมี https://studiodup.com/** ใน allowlist) หรือลองเชื่อมด้วย Personal Access Token ด้านล่างแทน',
+          );
+          return;
+        }
+        const s = await api.github.connect(providerToken);
+        setStatus(s);
+        loadRepos();
+      } catch (e: any) {
+        setError(`เชื่อม GitHub ไม่สำเร็จ: ${e?.message || 'connect_failed'}`);
+      } finally {
+        setConnecting(false);
+        router.replace('/deploy', { scroll: false });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
 
   const loadRepos = async () => {
@@ -204,7 +223,7 @@ function GithubTab() {
   const connectOAuth = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'github',
-      options: { redirectTo: `${window.location.origin}/?github=connect`, scopes: 'repo' },
+      options: { redirectTo: `${window.location.origin}/deploy?github=connect`, scopes: 'repo' },
     });
   };
 
