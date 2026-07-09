@@ -6,27 +6,69 @@
 * { box-sizing: border-box; }
 
 body {
-  background: #0d1117;
-  color: #e6edf3;
+  background: #f8f7f3;
+  color: #33302b;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ReactFlow overrides */
-.react-flow__background { background: #0d1117; }
-.react-flow__edge-path { stroke: #30363d; stroke-width: 2; }
-.react-flow__edge.selected .react-flow__edge-path { stroke: #58a6ff; }
-.react-flow__controls { background: #161b22; border: 1px solid #21262d; border-radius: 8px; }
-.react-flow__controls-button { background: #161b22; border-bottom: 1px solid #21262d; color: #8b949e; }
-.react-flow__controls-button:hover { background: #21262d; color: #e6edf3; }
-.react-flow__minimap { background: #161b22; border: 1px solid #21262d; border-radius: 8px; }
+/* ReactFlow overrides — re-themed light to match the gatemock redesign */
+.react-flow__background { background: #f8f7f3; }
+.react-flow__edge-path { stroke: #9C948A; stroke-width: 2; }
+.react-flow__edge.selected .react-flow__edge-path { stroke: #4A90E2; }
+.react-flow__controls { background: #FCFBF8; border: 1px solid #EFEDE6; border-radius: 8px; }
+.react-flow__controls-button { background: #FCFBF8; border-bottom: 1px solid #EFEDE6; color: #33302B; }
+.react-flow__controls-button:hover { background: #F1EFE8; color: #33302B; }
+.react-flow__minimap { background: #F0EDE6; border: 1px solid #EFEDE6; border-radius: 8px; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0d1117; }
-::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+::-webkit-scrollbar-track { background: #f8f7f3; }
+::-webkit-scrollbar-thumb { background: #E3DFD5; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #B7B2A7; }
 
 /* status badge pulse */
 @keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:.5} }
 .pulse-green { animation: pulse-green 2s ease-in-out infinite; }
+
+/* Reduced-motion: disable the blinking cursor / spinners */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* blinking terminal cursor */
+@keyframes gk-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.gk-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: #c9c4b8;
+  margin-left: 4px;
+  vertical-align: text-bottom;
+  animation: gk-blink 1s steps(1) infinite;
+}
+
+/* slow spin for phosphor spinner icons */
+@keyframes gk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.gk-spin {
+  animation: gk-spin 1.1s linear infinite;
+}
