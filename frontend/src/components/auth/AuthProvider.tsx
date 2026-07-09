@@ -32,6 +32,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     await supabase.auth.signOut().catch(() => undefined);
     localStorage.removeItem('gk_authed');
     localStorage.removeItem('gk_key_prefix');
+    localStorage.removeItem('gk_plan');
+    localStorage.removeItem('gk_email');
     localStorage.removeItem(LAST_ACTIVITY_KEY);
     router.push('/login');
   }, [router]);

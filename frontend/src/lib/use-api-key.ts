@@ -32,6 +32,8 @@ export function useApiKey() {
         const res = await api.auth.syncSession(data.session.access_token);
         localStorage.setItem('gk_authed', '1');
         localStorage.setItem('gk_key_prefix', res.keyPrefix);
+        localStorage.setItem('gk_plan', res.plan);
+        localStorage.setItem('gk_email', res.email);
         setKeyPrefix(res.keyPrefix);
         setAuthChecked(true);
       })
