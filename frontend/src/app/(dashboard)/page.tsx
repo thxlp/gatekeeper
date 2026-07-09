@@ -78,16 +78,28 @@ function DashboardPageInner() {
 
   // กลับมาจาก GitHub OAuth (connect flow ของหน้า /deploy): จับ provider_token จาก Supabase
   // session ส่งให้ backend เก็บเป็น GitHub token ของบัญชีนี้ แล้วพากลับไปหน้า deploy ต่อ
+  // ถ้าเชื่อมไม่สำเร็จ ส่งเหตุผลต่อไปให้หน้า deploy แสดง (?github_error=) — ไม่กลืนเงียบ
+  // ไม่งั้น user เห็นแค่ "ยังไม่ connect" โดยไม่รู้ว่าพลาดตรงไหน
   useEffect(() => {
     const wantsGithub = searchParams.get('github') === 'connect';
     if (!wantsGithub) return;
     (async () => {
+      let dest = '/deploy';
       try {
         const { data } = await supabase.auth.getSession();
         const providerToken = (data.session as any)?.provider_token as string | undefined;
-        if (providerToken) await api.github.connect(providerToken).catch(() => undefined);
+        if (!providerToken) {
+          // Supabase ให้ provider_token มาเฉพาะ session สดๆ หลัง OAuth เท่านั้น — ถ้าไม่มีแปลว่า
+          // redirect ไม่ได้มาจาก OAuth ตรงๆ (เช่น Supabase เด้งกลับ Site URL เพราะ redirectTo
+          // ไม่อยู่ใน allowlist) หรือ session ถูก refresh ไปก่อนแล้ว
+          dest = '/deploy?github_error=no_token';
+        } else {
+          await api.github.connect(providerToken);
+        }
+      } catch (e: any) {
+        dest = `/deploy?github_error=${encodeURIComponent(e?.message || 'connect_failed')}`;
       } finally {
-        router.replace('/deploy', { scroll: false });
+        router.replace(dest, { scroll: false });
       }
     })();
   }, [searchParams, router]);

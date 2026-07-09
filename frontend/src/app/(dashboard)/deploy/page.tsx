@@ -149,6 +149,7 @@ function InputRow({ label, value, onChange, placeholder }: { label: string; valu
 
 function GithubTab() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<GithubStatus | null>(null);
   const [pat, setPat] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -176,6 +177,19 @@ function GithubTab() {
       if (s.connected) loadRepos();
     }).catch((e) => setError(e.message));
   }, []);
+
+  // ผลลัพธ์ OAuth connect flow ที่หน้า dashboard ส่งต่อมา (ดู (dashboard)/page.tsx) — แสดง
+  // เหตุผลที่เชื่อมไม่สำเร็จแล้วล้าง query ออกจาก URL กัน error เด้งซ้ำตอน refresh
+  useEffect(() => {
+    const ghError = searchParams.get('github_error');
+    if (!ghError) return;
+    setError(
+      ghError === 'no_token'
+        ? 'OAuth สำเร็จแต่ไม่ได้รับ GitHub token กลับมา — มักเกิดจาก Redirect URL ใน Supabase Dashboard ไม่ครอบคลุมโดเมนนี้ (ต้องมี https://studiodup.com/** ใน allowlist) หรือลองเชื่อมด้วย Personal Access Token ด้านล่างแทน'
+        : `เชื่อม GitHub ไม่สำเร็จ: ${ghError}`,
+    );
+    router.replace('/deploy', { scroll: false });
+  }, [searchParams, router]);
 
   const loadRepos = async () => {
     setRepos(null);
