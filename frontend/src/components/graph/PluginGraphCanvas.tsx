@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import ReactFlow, {
   Node, Edge, Controls, MiniMap, Background, BackgroundVariant,
   useNodesState, useEdgesState, addEdge, Connection,
@@ -13,26 +13,30 @@ const nodeTypes = { plugin: PluginNode };
 interface Props {
   plugins: Plugin[];
   hubLabel?: string;
-  onSelectPlugin: (p: Plugin) => void;
 }
 
-function buildGraph(plugins: Plugin[], hubLabel: string, onSelect: (p: Plugin) => void) {
-  // Gateway node ตรงกลาง — เปลี่ยน label ตามโปรเจกต์ที่เลือกใน dropdown (default = Gatekeeper รวมทุกโปรเจกต์)
+const edgeColor = (status: Plugin['status']) =>
+  status === 'active' ? '#73A98C'
+  : status === 'blocked' || status === 'revoked' ? '#D66D52'
+  : status === 'quarantine' ? '#E0B976'
+  : '#9C948A';
+
+function buildGraph(plugins: Plugin[], hubLabel: string) {
   const gatewayNode: Node = {
     id: 'gateway',
     type: 'default',
     position: { x: 300, y: 200 },
-    data: { label: hubLabel },
+    data: { label: `🔐 ${hubLabel}` },
     style: {
-      background: '#161b22',
-      border: '2px solid #58a6ff',
-      borderRadius: '12px',
-      color: '#e6edf3',
-      fontFamily: 'JetBrains Mono, monospace',
-      fontSize: '13px',
-      fontWeight: '600',
-      padding: '12px 20px',
-      boxShadow: '0 0 20px rgba(88,166,255,0.15)',
+      background: '#FCFBF8',
+      border: '3px solid #4A90E2',
+      borderRadius: '14px',
+      color: '#33302B',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fontSize: '14px',
+      fontWeight: '700',
+      padding: '14px 22px',
+      boxShadow: '0 4px 20px rgba(74,144,226,.18)',
     },
   };
 
@@ -46,46 +50,37 @@ function buildGraph(plugins: Plugin[], hubLabel: string, onSelect: (p: Plugin) =
       x: 300 + radius * Math.cos(angleStep * i - Math.PI / 2) - 104,
       y: 200 + radius * Math.sin(angleStep * i - Math.PI / 2) - 60,
     },
-    data: { ...p, onSelect },
+    data: p,
   }));
 
-  const edges: Edge[] = plugins.map(p => ({
+  const edges: Edge[] = plugins.map((p) => ({
     id: `e-${p.id}`,
     source: 'gateway',
     target: p.id,
     animated: p.status === 'active',
-    style: {
-      stroke: p.status === 'active' ? '#3fb950'
-            : p.status === 'blocked' || p.status === 'revoked' ? '#f85149'
-            : p.status === 'quarantine' ? '#d29922'
-            : '#30363d',
-      strokeWidth: 2,
-      strokeDasharray: p.status === 'active' ? undefined : '4 4',
-    },
-    label: p.status === 'blocked' ? '✕' : p.status === 'active' ? '✓' : undefined,
-    labelStyle: { fill: '#8b949e', fontSize: 10 },
+    style: { stroke: edgeColor(p.status), strokeWidth: 2, strokeDasharray: p.status === 'active' ? undefined : '4 4' },
   }));
 
   return { nodes: [gatewayNode, ...pluginNodes], edges };
 }
 
-export default function PluginGraphCanvas({ plugins, hubLabel = '🔐 Gatekeeper', onSelectPlugin }: Props) {
+export default function PluginGraphCanvas({ plugins, hubLabel = 'Gatekeeper' }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(plugins, hubLabel, onSelectPlugin);
+    const { nodes: n, edges: e } = buildGraph(plugins, hubLabel);
     setNodes(n);
     setEdges(e);
-  }, [plugins, hubLabel, onSelectPlugin]);
+  }, [plugins, hubLabel]);
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges(eds => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges],
   );
 
   return (
-    <div className="w-full h-full">
+    <div className="h-full w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -99,17 +94,13 @@ export default function PluginGraphCanvas({ plugins, hubLabel = '🔐 Gatekeeper
         maxZoom={2}
         defaultEdgeOptions={{ type: 'smoothstep' }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#DDD8CC" />
         <Controls />
         <MiniMap
-          nodeColor={n => {
-            if (n.id === 'gateway') return '#58a6ff';
-            const p = plugins.find(p => p.id === n.id);
-            if (!p) return '#30363d';
-            return p.status === 'active' ? '#3fb950'
-                 : p.status === 'blocked' || p.status === 'revoked' ? '#f85149'
-                 : p.status === 'quarantine' ? '#d29922'
-                 : '#30363d';
+          nodeColor={(n) => {
+            if (n.id === 'gateway') return '#4A90E2';
+            const p = plugins.find((p) => p.id === n.id);
+            return p ? edgeColor(p.status) : '#9C948A';
           }}
         />
       </ReactFlow>

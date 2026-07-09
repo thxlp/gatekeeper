@@ -1,67 +1,63 @@
 'use client';
+import { useRouter } from 'next/navigation';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { Plugin } from '@/types';
 import StatusBadge from '../ui/StatusBadge';
 
 const borderByStatus: Record<string, string> = {
-  active:     'border-green/50  shadow-green/10',
-  blocked:    'border-red/50    shadow-red/10',
-  revoked:    'border-red/40    shadow-red/10',
-  quarantine: 'border-yellow/50 shadow-yellow/10',
-  screening:  'border-purple/50 shadow-purple/10',
-  generating: 'border-accent/50 shadow-accent/10',
-  pending:    'border-muted',
+  active: 'border-allow-dot/50',
+  blocked: 'border-danger-dot/50',
+  revoked: 'border-danger-dot/50',
+  quarantine: 'border-warn-dot/50',
+  screening: 'border-primary/50',
+  generating: 'border-primary/50',
+  pending: 'border-input-border',
 };
 
-export default function PluginNode({ data, selected }: NodeProps<Plugin & { onSelect: (p: Plugin) => void }>) {
-  const border = borderByStatus[data.status] || 'border-muted';
+export default function PluginNode({ data, selected }: NodeProps<Plugin>) {
+  const router = useRouter();
+  const border = borderByStatus[data.status] || 'border-input-border';
   return (
     <>
-      <Handle type="target" position={Position.Left}  className="!bg-muted !border-border !w-2 !h-2" />
+      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-border !bg-muted" />
       <div
-        onClick={() => data.onSelect(data)}
-        className={`
-          relative w-52 rounded-xl border bg-panel shadow-lg cursor-pointer
-          transition-all duration-150 hover:scale-[1.02]
-          ${border}
-          ${selected ? 'ring-2 ring-accent ring-offset-1 ring-offset-surface' : ''}
-        `}
+        onClick={() => router.push(`/plugins/${data.id}`)}
+        className={`relative w-52 cursor-pointer rounded-xl border bg-surface shadow-node transition-all duration-150 hover:scale-[1.02] ${border} ${
+          selected ? 'ring-2 ring-primary ring-offset-1 ring-offset-page' : ''
+        }`}
       >
-        {/* header */}
-        <div className="px-3 pt-3 pb-2 border-b border-border">
+        <div className="border-b border-[#EFEDE6] px-3 pb-2 pt-3">
           <div className="flex items-start justify-between gap-2">
-            <span className="text-sm font-semibold text-text leading-tight truncate">{data.name}</span>
+            <span className="truncate text-sm font-semibold leading-tight text-ink">{data.name}</span>
             <StatusBadge status={data.status} />
           </div>
-          <p className="text-[10px] text-sub font-mono mt-0.5 truncate">{data.base_url}</p>
+          <p className="mt-0.5 truncate font-mono text-[10px] text-muted-3">{data.base_url}</p>
         </div>
 
-        {/* body */}
-        <div className="px-3 py-2 space-y-1">
-          <div className="flex items-center justify-between text-[10px] text-sub font-mono">
+        <div className="space-y-1 px-3 py-2">
+          <div className="flex items-center justify-between text-[10px] text-muted">
             <span>auth</span>
-            <span className="text-accent">{data.auth_type}</span>
+            <span className="text-primary">{data.auth_type}</span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-sub font-mono">
+          <div className="flex items-center justify-between text-[10px] text-muted">
             <span>endpoints</span>
-            <span className="text-text">{data.endpoints?.length ?? 0}</span>
+            <span className="text-ink-soft">{data.endpoints?.length ?? 0}</span>
           </div>
           {data.risk_score !== undefined && (
-            <div className="flex items-center justify-between text-[10px] text-sub font-mono">
+            <div className="flex items-center justify-between text-[10px] text-muted">
               <span>risk score</span>
-              <span className={data.risk_score >= 50 ? 'text-red' : data.risk_score > 0 ? 'text-yellow' : 'text-green'}>
+              <span className={data.risk_score >= 50 ? 'text-danger-text' : data.risk_score > 0 ? 'text-warn-text' : 'text-allow-text'}>
                 {data.risk_score}
               </span>
             </div>
           )}
         </div>
 
-        {/* signature indicator */}
         {data.signature && (
-          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-green border-2 border-surface" title="Signed" />
+          <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-full border-2 border-surface bg-allow-dot" title="Signed" />
         )}
       </div>
-      <Handle type="source" position={Position.Right} className="!bg-muted !border-border !w-2 !h-2" />
+      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-border !bg-muted" />
     </>
   );
 }
