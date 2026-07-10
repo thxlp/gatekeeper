@@ -12,6 +12,11 @@ import { ScannerService } from '../scanner/scanner.service';
 import { RiskEngineService } from '../decision/risk-engine.service';
 import { AuditService } from '../audit/audit.service';
 import { RegisterPluginDto, ProxyCallDto, UpdatePluginDto } from './plugin.dto';
+import {
+  assertSafeEgressUrl,
+  safeEgressFetch,
+  EgressBlockedError,
+} from '../common/egress-guard.util';
 
 const TICKET_SECRET = process.env.GATEKEEPER_TICKET_SECRET || 'dev-secret-change-me';
 
@@ -87,6 +92,7 @@ export class PluginsService {
 
   // ── Step 2: Register Custom Plugin ───────────────────────────────────────────
   async register(dto: RegisterPluginDto, account: Account): Promise<Plugin> {
+    await this.assertBaseUrlAllowed(dto.base_url, account);
     const now = new Date().toISOString();
     const plugin: Plugin = {
       id: `plugin_${uuidv4().replace(/-/g, '').slice(0, 12)}`,
@@ -265,10 +271,10 @@ export class PluginsService {
 
     const start = Date.now();
     try {
-      // ยิง HEAD ไปที่ base_url เพื่อเช็ค connectivity
+      // ยิง HEAD ไปที่ base_url เพื่อเช็ค connectivity (ผ่าน egress guard กัน SSRF)
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(plugin.base_url, {
+      const res = await safeEgressFetch(plugin.base_url, {
         method: 'HEAD',
         signal: controller.signal,
       }).finally(() => clearTimeout(timeout));
@@ -346,7 +352,7 @@ export class PluginsService {
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
-      const res = await fetch(url, {
+      const res = await safeEgressFetch(url, {
         method: dto.method,
         headers,
         body: dto.body ? JSON.stringify(dto.body) : undefined,
@@ -404,6 +410,10 @@ export class PluginsService {
   async update(pluginId: string, dto: UpdatePluginDto, account: Account): Promise<Plugin> {
     const plugin = this.getOwnedOrThrow(pluginId, account.id);
 
+    if (dto.base_url !== undefined) {
+      await this.assertBaseUrlAllowed(dto.base_url, account, pluginId);
+    }
+
     if (dto.name !== undefined) plugin.name = dto.name;
     if (dto.description !== undefined) plugin.description = dto.description;
     if (dto.base_url !== undefined) plugin.base_url = dto.base_url;
@@ -459,6 +469,29 @@ export class PluginsService {
 
   getOne(pluginId: string, account: Account): Plugin {
     return this.getOwnedOrThrow(pluginId, account.id);
+  }
+
+  // enforce egress policy ตั้งแต่ตอนรับ base_url เข้า store (fetch time มี guard ซ้ำ
+  // อีกชั้นใน safeEgressFetch — ชั้นนั้นคือชั้นที่กัน DNS rebinding จริง)
+  private async assertBaseUrlAllowed(
+    baseUrl: string,
+    account: Account,
+    pluginId?: string,
+  ): Promise<void> {
+    try {
+      await assertSafeEgressUrl(baseUrl);
+    } catch (err) {
+      const reason = err instanceof EgressBlockedError ? err.reason : 'invalid_url';
+      this.audit.append({
+        requestId: uuidv4(),
+        accountId: account.id,
+        stage: 'plugin:egress_guard',
+        decision: 'BLOCK',
+        reason,
+        pluginId,
+      });
+      throw new BadRequestException(`base_url_not_allowed:${reason}`);
+    }
   }
 
   private getOwnedOrThrow(pluginId: string, accountId: string): Plugin {
