@@ -8,9 +8,10 @@ async function bootstrap() {
   // ปิด body parser อัตโนมัติของ Nest แล้วตั้งเอง เพื่อเก็บ raw body ไว้ตรวจ
   // X-Hub-Signature-256 ของ GitHub webhook (HMAC ต้องคำนวณจาก raw bytes ก่อน parse เป็น JSON)
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  // backend อยู่หลัง nginx 1 hop (nginx ตั้ง X-Forwarded-For ให้แล้ว) — ถ้าไม่ trust proxy
-  // req.ip จะเป็น IP ของ nginx ทุก request ทำให้ challenge token ที่ bind กับ IP ไม่มีผลจริง
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  // ไม่เปิด trust proxy: production อยู่หลัง Cloudflare → nginx → backend การ trust แค่ 1 hop
+  // ทำให้ req.ip กลายเป็น IP ของ Cloudflare edge ที่เปลี่ยนทุก request → challenge token ที่
+  // bind IP จะ mismatch แล้ว login พังทั้งระบบ ปล่อยให้ req.ip = IP ของ nginx (คงที่) เหมือนเดิม
+  // challenge IP-binding เป็นแค่ bot speed-bump ผลต่ำ ไม่คุ้มกับการทำ login ผู้ใช้จริงล่ม
   // ต้องเก็บ rawBody ทั้ง json และ urlencoded parser — GitHub webhook ตั้งได้ทั้ง
   // Content-Type: application/json หรือ application/x-www-form-urlencoded (เป็นค่า default
   // ตอนสร้าง webhook จาก GitHub UI เอง) ถ้า capture แค่ json parser ตัวเดียว webhook แบบ
