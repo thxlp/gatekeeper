@@ -6,6 +6,20 @@ import { DATA_DIR } from '../common/paths';
 import { decryptSecret, encryptSecret, isEncryptedSecret } from '../common/crypto.util';
 
 /**
+ * แปลงทุก secret field ของ GitApp ด้วยฟังก์ชัน fn (encrypt หรือ decrypt) แบบ immutable
+ * — webhookSecret, envVars[].value, buildArgs[].value, addonConnections[].url
+ * รวม secret ทุกที่ไว้จุดเดียว เวลาเพิ่ม field ใหม่ที่เป็นความลับให้มาแก้ที่นี่ที่เดียว
+ */
+function transformSecrets(app: GitApp, fn: (v: string) => string): GitApp {
+  const out: GitApp = { ...app };
+  if (out.webhookSecret) out.webhookSecret = fn(out.webhookSecret);
+  if (out.envVars) out.envVars = out.envVars.map((e) => ({ ...e, value: fn(e.value) }));
+  if (out.buildArgs) out.buildArgs = out.buildArgs.map((e) => ({ ...e, value: fn(e.value) }));
+  if (out.addonConnections) out.addonConnections = out.addonConnections.map((c) => ({ ...c, url: fn(c.url) }));
+  return out;
+}
+
+/**
  * Store สำหรับ GitApp ที่ลูกค้าลงทะเบียนเองผ่าน API (ต่างจาก configs/git-apps.json
  * ที่เป็น static list แบบ ops-managed) — เก็บใน DATA_DIR เพราะมี secret จริงอยู่ข้างใน
  * ต้องไม่ commit ลง git repo
@@ -24,11 +38,12 @@ export class GitAppStore {
       fs.writeFileSync(this.storePath, '[]\n', 'utf8');
     }
 
-    // migrate ครั้งเดียวตอน boot: entry เก่าที่ webhookSecret ยังเป็น plaintext ในไฟล์
-    // ถูกเข้ารหัสทับทันที (writeAll จัดการให้) ไม่ต้องรอ save รอบถัดไปของแต่ละ app
+    // migrate ครั้งเดียวตอน boot: entry เก่าที่ secret ยังเป็น plaintext ในไฟล์ ถูกเข้ารหัสทับทันที
+    // (writeAll จัดการให้) ไม่ต้องรอ save รอบถัดไปของแต่ละ app
     try {
       const raw: GitApp[] = JSON.parse(fs.readFileSync(this.storePath, 'utf8'));
-      if (raw.some((a) => a.webhookSecret && !isEncryptedSecret(a.webhookSecret))) {
+      if (raw.some((a) => this.hasPlaintextSecret(a))) {
+        // writeAll เข้ารหัสค่าที่ยังเป็น plaintext ให้เอง (ค่าที่เข้ารหัสแล้วปล่อยผ่าน)
         this.writeAll(raw);
       }
     } catch {
@@ -36,9 +51,19 @@ export class GitAppStore {
     }
   }
 
-  // webhookSecret ในไฟล์ถูกเข้ารหัส AES-256-GCM (encrypt ตอนเขียน / decrypt ตอนอ่าน — โค้ดนอก
-  // store เห็น plaintext อย่างเดียว) entry เก่าที่ยังเป็น plaintext อ่านผ่านได้ (decryptSecret
-  // ปล่อยค่าที่ไม่มี version prefix ผ่านตรงๆ) และจะถูกเข้ารหัสทับตอน save ครั้งถัดไปเอง
+  // secret ทุกตัวในไฟล์ (webhookSecret, envVars[].value, buildArgs[].value, addonConnections[].url)
+  // ถูกเข้ารหัส AES-256-GCM (encrypt ตอนเขียน / decrypt ตอนอ่าน — โค้ดนอก store เห็น plaintext
+  // อย่างเดียว) entry เก่าที่ยังเป็น plaintext อ่านผ่านได้ (decryptSecret ปล่อยค่าที่ไม่มี version
+  // prefix ผ่านตรงๆ) และจะถูกเข้ารหัสทับตอน save ครั้งถัดไปเอง
+
+  private hasPlaintextSecret(a: GitApp): boolean {
+    let found = false;
+    transformSecrets(a, (v) => {
+      if (v && !isEncryptedSecret(v)) found = true;
+      return v;
+    });
+    return found;
+  }
 
   private readAll(): GitApp[] {
     let apps: GitApp[];
@@ -49,15 +74,11 @@ export class GitAppStore {
     }
     // ตั้งใจให้ decrypt อยู่นอก try — master key ผิดต้อง throw ดังๆ (fail-closed) ไม่ใช่เงียบๆ
     // คืน list ว่างแล้วระบบทำเหมือนไม่มี app ลงทะเบียนอยู่เลย
-    return apps.map((a) => (a.webhookSecret ? { ...a, webhookSecret: decryptSecret(a.webhookSecret) } : a));
+    return apps.map((a) => transformSecrets(a, (v) => decryptSecret(v)));
   }
 
   private writeAll(apps: GitApp[]): void {
-    const stored = apps.map((a) =>
-      a.webhookSecret && !isEncryptedSecret(a.webhookSecret)
-        ? { ...a, webhookSecret: encryptSecret(a.webhookSecret) }
-        : a,
-    );
+    const stored = apps.map((a) => transformSecrets(a, (v) => (isEncryptedSecret(v) ? v : encryptSecret(v))));
     fs.writeFileSync(this.storePath, JSON.stringify(stored, null, 2) + '\n', 'utf8');
   }
 

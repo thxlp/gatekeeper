@@ -11,9 +11,9 @@ import { supabase } from '@/lib/supabase';
 import { filesToZipEntries, zipEntriesToBlob } from '@/lib/zip';
 import { DeployOutcome, GitAppDetail, GitAppRegistration, GithubRepo, GithubStatus } from '@/types';
 
-// node/static only — python/docker return runtime_not_yet_supported server-side
-// (backend/src/deploy/docker-runtime.service.ts)
-const RUNTIMES = ['node', 'static'];
+// node/static/python รองรับผ่าน generated Dockerfile, docker = ใช้ Dockerfile ของ repo เอง
+// (backend/src/deploy/docker-runtime.service.ts) — port เว้นว่างได้ ระบบเดาจาก EXPOSE/runtime
+const RUNTIMES = ['node', 'static', 'python', 'docker'];
 const GITHUB_REPO_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
 
 export default function DeployPage() {
@@ -147,6 +147,94 @@ function InputRow({ label, value, onChange, placeholder }: { label: string; valu
   );
 }
 
+// ── App config (env vars / addons / resources / SPA) ที่ใช้ร่วมทั้ง GitHub และ manual deploy ──
+type AppConfigState = {
+  envVars: { key: string; value: string }[];
+  addons: string[];
+  memoryMb: string;
+  cpuMilli: string;
+  spa: boolean;
+};
+const EMPTY_CONFIG: AppConfigState = { envVars: [], addons: [], memoryMb: '', cpuMilli: '', spa: false };
+
+// แปลง state → request body (ตัดค่าว่างทิ้ง ให้ backend ใช้ default)
+function configToBody(c: AppConfigState) {
+  const envVars = c.envVars.filter((e) => e.key.trim());
+  return {
+    envVars: envVars.length ? envVars.map((e) => ({ key: e.key.trim(), value: e.value })) : undefined,
+    addons: c.addons.length ? c.addons : undefined,
+    memoryMb: c.memoryMb.trim() ? Number(c.memoryMb) : undefined,
+    cpuMilli: c.cpuMilli.trim() ? Number(c.cpuMilli) : undefined,
+    spa: c.spa || undefined,
+  };
+}
+
+function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigState; setConfig: (c: AppConfigState) => void; runtime: string }) {
+  const setEnv = (i: number, field: 'key' | 'value', val: string) =>
+    setConfig({ ...config, envVars: config.envVars.map((e, idx) => (idx === i ? { ...e, [field]: val } : e)) });
+  const addEnv = () => setConfig({ ...config, envVars: [...config.envVars, { key: '', value: '' }] });
+  const removeEnv = (i: number) => setConfig({ ...config, envVars: config.envVars.filter((_, idx) => idx !== i) });
+  const toggleAddon = (a: string) =>
+    setConfig({ ...config, addons: config.addons.includes(a) ? config.addons.filter((x) => x !== a) : [...config.addons, a] });
+
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-page-alt p-3.5">
+      {/* Env vars */}
+      <div className="mb-1.5 text-xs font-semibold">Environment variables</div>
+      {config.envVars.map((e, i) => (
+        <div key={i} className="mb-2 flex items-center gap-2">
+          <input
+            value={e.key}
+            onChange={(ev) => setEnv(i, 'key', ev.target.value)}
+            placeholder="KEY"
+            className="w-2/5 rounded-lg border border-border bg-surface px-2.5 py-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <input
+            value={e.value}
+            onChange={(ev) => setEnv(i, 'value', ev.target.value)}
+            placeholder="value"
+            className="flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <button onClick={() => removeEnv(i)} className="px-1.5 text-muted hover:text-ink" title="ลบ">
+            <i className="ph ph-x" />
+          </button>
+        </div>
+      ))}
+      <button onClick={addEnv} className="mb-3 flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline">
+        <i className="ph ph-plus" /> เพิ่ม env var
+      </button>
+
+      {/* Addons */}
+      <div className="mb-1.5 text-xs font-semibold">Managed services (inject connection URL อัตโนมัติ)</div>
+      <div className="mb-3 flex gap-4">
+        {[
+          { id: 'postgres', label: 'PostgreSQL → DATABASE_URL' },
+          { id: 'redis', label: 'Redis → REDIS_URL' },
+        ].map((a) => (
+          <label key={a.id} className="flex cursor-pointer items-center gap-1.5 text-[12px]">
+            <input type="checkbox" checked={config.addons.includes(a.id)} onChange={() => toggleAddon(a.id)} />
+            {a.label}
+          </label>
+        ))}
+      </div>
+
+      {/* Resources */}
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <InputRow label="Memory MB (64–1024)" value={config.memoryMb} onChange={(v) => setConfig({ ...config, memoryMb: v })} placeholder="256" />
+        <InputRow label="CPU milli (100–2000)" value={config.cpuMilli} onChange={(v) => setConfig({ ...config, cpuMilli: v })} placeholder="500 = 0.5 vCPU" />
+      </div>
+
+      {/* SPA (เฉพาะ static) */}
+      {runtime === 'static' && (
+        <label className="flex cursor-pointer items-center gap-1.5 text-[12px]">
+          <input type="checkbox" checked={config.spa} onChange={(e) => setConfig({ ...config, spa: e.target.checked })} />
+          SPA — route ที่ไม่ตรงไฟล์ให้ fallback ไป index.html (กัน deep link 404)
+        </label>
+      )}
+    </div>
+  );
+}
+
 function GithubTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -159,7 +247,9 @@ function GithubTab() {
   const [branches, setBranches] = useState<string[] | null>(null);
   const [branch, setBranch] = useState('main');
   const [runtime, setRuntime] = useState('node');
+  const [port, setPort] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [config, setConfig] = useState<AppConfigState>(EMPTY_CONFIG);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -272,7 +362,9 @@ function GithubTab() {
         repoFullName: selectedRepo.fullName,
         branch,
         runtime,
+        port: port.trim() ? Number(port) : undefined,
         projectName: projectName.trim() || undefined,
+        ...configToBody(config),
       });
       router.push(`/apps/${res.id}`);
     } catch (e: any) {
@@ -397,9 +489,12 @@ function GithubTab() {
                 <SelectRow label="Branch" value={branch} onChange={setBranch} options={branches || [branch]} />
                 <SelectRow label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} />
               </div>
-              <div className="mb-4">
+              <div className="mb-4 grid grid-cols-2 gap-3.5">
                 <InputRow label="Project name (ไม่บังคับ)" value={projectName} onChange={setProjectName} placeholder={selectedRepo.name} />
+                <InputRow label="Port (ไม่บังคับ)" value={port} onChange={setPort} placeholder={runtime === 'docker' ? 'จาก EXPOSE' : 'อัตโนมัติ'} />
               </div>
+
+              <AppConfigFields config={config} setConfig={setConfig} runtime={runtime} />
 
               <div className="mb-[18px] flex items-start gap-2.5 rounded-[9px] border border-[#EFEDE6] bg-page-alt px-3 py-3">
                 <i className="ph ph-info mt-0.5 text-primary" />
@@ -485,6 +580,8 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
   const router = useRouter();
   const [projectName, setProjectName] = useState('');
   const [runtime, setRuntime] = useState('node');
+  const [port, setPort] = useState('');
+  const [config, setConfig] = useState<AppConfigState>(EMPTY_CONFIG);
   const [pendingArchive, setPendingArchive] = useState<Blob | null>(null);
   const [pendingLabel, setPendingLabel] = useState('');
   const [loading, setLoading] = useState(false);
@@ -517,6 +614,11 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
     } else {
       formData.append('projectName', projectName.trim() || 'my-app');
       formData.append('runtime', runtime);
+      if (port.trim()) formData.append('port', String(Number(port)));
+      const cfg = configToBody(config);
+      if (cfg.envVars || cfg.addons || cfg.memoryMb || cfg.cpuMilli || cfg.spa) {
+        formData.append('config', JSON.stringify(cfg));
+      }
     }
     try {
       const r = await api.deployManual(formData);
@@ -543,10 +645,16 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
       )}
 
       {!redeployAppId && (
-        <div className="mb-4 grid grid-cols-2 gap-3.5">
-          <InputRow label="Project name" value={projectName} onChange={setProjectName} placeholder="my-awesome-app" />
-          <SelectRow label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} />
-        </div>
+        <>
+          <div className="mb-4 grid grid-cols-2 gap-3.5">
+            <InputRow label="Project name" value={projectName} onChange={setProjectName} placeholder="my-awesome-app" />
+            <SelectRow label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} />
+          </div>
+          <div className="mb-4">
+            <InputRow label="Port (ไม่บังคับ)" value={port} onChange={setPort} placeholder={runtime === 'docker' ? 'จาก EXPOSE ใน Dockerfile' : 'อัตโนมัติตาม runtime'} />
+          </div>
+          <AppConfigFields config={config} setConfig={setConfig} runtime={runtime} />
+        </>
       )}
 
       <div className="mb-3.5">

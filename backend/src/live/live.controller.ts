@@ -2,7 +2,7 @@ import { All, Controller, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as httpProxy from 'http-proxy';
 import { GitAppStore } from '../apps/git-app.store';
-import { RUNTIME_PORT } from '../deploy/docker-runtime.service';
+import { resolveServePort } from '../deploy/docker-runtime.service';
 
 /**
  * Reverse-proxy path-based ต่อแอปที่ deploy แล้ว: /live/<app-id>/... -> container ชื่อ
@@ -38,11 +38,8 @@ export class LiveController {
       return;
     }
 
-    const port = RUNTIME_PORT[app.runtime || 'static'];
-    if (!port) {
-      res.status(404).type('text/plain').send('runtime_not_servable');
-      return;
-    }
+    // port ที่ container listen จริง: app.port (จำไว้ตอน deploy) → default ตาม runtime
+    const port = resolveServePort(app);
 
     const prefix = `/live/${appId}`;
     const originalUrl = req.originalUrl || req.url;

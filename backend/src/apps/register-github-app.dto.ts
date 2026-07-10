@@ -1,6 +1,7 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { AppConfigDto } from './app-config.dto';
 
-export class RegisterGithubAppDto {
+export class RegisterGithubAppDto extends AppConfigDto {
   // "owner/repo" ที่เลือกมาจาก repo picker (GET /github/repos)
   @IsString()
   repoFullName: string;
@@ -13,6 +14,13 @@ export class RegisterGithubAppDto {
   @IsOptional()
   @IsIn(['node', 'python', 'static', 'docker'])
   runtime?: string;
+
+  // port ที่แอป listen (ไม่ระบุ = เดาจาก EXPOSE/runtime default)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  port?: number;
 
   @IsOptional()
   @IsString()

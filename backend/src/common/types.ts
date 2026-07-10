@@ -92,6 +92,25 @@ export type DeployStatus = 'idle' | 'deploying' | 'success' | 'failed';
 // git-apps-store.json ที่มีอยู่แล้ว โดยไม่ต้องเขียน migration script
 export type AppSourceType = 'git' | 'manual';
 
+// คู่ key/value สำหรับ env var และ build arg — value ถูกเข้ารหัส AES-256-GCM ตอนเก็บใน store
+// (ดู git-app.store.ts) โค้ดนอก store เห็น plaintext เพราะเป็นค่าที่ container ต้องใช้จริง
+export interface EnvVar {
+  key: string;
+  value: string;
+}
+
+// backing service ที่ระบบ provision ให้ต่อ app (container พี่น้องบน apps-network เดียวกัน)
+export type AppAddon = 'postgres' | 'redis';
+
+// ข้อมูลการเชื่อมต่อ addon ที่ provision แล้ว — url เป็น secret (มี password) เข้ารหัสใน store
+// inject เข้า app เป็น env var ชื่อ envKey (เช่น DATABASE_URL, REDIS_URL)
+export interface AddonConnection {
+  type: AppAddon;
+  containerName: string;
+  envKey: string;
+  url: string;
+}
+
 // ชื่อ "GitApp" เป็นชื่อเดิมตั้งแต่ตอนที่มีแค่ git-webhook deploy — ตอนนี้ type นี้ครอบคลุมทั้ง
 // git และ manual-upload app แล้ว (ตั้งใจไม่ rename ทั้ง codebase เป็น "App" เพื่อไม่ให้ diff ใหญ่เกินจำเป็น)
 export interface GitApp {
@@ -107,6 +126,23 @@ export interface GitApp {
   githubHookId?: number;          // id ของ webhook ฝั่ง GitHub ถ้าเราสร้างให้อัตโนมัติ (ใช้ตามลบตอน user ลบ app)
   enabled: boolean;
   runtime?: string;
+  // port ที่ container ของแอป listen จริง — ระบุเองตอนลงทะเบียนได้ ถ้าไม่ระบุระบบจะเดาจาก
+  // EXPOSE ใน Dockerfile หรือ default ตาม runtime (ดู resolveServePort ใน docker-runtime.service.ts)
+  // ใช้ทั้งตอน healthcheck (stage 5) และตอน proxy /live/<id> เข้า container (live.controller.ts)
+  port?: number;
+  // env var ที่ inject เข้า container ตอนรัน (value เข้ารหัสใน store) — เช่น DATABASE_URL, API keys
+  envVars?: EnvVar[];
+  // build arg ส่งเข้า docker build (value เข้ารหัสใน store) — เช่น token ตอน build
+  buildArgs?: EnvVar[];
+  // backing service ที่ผู้ใช้ขอให้ provision (postgres/redis) — ระบบสร้าง container ให้ + inject URL
+  addons?: AppAddon[];
+  // ผลการ provision addon (url มี secret เข้ารหัสใน store) — internal, ไม่ echo ออก API เป็นค่าเต็ม
+  addonConnections?: AddonConnection[];
+  // resource ต่อ container — ตั้งค่าได้แต่มี cap เพื่อความปลอดภัย (ดู clampResources ใน docker-runtime)
+  memoryMb?: number;
+  cpu?: number;
+  // static SPA: ใส่ history-fallback (try_files ... /index.html) ให้ nginx ตอน generate Dockerfile
+  spa?: boolean;
   // ลิงก์ auto-generate ไปที่โดเมนเราเอง (https://<domain>/live/<app-id>)
   liveUrl?: string;
   pipelineStatus?: DeployStatus;

@@ -1,6 +1,7 @@
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { AppConfigDto } from './app-config.dto';
 
-export class UpdateGitAppDto {
+export class UpdateGitAppDto extends AppConfigDto {
   @IsOptional()
   @IsString()
   branch?: string;
@@ -8,6 +9,13 @@ export class UpdateGitAppDto {
   @IsOptional()
   @IsIn(['node', 'python', 'static', 'docker'])
   runtime?: string;
+
+  // port ที่แอป listen (ไม่ระบุ = เดาจาก EXPOSE/runtime default)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  port?: number;
 
   @IsOptional()
   @IsBoolean()

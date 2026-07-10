@@ -74,6 +74,11 @@ export class DeployPipelineService {
     app.pipelineStages = initialPipelineStages();
   }
 
+  /** ลบ container ของแอป + addon (เรียกตอนลบ app) — best-effort ผ่าน DockerRuntimeService */
+  async cleanupContainers(app: GitApp): Promise<void> {
+    await this.dockerRuntime.removeAppContainers(app);
+  }
+
   async runPipeline(
     app: GitApp,
     requestId: string,
@@ -119,6 +124,18 @@ export class DeployPipelineService {
 
         currentStage = 'app_build';
         this.persistStage(app, 'app_build', 'running');
+
+        // provision backing service (postgres/redis) ที่ผู้ใช้ขอ ก่อน build/run — แอปมักต่อ DB ตอน boot
+        // อัปเดต app.addonConnections (inject เป็น env DATABASE_URL/REDIS_URL ตอน runContainer)
+        if (app.addons?.length) {
+          const addon = await this.dockerRuntime.provisionAddons(app);
+          if (!addon.ok) {
+            this.persistStage(app, 'app_build', 'failed');
+            this.audit.append({ requestId, accountId: app.accountId, stage: 'app_build', decision: 'BLOCK', reason: addon.reason });
+            return { decision: 'BLOCK', requestId, reason: addon.reason, score: result.score, findings: result.findings };
+          }
+          if (this.gitAppStore.findById(app.id)) this.gitAppStore.save(app); // persist connections (encrypted)
+        }
         const buildResult = await this.dockerRuntime.buildImage(stagingDir, app, requestId);
         if (!buildResult.ok) {
           this.persistStage(app, 'app_build', 'failed');
@@ -140,12 +157,16 @@ export class DeployPipelineService {
           return { decision: 'BLOCK', requestId, reason: 'ticket_rejected' };
         }
 
-        const runResult = await this.dockerRuntime.runContainer(app, buildResult.imageTag!);
+        const runResult = await this.dockerRuntime.runContainer(app, buildResult.imageTag!, buildResult.port);
         if (!runResult.ok) {
           this.persistStage(app, 'production_deploy', 'failed');
           this.audit.append({ requestId, accountId: app.accountId, stage: 'deploy', decision: 'BLOCK', reason: runResult.reason });
           return { decision: 'BLOCK', requestId, reason: runResult.reason, score: result.score, findings: result.findings };
         }
+
+        // จำ port ที่ container listen จริงไว้ใน store เพื่อให้ /live/<id> proxy เข้า container ถูก port
+        // (มาจาก app.port ที่ผู้ใช้ระบุ, EXPOSE ใน Dockerfile, หรือ default ตาม runtime)
+        if (runResult.port) app.port = runResult.port;
 
         // เก็บสำเนา source ที่ deploy สำเร็จล่าสุดไว้บน disk เพื่อ audit/debug (ตัว serving จริง
         // มาจาก container ผ่าน DockerRuntimeService แล้ว ไม่ได้พึ่งไฟล์ในนี้โดยตรงอีกต่อไป)

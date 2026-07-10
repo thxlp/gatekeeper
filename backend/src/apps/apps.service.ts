@@ -14,6 +14,9 @@ import { RegisterGitAppDto } from './register-git-app.dto';
 import { RegisterGithubAppDto } from './register-github-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
 import { ManualDeployDto } from './manual-deploy.dto';
+import { AppConfigDto } from './app-config.dto';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { isSafeBranchName, parseGithubRepoUrl } from './git-url.util';
 import { extractZipSafely } from './zip-extract.util';
 import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
@@ -25,10 +28,10 @@ import { GithubTokenStore } from '../github/github-token.store';
 
 const DEFAULT_BRANCH = 'main';
 
-// URL สาธารณะของ webhook endpoint (ผ่าน nginx, มี /api/v2 prefix) — ตั้งผ่าน env ได้
+// URL สาธารณะของ webhook endpoint (ผ่าน nginx, มี /api prefix) — ตั้งผ่าน env ได้
 // ค่า default อิงจากโดเมนจริงที่ตั้งไว้ใน deployments/nginx/gatekeeper.conf
 const PUBLIC_WEBHOOK_URL =
-  process.env.PUBLIC_WEBHOOK_URL || 'https://gatekeeper.studiodup.com/api/v2/webhooks/github';
+  process.env.PUBLIC_WEBHOOK_URL || 'https://gatekeeper.studiodup.com/api/webhooks/github';
 
 // หน้า Pipeline Dashboard (GET เดียวกับ webhook endpoint แต่มี ?app= ระบุตัว) — public แต่
 // ต้องรู้ id ที่สุ่มมา (unguessable) เท่านั้นถึงจะเห็นได้ ไม่ list ทุก app แบบไม่ auth
@@ -78,12 +81,14 @@ export class AppsService {
       webhookSecret,
       enabled: true,
       runtime: dto.runtime,
+      port: dto.port,
       liveUrl: buildLiveUrl(id),
       pipelineStatus: 'idle',
       pipelineStages: initialPipelineStages(),
       createdAt: now,
       updatedAt: now,
     };
+    this.applyConfig(app, dto);
 
     this.store.save(app);
 
@@ -154,12 +159,14 @@ export class AppsService {
       githubHookId,
       enabled: true,
       runtime: dto.runtime,
+      port: dto.port,
       liveUrl: buildLiveUrl(id),
       pipelineStatus: 'idle',
       pipelineStages: initialPipelineStages(),
       createdAt: now,
       updatedAt: now,
     };
+    this.applyConfig(app, dto);
     this.store.save(app);
 
     this.audit.append({
@@ -245,6 +252,7 @@ export class AppsService {
         throw new BadRequestException('appId นี้ไม่ใช่ manual app');
       }
       if (dto.runtime) app.runtime = dto.runtime;
+      if (dto.port !== undefined) app.port = dto.port;
       if (dto.projectName?.trim()) app.projectName = dto.projectName.trim();
     } else {
       if (!dto.runtime) {
@@ -259,12 +267,28 @@ export class AppsService {
         projectName: dto.projectName?.trim() || id,
         enabled: true,
         runtime: dto.runtime,
+        port: dto.port,
         liveUrl: buildLiveUrl(id),
         pipelineStatus: 'idle',
         pipelineStages: initialPipelineStages(),
         createdAt: now,
         updatedAt: now,
       };
+    }
+
+    // config เพิ่มเติม (env/addons/resources/spa) ส่งมาเป็น JSON string เพราะ multipart —
+    // parse + validate เป็น AppConfigDto ก่อนใช้ (มาตรฐานเดียวกับ endpoint อื่นที่รับ JSON body)
+    if (dto.config) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(dto.config);
+      } catch {
+        throw new BadRequestException('config ต้องเป็น JSON ที่ถูกต้อง');
+      }
+      const cfg = plainToInstance(AppConfigDto, parsed);
+      const errors = await validate(cfg, { whitelist: true, forbidNonWhitelisted: false });
+      if (errors.length) throw new BadRequestException('config ไม่ถูกต้อง');
+      this.applyConfig(app, cfg);
     }
 
     app.updatedAt = new Date().toISOString();
@@ -330,6 +354,7 @@ export class AppsService {
       liveUrl: buildLiveUrl(app.id),
       pipelineStatus: app.pipelineStatus,
       pipelineStages: app.pipelineStages,
+      ...this.configSummary(app),
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
     };
@@ -344,7 +369,9 @@ export class AppsService {
       app.branch = branch;
     }
     if (dto.runtime !== undefined) app.runtime = dto.runtime;
+    if (dto.port !== undefined) app.port = dto.port;
     if (dto.enabled !== undefined) app.enabled = dto.enabled;
+    this.applyConfig(app, dto);
     app.updatedAt = new Date().toISOString();
 
     this.store.save(app);
@@ -378,6 +405,9 @@ export class AppsService {
     const app = this.getOwnedOrThrow(id, account.id);
     this.store.delete(app.id);
 
+    // เก็บกวาด container ของแอป + addon (postgres/redis) — best-effort ไม่บล็อกการลบ
+    void this.deployPipeline.cleanupContainers(app);
+
     // ถ้า webhook ฝั่ง GitHub เป็นของที่เราสร้างให้อัตโนมัติ ตามไปเก็บกวาดด้วย (best-effort —
     // token อาจถูก revoke หรือ repo ถูกลบไปแล้ว ไม่ต้อง fail การลบ app เพราะเรื่องนี้)
     const parsed = app.repoFullName ? parseGithubRepoUrl(`https://github.com/${app.repoFullName}`) : null;
@@ -402,5 +432,28 @@ export class AppsService {
     if (!app) throw new NotFoundException(`gitapp_not_found:${id}`);
     if (app.accountId !== accountId) throw new ForbiddenException('not_your_app');
     return app;
+  }
+
+  /** เซ็ต config ต่อ app (env/build-arg/addons/resource/spa) จาก DTO — undefined = ไม่แตะค่าเดิม */
+  private applyConfig(app: GitApp, dto: AppConfigDto): void {
+    if (dto.envVars !== undefined) app.envVars = dto.envVars.filter((e) => e.key);
+    if (dto.buildArgs !== undefined) app.buildArgs = dto.buildArgs.filter((e) => e.key);
+    if (dto.addons !== undefined) app.addons = dto.addons;
+    if (dto.memoryMb !== undefined) app.memoryMb = dto.memoryMb;
+    if (dto.cpuMilli !== undefined) app.cpu = dto.cpuMilli / 1000;
+    if (dto.spa !== undefined) app.spa = dto.spa;
+  }
+
+  /** สรุป config ที่ปลอดภัยส่งกลับ API — env/build-arg คืนแค่ "key" ไม่คืน value (เป็นความลับ) */
+  private configSummary(app: GitApp) {
+    return {
+      port: app.port,
+      envKeys: (app.envVars || []).map((e) => e.key),
+      buildArgKeys: (app.buildArgs || []).map((e) => e.key),
+      addons: app.addons || [],
+      memoryMb: app.memoryMb,
+      cpu: app.cpu,
+      spa: app.spa ?? false,
+    };
   }
 }
