@@ -55,7 +55,7 @@ export function renderGreetingPage(): string {
   <div class="card">
     <div class="icon">🔐🚀</div>
     <h1>Gatekeeper Webhook Service is running smoothly! 🚀</h1>
-    <p><span class="dot"></span>listening for POST /api/v2/webhooks/github</p>
+    <p><span class="dot"></span>listening for POST /api/webhooks/github</p>
     <p>สำหรับ GitHub ยิง event เข้ามาเท่านั้น — endpoint นี้ไม่มีหน้าให้ใช้งานเอง</p>
   </div>
 </body>

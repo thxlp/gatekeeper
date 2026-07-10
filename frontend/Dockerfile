@@ -3,10 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ARG GATEKEEPER_V1_URL=http://gatekeeper-v1:8088
-ARG GATEKEEPER_V2_URL=http://gatekeeper-v2:8089
-ENV GATEKEEPER_V1_URL=$GATEKEEPER_V1_URL
-ENV GATEKEEPER_V2_URL=$GATEKEEPER_V2_URL
+# next.config.js ใช้ค่านี้เฉพาะ dev rewrites (prod route ผ่าน nginx) — default ใน config พออยู่แล้ว
+ARG GATEKEEPER_API_URL=http://backend-1:8089
+ENV GATEKEEPER_API_URL=$GATEKEEPER_API_URL
 # NEXT_PUBLIC_* ต้อง set ตอน build (next build inline ค่าพวกนี้เข้า client bundle เลย)
 # ตั้งตอน runtime ใน docker-compose environment เฉยๆ จะไม่มีผลอะไรกับ bundle ที่ build ไปแล้ว
 ARG NEXT_PUBLIC_SUPABASE_URL

@@ -178,7 +178,7 @@ export class PluginsService {
       auth_header: plugin.auth_header || null,
       endpoints: plugin.endpoints,
       generated_at: new Date().toISOString(),
-      generated_by: 'gatekeeper-v0.2',
+      generated_by: 'gatekeeper',
     };
     plugin.connection_file = manifest;
 

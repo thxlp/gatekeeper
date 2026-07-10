@@ -1,4 +1,4 @@
-# Full stack: gatekeeper (v1) + backend (v2 NestJS, 2 instances load-balanced) + frontend (Next.js) + nginx
+# Full stack: backend (NestJS, 2 instances load-balanced) + frontend (Next.js) + nginx
 # หมายเหตุ: นี่คือ docker-compose.yml ตัวจริงที่ใช้งาน (ไม่มีไฟล์แยกที่ repo root)
 services:
   postgres:
@@ -19,20 +19,6 @@ services:
       timeout: 5s
       retries: 10
     mem_limit: 256m
-  gatekeeper:
-    build:
-      context: ../..
-      dockerfile: deployments/docker/Dockerfile
-    container_name: gatekeeper
-    restart: unless-stopped
-    environment:
-      - PORT=8088
-      - GATEKEEPER_TICKET_SECRET=${GATEKEEPER_TICKET_SECRET:?ต้องตั้งค่าใน .env ก่อน}
-    volumes:
-      - gatekeeper-data:/app/data
-    expose:
-      - "8088"
-    mem_limit: 220m
   # จำกัดสิทธิ์ Docker API ให้แคบที่สุดเท่าที่ backend ต้องใช้จริง (containers+images+build เท่านั้น
   # ปิด exec/networks/volumes/swarm) แทนการ mount /var/run/docker.sock ตรงเข้า backend-1/2 ซึ่งเท่ากับ
   # ให้สิทธิ์ root ระดับ host แบบเต็มๆ — backend คุยกับตัวนี้แทนผ่าน tcp (DOCKER_HOST=docker-socket-proxy)
@@ -98,8 +84,6 @@ services:
       - default
       - gatekeeper-apps-net
     depends_on:
-      gatekeeper:
-        condition: service_started
       postgres:
         condition: service_healthy
       docker-socket-proxy:
@@ -137,8 +121,6 @@ services:
       - default
       - gatekeeper-apps-net
     depends_on:
-      gatekeeper:
-        condition: service_started
       postgres:
         condition: service_healthy
       docker-socket-proxy:
@@ -158,7 +140,6 @@ services:
     expose:
       - "3000"
     depends_on:
-      - gatekeeper
       - backend-1
       - backend-2
     mem_limit: 220m
@@ -167,7 +148,6 @@ services:
     container_name: gatekeeper-proxy
     restart: unless-stopped
     depends_on:
-      - gatekeeper
       - backend-1
       - backend-2
       - frontend
@@ -186,7 +166,6 @@ services:
       - /var/www/certbot:/var/www/certbot:ro
     mem_limit: 128m
 volumes:
-  gatekeeper-data:
   backend-data:
   postgres-data:
 networks:
