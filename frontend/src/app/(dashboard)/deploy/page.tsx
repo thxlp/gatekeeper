@@ -8,7 +8,7 @@ import CopyField from '@/components/ui/CopyField';
 import FindingsList from '@/components/ui/FindingsList';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { filesToZipEntries, zipEntriesToBlob } from '@/lib/zip';
+import { filesToZipEntries, readDropped, zipEntriesToBlob } from '@/lib/zip';
 import { DeployOutcome, GitAppDetail, GitAppRegistration, GithubRepo, GithubStatus } from '@/types';
 
 // node/static/python รองรับผ่าน generated Dockerfile, docker = ใช้ Dockerfile ของ repo เอง
@@ -584,6 +584,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
   const [config, setConfig] = useState<AppConfigState>(EMPTY_CONFIG);
   const [pendingArchive, setPendingArchive] = useState<Blob | null>(null);
   const [pendingLabel, setPendingLabel] = useState('');
+  const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DeployOutcome | null>(null);
 
@@ -601,6 +602,35 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
     if (!f) return;
     setPendingArchive(f);
     setPendingLabel(f.name);
+  };
+
+  // ลากมาวางได้ทั้ง .zip และโฟลเดอร์ (ทั้งสองกล่องรับ drop เหมือนกัน — forgiving)
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (!e.dataTransfer) return;
+    const { zipFile, entries } = await readDropped(e.dataTransfer);
+    if (zipFile) {
+      setPendingArchive(zipFile);
+      setPendingLabel(zipFile.name);
+      return;
+    }
+    const count = Object.keys(entries).length;
+    if (count === 0) return;
+    const blob = await zipEntriesToBlob(entries);
+    setPendingArchive(blob);
+    setPendingLabel(`${count} ไฟล์ (แตกจาก drop)`);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!dragActive) setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
   };
 
   const deploy = async () => {
@@ -661,8 +691,15 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
         <div className="mb-1.5 text-xs font-semibold">Source</div>
         <div className="grid grid-cols-2 gap-3">
           <label
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center ${
-              pendingArchive ? 'border-allow-dot/50 bg-[rgba(115,169,140,.05)]' : 'border-border bg-page-alt'
+              dragActive
+                ? 'border-primary bg-[rgba(91,157,255,.08)]'
+                : pendingArchive
+                  ? 'border-allow-dot/50 bg-[rgba(115,169,140,.05)]'
+                  : 'border-border bg-page-alt'
             }`}
           >
             <i className={`ph ph-cloud-arrow-up text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
@@ -671,12 +708,19 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             <input type="file" accept=".zip" className="hidden" onChange={handleZipPick} />
           </label>
           <label
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center ${
-              pendingArchive ? 'border-allow-dot/50 bg-[rgba(115,169,140,.05)]' : 'border-border bg-page-alt'
+              dragActive
+                ? 'border-primary bg-[rgba(91,157,255,.08)]'
+                : pendingArchive
+                  ? 'border-allow-dot/50 bg-[rgba(115,169,140,.05)]'
+                  : 'border-border bg-page-alt'
             }`}
           >
             <i className={`ph ph-folder-simple-plus text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
-            <div className="text-[13px] font-semibold">เลือกโฟลเดอร์</div>
+            <div className="text-[13px] font-semibold">เลือกโฟลเดอร์ หรือลากมาวาง</div>
             <div className="text-[11px] text-muted">บีบอัดเป็น .zip ให้อัตโนมัติ</div>
             <input
               type="file"
