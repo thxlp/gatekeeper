@@ -239,10 +239,12 @@ export class PluginsService {
       .update(JSON.stringify(plugin.connection_file))
       .digest('hex');
 
-    const ok = crypto.timingSafeEqual(
-      Buffer.from(plugin.signature, 'hex'),
-      Buffer.from(expected, 'hex'),
-    );
+    // timingSafeEqual throw ถ้า buffer ยาวไม่เท่ากัน (signature ใน store เพี้ยน/
+    // ไม่ใช่ hex เต็ม) — ต้องเทียบความยาวก่อน ไม่งั้น verify/proxy กลายเป็น 500
+    const sigBuf = Buffer.from(plugin.signature, 'hex');
+    const expectedBuf = Buffer.from(expected, 'hex');
+    const ok =
+      sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf);
 
     this.audit.append({
       requestId: uuidv4(),
@@ -321,32 +323,47 @@ export class PluginsService {
       return { ok: false, error: `plugin_not_active:${plugin.status}` };
     }
 
-    // ตรวจว่า endpoint path อยู่ใน whitelist ที่ลงทะเบียนไว้
-    const allowedPaths = plugin.endpoints.map((e) => e.path);
-    if (!allowedPaths.includes(dto.endpoint_path)) {
+    // ตรวจว่า method+path ตรงกับ endpoint ที่ลงทะเบียน (และผ่าน screening) ไว้เป็นคู่
+    // เช็คแค่ path ไม่พอ — GET ที่ลงทะเบียนไว้จะโดนสวมเป็น DELETE ได้
+    const allowed = plugin.endpoints.some(
+      (e) => e.path === dto.endpoint_path && e.method === dto.method,
+    );
+    if (!allowed) {
       this.audit.append({
         requestId: uuidv4(),
         accountId: account.id,
         stage: 'plugin:proxy',
         decision: 'BLOCK',
-        reason: `endpoint_not_whitelisted:${dto.endpoint_path}`,
+        reason: `endpoint_not_whitelisted:${dto.method} ${dto.endpoint_path}`,
         pluginId,
       });
-      return { ok: false, error: `endpoint_not_whitelisted:${dto.endpoint_path}` };
+      return { ok: false, error: `endpoint_not_whitelisted:${dto.method} ${dto.endpoint_path}` };
     }
 
     try {
       const url = plugin.base_url.replace(/\/$/, '') + dto.endpoint_path;
+      // header ของระบบห้ามให้ dto.headers ทับหรือแอบซ้ำ — ตัด key ที่ชนแบบ
+      // case-insensitive ทิ้งก่อน (spread เฉยๆ ไม่พอ เพราะ 'x-gatekeeper-plugin-id'
+      // ตัวเล็กเป็นคนละ key ใน object แต่ fetch จะ append รวมเป็น header เดียว
+      // ทำให้ client ยัดค่าปลอมปนเข้าไปได้)
+      const authHeaderName = plugin.auth_header || 'Authorization';
+      const reservedHeaders = ['content-type', 'x-gatekeeper-plugin-id'];
+      // ถ้าใส่ credential เอง ห้ามมี auth header ซ้ำจาก dto.headers ปนด้วย
+      if (dto.credential) reservedHeaders.push(authHeaderName.toLowerCase());
+      const clientHeaders = Object.fromEntries(
+        Object.entries(dto.headers || {}).filter(
+          ([k]) => !reservedHeaders.includes(k.toLowerCase()),
+        ),
+      );
       const headers: Record<string, string> = {
+        ...clientHeaders,
         'Content-Type': 'application/json',
         'X-Gatekeeper-Plugin-Id': pluginId,
-        ...dto.headers,
       };
 
       // ใส่ credential ถ้ามี (credential ส่งมาจาก client ไม่ได้ store ใน plugin)
       if (dto.credential) {
-        const headerName = plugin.auth_header || 'Authorization';
-        headers[headerName] =
+        headers[authHeaderName] =
           plugin.auth_type === 'bearer' ? `Bearer ${dto.credential}` : dto.credential;
       }
 
