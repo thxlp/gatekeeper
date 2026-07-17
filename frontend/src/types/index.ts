@@ -103,8 +103,11 @@ export interface GitAppDetail extends GitAppSummary {
 
 export interface DeployOutcome {
   id?: string;
-  decision: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
-  requestId: string;
+  // manual deploy ตอบ { id, status: 'deploying' } ทันที (pipeline วิ่ง background) —
+  // decision จึงไม่มีในเคสนั้น เหลือใช้กับ error ที่ประกอบฝั่ง client เอง
+  decision?: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  status?: string;
+  requestId?: string;
   score?: number;
   findings?: Finding[];
   reason?: string;

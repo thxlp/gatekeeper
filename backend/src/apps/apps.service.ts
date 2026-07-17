@@ -298,11 +298,6 @@ export class AppsService {
     this.deployPipeline.resetStages(app);
     this.deployPipeline.persistStage(app, 'payload_verification', 'success');
 
-    const buffer = file.buffer;
-    const result = await this.deployPipeline.runPipeline(app, requestId, 'manual-deploy', (stagingDir) =>
-      extractZipSafely(buffer, stagingDir),
-    );
-
     this.audit.append({
       requestId: uuidv4(),
       accountId: account.id,
@@ -311,7 +306,15 @@ export class AppsService {
       reason: dto.appId ? `redeployed:${app.id}` : `created:${app.id}`,
     });
 
-    return { id: app.id, ...result };
+    // ตอบ id ทันทีแล้วปล่อย pipeline วิ่ง background ให้หน้า /apps/<id> poll สถานะ stage
+    // สดๆ เอา — แพทเทิร์นเดียวกับ triggerGitDeploy (เดิม await ทั้ง pipeline ทำให้ผู้ใช้
+    // จ้องปุ่มหมุนเป็นนาทีโดยไม่เห็นความคืบหน้าอะไรเลย ต่างจาก flow ฝั่ง git repo)
+    const buffer = file.buffer;
+    this.deployPipeline
+      .runPipeline(app, requestId, 'manual-deploy', (stagingDir) => extractZipSafely(buffer, stagingDir))
+      .catch((err) => this.logger.warn(`manual deploy ${app.id} failed: ${err.message}`));
+
+    return { id: app.id, status: 'deploying' };
   }
 
   listMyApps(account: Account) {
