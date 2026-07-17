@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
+import StarterFilesModal from './StarterFilesModal';
 
 interface RailItem {
   href: string;
@@ -44,6 +46,7 @@ const items: RailItem[] = [
 
 export default function IconRail() {
   const pathname = usePathname();
+  const [startersOpen, setStartersOpen] = useState(false);
   const settingsActive = pathname.startsWith('/settings');
   const accountActive = pathname.startsWith('/account');
 
@@ -53,6 +56,7 @@ export default function IconRail() {
     }`;
 
   return (
+    <>
     <nav className="hidden w-[58px] flex-none flex-col items-center gap-1.5 bg-rail py-3.5 sm:flex">
       <Link
         href="/"
@@ -71,6 +75,15 @@ export default function IconRail() {
         );
       })}
 
+      <button
+        onClick={() => setStartersOpen(true)}
+        aria-label="ไฟล์เริ่มงาน"
+        title="ไฟล์เริ่มงาน"
+        className={itemClass(startersOpen)}
+      >
+        <i className={`${startersOpen ? 'ph-fill' : 'ph'} ph-download-simple text-lg`} />
+      </button>
+
       <div className="mt-auto flex flex-col items-center gap-1.5">
         <Link href="/settings" aria-label="Settings" className={itemClass(settingsActive)}>
           <i className={`${settingsActive ? 'ph-fill ph-gear' : 'ph ph-gear'} text-lg`} />
@@ -86,5 +99,7 @@ export default function IconRail() {
         </Link>
       </div>
     </nav>
+    {startersOpen && <StarterFilesModal onClose={() => setStartersOpen(false)} />}
+    </>
   );
 }
