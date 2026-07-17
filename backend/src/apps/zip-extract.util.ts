@@ -7,6 +7,14 @@ const MAX_ENTRY_COUNT = 5000;
 
 export class ZipExtractionError extends Error {}
 
+// ไฟล์ขยะจาก OS ที่ไม่มีผลต่อการ build — ข้ามทิ้งแทนที่จะปล่อยไปโผล่ใน staging
+// (__MACOSX/ มากับ Finder ทุกครั้ง, .DS_Store/Thumbs.db มากับการ zip โฟลเดอร์บน mac/Windows)
+function isJunkEntry(name: string): boolean {
+  if (name.startsWith('__MACOSX/')) return true;
+  const base = name.split('/').pop() || '';
+  return base === '.DS_Store' || base === 'Thumbs.db';
+}
+
 /**
  * แตก zip ไปที่ destDir แบบปลอดภัย — กัน zip-slip ด้วยการ resolve absolute path ของทุก entry
  * แล้วเช็คว่าต้องอยู่ใต้ destDir จริงๆ เท่านั้น (path.resolve collapse "../" ตามจริง ต่างจาก
@@ -15,20 +23,43 @@ export class ZipExtractionError extends Error {}
  * symlink จริงบน disk (จะกลายเป็นแค่ regular file ที่มีเนื้อหาเป็น target path เฉยๆ ไม่ escape ได้)
  * กัน zip-bomb เบื้องต้นด้วย cap ทั้งจำนวน entry และขนาดรวมหลังแตกไฟล์ (เช็คทั้ง declared size ก่อน
  * decompress เพื่อ bail เร็ว และขนาดจริงหลัง decompress เป็น defense-in-depth ชั้นที่สอง)
+ *
+ * ความยืดหยุ่นเพิ่มเติม (ไม่ลดความเข้มของ security checks ข้างบน):
+ *   - error แยกชัด "ไม่ใช่ zip" (บอก magic bytes + ขนาดที่ได้รับ) vs "zip ไม่สมบูรณ์/โดนตัด"
+ *     เพื่อให้ log วินิจฉัยได้เลยว่า upload เพี้ยนที่ไหน
+ *   - ถ้าทุกไฟล์อยู่ใต้โฟลเดอร์บนสุดเดียวกัน (zip ทั้งโฟลเดอร์แทน zip เนื้อใน — พฤติกรรม
+ *     default ของ Windows/macOS) strip ชั้นนั้นออกให้ project root อยู่ที่ staging root จริง
+ *   - ข้ามไฟล์ขยะ OS (__MACOSX/.DS_Store/Thumbs.db) ก่อนคิดทุกอย่าง
  */
 export function extractZipSafely(zipBuffer: Buffer, destDir: string): void {
+  // วินิจฉัยก่อน parse: zip ที่ถูกต้องต้องขึ้นต้น "PK" และยาวอย่างน้อย 22 byte (EOCD เปล่า)
+  if (zipBuffer.length < 22 || !(zipBuffer[0] === 0x50 && zipBuffer[1] === 0x4b)) {
+    const head = zipBuffer.subarray(0, 4).toString('hex') || 'empty';
+    throw new ZipExtractionError(`not_a_zip_file — ได้รับ ${zipBuffer.length} bytes ขึ้นต้น 0x${head} (ไม่ใช่ไฟล์ .zip)`);
+  }
+
   let zip: AdmZip;
   try {
     zip = new AdmZip(zipBuffer);
   } catch {
-    throw new ZipExtractionError('invalid_zip_file');
+    // ขึ้นต้น PK แต่ parse ไม่ได้ = โครงสร้างเสีย ส่วนใหญ่คือไฟล์โดนตัดท้ายระหว่างอัปโหลด
+    throw new ZipExtractionError(`invalid_zip_file — ไฟล์ zip ไม่สมบูรณ์ (ได้รับ ${zipBuffer.length} bytes อาจโดนตัดท้ายตอนอัปโหลด) ลองอัปโหลดใหม่`);
   }
 
-  const entries = zip.getEntries().filter((e) => !e.isDirectory);
+  const entries = zip.getEntries().filter((e) => !e.isDirectory && !isJunkEntry(e.entryName));
   if (entries.length === 0) throw new ZipExtractionError('empty_zip_file');
   if (entries.length > MAX_ENTRY_COUNT) {
     throw new ZipExtractionError(`too_many_files_in_zip:${entries.length}`);
   }
+
+  // zip ที่ครอบด้วยโฟลเดอร์บนสุดชั้นเดียว (my-app/package.json, my-app/src/...) — strip
+  // ชั้นนั้นออกเพื่อให้ package.json/Dockerfile อยู่ root ตามที่ build stage คาดหวัง
+  // strip เฉพาะเมื่อ "ทุกไฟล์" อยู่ใต้โฟลเดอร์เดียวกันเท่านั้น ไม่งั้นคงโครงสร้างเดิมไว้
+  const firstSegment = entries[0].entryName.split('/')[0];
+  const stripPrefix =
+    firstSegment && entries.every((e) => e.entryName.startsWith(firstSegment + '/'))
+      ? firstSegment + '/'
+      : '';
 
   const destRoot = path.resolve(destDir);
   let totalBytes = 0;
@@ -38,7 +69,10 @@ export function extractZipSafely(zipBuffer: Buffer, destDir: string): void {
       throw new ZipExtractionError(`zip_entry_too_large:${entry.entryName}`);
     }
 
-    const targetPath = path.resolve(destRoot, entry.entryName);
+    const relName = stripPrefix ? entry.entryName.slice(stripPrefix.length) : entry.entryName;
+    if (!relName) continue;
+
+    const targetPath = path.resolve(destRoot, relName);
     if (targetPath !== destRoot && !targetPath.startsWith(destRoot + path.sep)) {
       throw new ZipExtractionError(`zip_slip_detected:${entry.entryName}`);
     }

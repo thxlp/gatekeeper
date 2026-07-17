@@ -8,7 +8,7 @@ import CopyField from '@/components/ui/CopyField';
 import FindingsList from '@/components/ui/FindingsList';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { filesToZipEntries, readDropped, zipEntriesToBlob } from '@/lib/zip';
+import { filesToZipEntries, isZipBlob, readDropped, zipEntriesToBlob } from '@/lib/zip';
 import { DeployOutcome, GitAppDetail, GitAppRegistration, GithubRepo, GithubStatus } from '@/types';
 
 // node/static/python รองรับผ่าน generated Dockerfile, docker = ใช้ Dockerfile ของ repo เอง
@@ -591,10 +591,14 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
   const handleFolderPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
-    const entries = await filesToZipEntries(fileList);
-    const blob = await zipEntriesToBlob(entries);
-    setPendingArchive(blob);
-    setPendingLabel(`${Object.keys(entries).length} ไฟล์ (แตกจาก folder)`);
+    try {
+      const entries = await filesToZipEntries(fileList);
+      const blob = await zipEntriesToBlob(entries);
+      setPendingArchive(blob);
+      setPendingLabel(`${Object.keys(entries).length} ไฟล์ (แตกจาก folder)`);
+    } catch (err: any) {
+      setResult({ decision: 'BLOCK', requestId: '', reason: `อ่าน/บีบอัดโฟลเดอร์ไม่สำเร็จ: ${err?.message || err}` });
+    }
   };
 
   const handleZipPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -609,17 +613,24 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
     e.preventDefault();
     setDragActive(false);
     if (!e.dataTransfer) return;
-    const { zipFile, entries } = await readDropped(e.dataTransfer);
-    if (zipFile) {
-      setPendingArchive(zipFile);
-      setPendingLabel(zipFile.name);
-      return;
+    try {
+      const { zipFile, entries } = await readDropped(e.dataTransfer);
+      if (zipFile) {
+        setPendingArchive(zipFile);
+        setPendingLabel(zipFile.name);
+        return;
+      }
+      const count = Object.keys(entries).length;
+      if (count === 0) {
+        setResult({ decision: 'BLOCK', requestId: '', reason: 'ไม่พบไฟล์ในสิ่งที่ลากมาวาง — ลากไฟล์ .zip หรือโฟลเดอร์โปรเจคมาวาง' });
+        return;
+      }
+      const blob = await zipEntriesToBlob(entries);
+      setPendingArchive(blob);
+      setPendingLabel(`${count} ไฟล์ (แตกจาก drop)`);
+    } catch (err: any) {
+      setResult({ decision: 'BLOCK', requestId: '', reason: `อ่าน/บีบอัดไฟล์ที่ลากมาไม่สำเร็จ: ${err?.message || err}` });
     }
-    const count = Object.keys(entries).length;
-    if (count === 0) return;
-    const blob = await zipEntriesToBlob(entries);
-    setPendingArchive(blob);
-    setPendingLabel(`${count} ไฟล์ (แตกจาก drop)`);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -635,6 +646,16 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
 
   const deploy = async () => {
     if (!pendingArchive) return;
+    // กันอัปโหลดของเพี้ยน: เช็ค magic bytes ฝั่ง client ก่อน จะได้ข้อความที่บอกวิธีแก้
+    // แทน invalid_zip_file จาก pipeline (เจอได้เช่นไฟล์ .zip ปลอม หรือบีบอัดฝั่ง browser เพี้ยน)
+    if (!(await isZipBlob(pendingArchive))) {
+      setResult({
+        decision: 'BLOCK',
+        requestId: '',
+        reason: `ไฟล์ที่เลือกไม่ใช่ .zip ที่สมบูรณ์ (${pendingArchive.size} bytes) — ลองเลือกไฟล์/โฟลเดอร์ใหม่อีกครั้ง`,
+      });
+      return;
+    }
     setLoading(true);
     setResult(null);
     const formData = new FormData();
