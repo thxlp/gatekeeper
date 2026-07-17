@@ -1,6 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import AdmZip from 'adm-zip';
+// ต้องใช้ `import = require` เพราะ adm-zip เป็น CJS ที่ `export =` constructor ตรงๆ และ
+// tsconfig ไม่ได้เปิด esModuleInterop — `import AdmZip from 'adm-zip'` จะ compile เป็น
+// `adm_zip_1.default` ซึ่ง undefined ตอน runtime → `new undefined()` throw → invalid_zip_file
+// (ทำให้ manual zip deploy พังทุกไฟล์ที่ stage 2)
+import AdmZip = require('adm-zip');
 import { DATA_DIR } from '../common/paths';
 
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 200 * 1024 * 1024; // 200MB

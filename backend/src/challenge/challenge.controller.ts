@@ -22,9 +22,8 @@ export class ChallengeController {
   }
 
   @Post('verify')
-  verify(@Req() req: Request, @Res() res: Response) {
-    const ip = req.ip || req.socket.remoteAddress || '';
-    const token = this.challengeService.issueToken(ip);
+  verify(@Req() _req: Request, @Res() res: Response) {
+    const token = this.challengeService.issueToken();
     res.cookie(this.challengeService.cookieName(), token, {
       httpOnly: true,
       secure: true,

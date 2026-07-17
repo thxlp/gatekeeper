@@ -176,3 +176,7 @@ networks:
   # เพื่อ proxy request เข้า container เหล่านี้ได้ (ดู live/live.controller.ts)
   gatekeeper-apps-net:
     driver: bridge
+    # pin ชื่อจริงให้ตรงกับที่โค้ดหา (docker-runtime APPS_NETWORK = 'gatekeeper-apps-net')
+    # ไม่งั้น compose จะ prefix ชื่อ project เป็น docker_gatekeeper-apps-net → dockerode หา
+    # 'gatekeeper-apps-net' ไม่เจอ → container ของแอปที่ deploy มา start ไม่ขึ้น (network not found)
+    name: gatekeeper-apps-net
