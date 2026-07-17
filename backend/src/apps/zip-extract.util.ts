@@ -1,11 +1,34 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import AdmZip from 'adm-zip';
+import { DATA_DIR } from '../common/paths';
 
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 200 * 1024 * 1024; // 200MB
 const MAX_ENTRY_COUNT = 5000;
+const MAX_DEBUG_DUMP_BYTES = 10 * 1024 * 1024; // ไม่ dump ไฟล์ใหญ่เกิน 10MB — เปลือง disk เปล่า
 
 export class ZipExtractionError extends Error {}
+
+// เก็บ byte ดิบที่ parse ไม่ผ่านไว้ให้ forensic ทีหลัง (อาการ upload เพี้ยนที่ reproduce ไม่ได้
+// ต้องเห็น byte จริงถึงจะวินิจฉัยได้) + คืน hex หัว/ท้ายไว้แปะใน error message
+// ล้มเหลวเงียบๆ ได้ — ห้าม error ของการ dump ไปกลบ error จริง
+function dumpForDebug(buf: Buffer): string {
+  const head = buf.subarray(0, 8).toString('hex');
+  const tail = buf.subarray(Math.max(0, buf.length - 24)).toString('hex');
+  let dumpNote = '';
+  if (buf.length <= MAX_DEBUG_DUMP_BYTES) {
+    try {
+      const dir = path.join(DATA_DIR, 'upload-debug');
+      fs.mkdirSync(dir, { recursive: true });
+      const name = `${Date.now()}-${buf.length}b.bin`;
+      fs.writeFileSync(path.join(dir, name), buf);
+      dumpNote = ` dump=upload-debug/${name}`;
+    } catch {
+      /* dump ไม่ได้ก็ไม่เป็นไร */
+    }
+  }
+  return `head=0x${head} tail=0x${tail}${dumpNote}`;
+}
 
 // ไฟล์ขยะจาก OS ที่ไม่มีผลต่อการ build — ข้ามทิ้งแทนที่จะปล่อยไปโผล่ใน staging
 // (__MACOSX/ มากับ Finder ทุกครั้ง, .DS_Store/Thumbs.db มากับการ zip โฟลเดอร์บน mac/Windows)
@@ -34,16 +57,19 @@ function isJunkEntry(name: string): boolean {
 export function extractZipSafely(zipBuffer: Buffer, destDir: string): void {
   // วินิจฉัยก่อน parse: zip ที่ถูกต้องต้องขึ้นต้น "PK" และยาวอย่างน้อย 22 byte (EOCD เปล่า)
   if (zipBuffer.length < 22 || !(zipBuffer[0] === 0x50 && zipBuffer[1] === 0x4b)) {
-    const head = zipBuffer.subarray(0, 4).toString('hex') || 'empty';
-    throw new ZipExtractionError(`not_a_zip_file — ได้รับ ${zipBuffer.length} bytes ขึ้นต้น 0x${head} (ไม่ใช่ไฟล์ .zip)`);
+    throw new ZipExtractionError(
+      `not_a_zip_file — ได้รับ ${zipBuffer.length} bytes ไม่ใช่ไฟล์ .zip (${dumpForDebug(zipBuffer)})`,
+    );
   }
 
   let zip: AdmZip;
   try {
     zip = new AdmZip(zipBuffer);
   } catch {
-    // ขึ้นต้น PK แต่ parse ไม่ได้ = โครงสร้างเสีย ส่วนใหญ่คือไฟล์โดนตัดท้ายระหว่างอัปโหลด
-    throw new ZipExtractionError(`invalid_zip_file — ไฟล์ zip ไม่สมบูรณ์ (ได้รับ ${zipBuffer.length} bytes อาจโดนตัดท้ายตอนอัปโหลด) ลองอัปโหลดใหม่`);
+    // ขึ้นต้น PK แต่ parse ไม่ได้ = โครงสร้างเสีย (โดนตัดท้าย/byte เพี้ยนระหว่างทาง)
+    throw new ZipExtractionError(
+      `invalid_zip_file — ไฟล์ zip ไม่สมบูรณ์ ได้รับ ${zipBuffer.length} bytes (${dumpForDebug(zipBuffer)}) ลองอัปโหลดใหม่`,
+    );
   }
 
   const entries = zip.getEntries().filter((e) => !e.isDirectory && !isJunkEntry(e.entryName));

@@ -9,6 +9,7 @@ import { TicketService } from '../ticket/ticket.service';
 import { AuditService } from '../audit/audit.service';
 import { UsageCollectorService } from '../entitlement/usage-collector.service';
 import { GitAppStore } from '../apps/git-app.store';
+import { ZipExtractionError } from '../apps/zip-extract.util';
 import { GitAutomatorService } from '../webhook/git-automator.service';
 import { DockerRuntimeService } from './docker-runtime.service';
 import { initialPipelineStages } from '../common/pipeline.util';
@@ -202,7 +203,11 @@ export class DeployPipelineService {
     } catch (err: any) {
       this.persistStage(app, currentStage, 'failed');
       this.audit.append({ requestId, accountId: app.accountId, stage: 'fatal', decision: 'BLOCK', reason: err.message });
-      return { decision: 'BLOCK', requestId, reason: 'internal_error_fail_closed' };
+      // ZipExtractionError = ปัญหาที่ไฟล์ของผู้ใช้ ไม่ใช่ internal error — โชว์ข้อความจริงให้เลย
+      // (ข้อความพวกนี้เราประกอบเองทั้งหมดใน zip-extract.util ไม่มี internal detail หลุด)
+      // error อื่นคง fail-closed ด้วยข้อความกลางๆ เหมือนเดิม
+      const reason = err instanceof ZipExtractionError ? err.message : 'internal_error_fail_closed';
+      return { decision: 'BLOCK', requestId, reason };
     } finally {
       if (fs.existsSync(stagingDir)) {
         fs.rmSync(stagingDir, { recursive: true, force: true });
