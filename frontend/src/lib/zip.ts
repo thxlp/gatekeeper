@@ -1,4 +1,4 @@
-import { zip } from 'fflate';
+import { zipSync } from 'fflate';
 
 // เดินไฟล์ทั้งหมดใน FileList (จาก webkitdirectory) ให้เป็น map path -> Uint8Array สำหรับป้อนเข้า fflate
 export async function filesToZipEntries(fileList: FileList): Promise<Record<string, Uint8Array>> {
@@ -17,13 +17,25 @@ export async function filesToZipEntries(fileList: FileList): Promise<Record<stri
   return entries;
 }
 
+// zipSync แทน zip (async) — ตัวหลังบีบอัดใน Web Worker ซึ่งเป็นตัวแปรที่คุมไม่ได้
+// (โดน extension/นโยบาย browser รบกวนได้ และเคยได้ archive เพี้ยนส่งขึ้น backend เป็น
+// invalid_zip_file) โฟลเดอร์ที่อัปโหลดกันจริงเล็กพอที่ sync จะไม่ทำ UI ค้างรู้สึกได้
+// คง signature Promise ไว้ให้ caller เดิมไม่ต้องแก้
 export function zipEntriesToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    zip(entries, { level: 6 }, (err, data) => {
-      if (err) return reject(err);
-      resolve(new Blob([data], { type: 'application/zip' }));
-    });
-  });
+  try {
+    const data = zipSync(entries, { level: 6 });
+    return Promise.resolve(new Blob([data], { type: 'application/zip' }));
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+// เช็คว่า Blob เป็น zip จริงก่อนอัปโหลด (ขึ้นต้น "PK") — จับไฟล์เพี้ยนตั้งแต่ฝั่ง client
+// จะได้ error ที่อ่านรู้เรื่องแทนที่จะไปตายที่ pipeline ฝั่ง server
+export async function isZipBlob(blob: Blob): Promise<boolean> {
+  if (blob.size < 22) return false; // เล็กกว่า EOCD เปล่า = ไม่ใช่ zip แน่นอน
+  const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+  return head[0] === 0x50 && head[1] === 0x4b;
 }
 
 // ── drag-drop support ────────────────────────────────────────────────────────
