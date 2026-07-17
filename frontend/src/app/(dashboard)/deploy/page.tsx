@@ -673,9 +673,9 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
     }
     try {
       const r = await api.deployManual(formData);
-      // ALLOW ไม่มี findings ให้ดู → พาไปหน้า pipeline เลย; QUARANTINE/BLOCK (id อาจมีอยู่ก็ได้)
-      // โชว์ผลตรงนี้ก่อนให้ผู้ใช้เห็น findings ไม่งั้น navigate ไปแล้วข้อมูลนี้จะหายไปเฉยๆ
-      if (r.id && r.decision === 'ALLOW') {
+      // backend ตอบ id ทันทีแล้ว pipeline วิ่ง background — พาไปหน้า /apps/<id> ดู stage
+      // วิ่งสดๆ เหมือน flow ฝั่ง git repo (ผลสุดท้าย/เหตุผล fail ดูจากหน้านั้น + Audit Log)
+      if (r.id) {
         router.push(`/apps/${r.id}`);
       } else {
         setResult(r);
