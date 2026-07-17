@@ -76,7 +76,7 @@ const ADDON_SPEC: Record<
     port: number;
     envKey: string;
     dataPath: string;
-    cmd?: string[];
+    cmd?: (password: string) => string[];
     containerEnv: (password: string) => string[];
     buildUrl: (host: string, port: number, password: string) => string;
   }
@@ -94,9 +94,11 @@ const ADDON_SPEC: Record<
     port: 6379,
     envKey: 'REDIS_URL',
     dataPath: '/data',
-    cmd: ['redis-server', '--appendonly', 'yes'],
+    // ตั้ง requirepass เสมอ — apps-net เป็น network ที่แชร์กันทุก tenant ถ้า redis ไม่มีรหัส
+    // แอปของ tenant อื่นสแกนเจอแล้วต่อเข้ามาอ่าน/เขียนข้อมูลได้ทันทีโดยไม่ต้อง auth
+    cmd: (pw) => ['redis-server', '--appendonly', 'yes', '--requirepass', pw],
     containerEnv: () => [],
-    buildUrl: (host, port) => `redis://${host}:${port}`,
+    buildUrl: (host, port, pw) => `redis://:${pw}@${host}:${port}`,
   },
 };
 
@@ -403,9 +405,10 @@ export class DockerRuntimeService {
     const existing = app.addonConnections?.find((c) => c.type === type);
 
     // reuse password เดิมถ้าเคย provision แล้ว (volume ผูกกับ password ตอน init ครั้งแรก
-    // ถ้าเปลี่ยน password แต่ volume เดิม auth จะพัง) — postgres ดึงจาก URL, redis ไม่มี password
+    // ถ้าเปลี่ยน password แต่ volume เดิม auth จะพัง) — ทั้ง postgres และ redis ดึง password
+    // เดิมจาก URL ที่เก็บไว้ (parsePassword ใช้ URL().password ได้กับทั้งสอง scheme)
     let password = '';
-    if (type === 'postgres') {
+    if (type === 'postgres' || type === 'redis') {
       password = existing ? this.parsePassword(existing.url) : crypto.randomBytes(18).toString('hex');
     }
 
@@ -437,7 +440,7 @@ export class DockerRuntimeService {
       name: containerName,
       Image: spec.image,
       Env: spec.containerEnv(password),
-      ...(spec.cmd ? { Cmd: spec.cmd } : {}),
+      ...(spec.cmd ? { Cmd: spec.cmd(password) } : {}),
       HostConfig: {
         Memory: 256 * 1024 * 1024,
         NanoCpus: Math.round(0.5 * 1e9),
