@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '../common/paths';
+import { GitApp } from '../common/types';
 import { GitAppStore } from '../apps/git-app.store';
 import { DockerRuntimeService } from '../deploy/docker-runtime.service';
 
@@ -49,12 +50,18 @@ export class UsageStatsService {
   ) {}
 
   async summary(accountId: string): Promise<UsageSummary> {
-    const [apps, deploys] = await Promise.all([this.collectAppStats(accountId), this.collectDeployStats(accountId)]);
+    const ownedApps = this.gitAppStore.findAll(accountId);
+    const [apps, deploys] = await Promise.all([
+      this.collectAppStats(ownedApps),
+      this.collectDeployStats(
+        accountId,
+        new Set(ownedApps.map((a) => a.id)),
+      ),
+    ]);
     return { apps, deploys };
   }
 
-  private async collectAppStats(accountId: string): Promise<UsageAppStat[]> {
-    const apps = this.gitAppStore.findAll(accountId);
+  private async collectAppStats(apps: GitApp[]): Promise<UsageAppStat[]> {
     return Promise.all(
       apps.map(async (app) => {
         const stats = await this.dockerRuntime.getContainerStats(`gatekeeper-app-${app.id}`);
@@ -70,7 +77,9 @@ export class UsageStatsService {
     );
   }
 
-  private async collectDeployStats(accountId: string): Promise<UsageSummary['deploys']> {
+  // นับเฉพาะ event ของ app ที่ยังอยู่ใน store — ลบ app แล้วสถิติของมันหายจากหน้า Usage ด้วย
+  // (ผลพลอยได้: event ยุคก่อนมีฟิลด์ appId ถูกตัดทิ้งหมด ตัวเลขเลยเริ่มนับจากของจริงปัจจุบัน)
+  private async collectDeployStats(accountId: string, ownedAppIds: Set<string>): Promise<UsageSummary['deploys']> {
     let raw = '';
     try {
       raw = await fs.promises.readFile(this.usageFile, 'utf8');
@@ -90,6 +99,7 @@ export class UsageStatsService {
         continue; // บรรทัดเสีย (เช่น เขียนค้างตอน crash) ข้ามไป ไม่ให้ทั้ง endpoint พัง
       }
       if (event.accountId !== accountId) continue;
+      if (!event.appId || !ownedAppIds.has(event.appId)) continue;
       total += 1;
       if (event.allowed) allowed += 1;
       const month = String(event.ts || '').slice(0, 7); // YYYY-MM
