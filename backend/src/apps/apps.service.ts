@@ -25,6 +25,7 @@ import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
 import { GitAutomatorService } from '../webhook/git-automator.service';
 import { GithubApiService } from '../github/github-api.service';
 import { GithubTokenStore } from '../github/github-token.store';
+import { QuotaService } from '../entitlement/quota.service';
 
 const DEFAULT_BRANCH = 'main';
 
@@ -48,6 +49,7 @@ export class AppsService {
     private automator: GitAutomatorService,
     private githubApi: GithubApiService,
     private githubTokens: GithubTokenStore,
+    private quota: QuotaService,
   ) {}
 
   registerGitApp(dto: RegisterGitAppDto, account: Account) {
@@ -89,6 +91,7 @@ export class AppsService {
       updatedAt: now,
     };
     this.applyConfig(app, dto);
+    this.quota.assertWithinQuota(app);
 
     this.store.save(app);
 
@@ -135,16 +138,7 @@ export class AppsService {
     const branch = dto.branch?.trim() || repoInfo.defaultBranch || DEFAULT_BRANCH;
     if (!isSafeBranchName(branch)) throw new BadRequestException('branch ไม่ถูกต้อง');
 
-    // สร้าง webhook ฝั่ง GitHub ให้สำเร็จก่อนค่อย save app — พังตรงนี้ = ไม่มี app ค้างครึ่งๆ กลางๆ
     const webhookSecret = crypto.randomBytes(32).toString('hex');
-    const githubHookId = await this.githubApi.createOrUpdatePushWebhook(
-      conn.token,
-      parsed.owner,
-      parsed.repo,
-      PUBLIC_WEBHOOK_URL,
-      webhookSecret,
-    );
-
     const now = new Date().toISOString();
     const id = `gitapp_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
     const app: GitApp = {
@@ -156,7 +150,6 @@ export class AppsService {
       cloneUrl: parsed.cloneUrl,
       branch,
       webhookSecret,
-      githubHookId,
       enabled: true,
       runtime: dto.runtime,
       port: dto.port,
@@ -167,6 +160,17 @@ export class AppsService {
       updatedAt: now,
     };
     this.applyConfig(app, dto);
+    // เช็คโควต้าก่อนสร้าง webhook ฝั่ง GitHub — เกินโควต้าแล้วไม่ควรมี webhook ค้างใน repo
+    this.quota.assertWithinQuota(app);
+
+    // สร้าง webhook ฝั่ง GitHub ให้สำเร็จก่อนค่อย save app — พังตรงนี้ = ไม่มี app ค้างครึ่งๆ กลางๆ
+    app.githubHookId = await this.githubApi.createOrUpdatePushWebhook(
+      conn.token,
+      parsed.owner,
+      parsed.repo,
+      PUBLIC_WEBHOOK_URL,
+      webhookSecret,
+    );
     this.store.save(app);
 
     this.audit.append({
@@ -174,7 +178,7 @@ export class AppsService {
       accountId: account.id,
       stage: 'gitapp:register-github',
       decision: 'INFO',
-      reason: `registered_auto_webhook:${app.repoFullName}#${githubHookId}`,
+      reason: `registered_auto_webhook:${app.repoFullName}#${app.githubHookId}`,
     });
 
     // first deploy ทันทีแบบ Railway — ไม่ await ให้ endpoint ตอบเร็ว UI poll GET /apps/:id เอง
@@ -290,6 +294,8 @@ export class AppsService {
       if (errors.length) throw new BadRequestException('config ไม่ถูกต้อง');
       this.applyConfig(app, cfg);
     }
+    // เช็คทุกรอบ (ทั้งสร้างใหม่และ redeploy) — config ที่แนบมาอาจเพิ่ม memoryMb/addons จนเกินโควต้า
+    this.quota.assertWithinQuota(app);
 
     app.updatedAt = new Date().toISOString();
     this.store.save(app);
@@ -375,6 +381,7 @@ export class AppsService {
     if (dto.port !== undefined) app.port = dto.port;
     if (dto.enabled !== undefined) app.enabled = dto.enabled;
     this.applyConfig(app, dto);
+    this.quota.assertWithinQuota(app);
     app.updatedAt = new Date().toISOString();
 
     this.store.save(app);

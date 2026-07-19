@@ -158,3 +158,39 @@ export interface CertifiedService {
   docs_url: string;
   logo: string;
 }
+
+// ผลการใช้งานต่อ account จาก GET /usage (การ์ด Usage บนหน้า Settings)
+export interface UsageAppStat {
+  id: string;
+  name: string;
+  running: boolean;
+  cpuPercent: number | null; // null = ยังไม่เคย deploy สำเร็จ (ไม่มี container)
+  memUsedMb: number | null;
+  memLimitMb: number | null;
+}
+
+export interface UsageDeployMonth {
+  month: string; // YYYY-MM
+  total: number;
+  allowed: number;
+  blocked: number;
+}
+
+// โควต้าทรัพยากรรวมต่อบัญชี (เพดานผลรวม limit ของทุก app+addon ไม่ใช่การใช้งานจริงขณะนี้)
+export interface UsageQuota {
+  memoryUsedMb: number;
+  memoryQuotaMb: number;
+  cpuUsed: number;
+  cpuQuota: number;
+}
+
+export interface UsageSummary {
+  apps: UsageAppStat[];
+  quota: UsageQuota;
+  deploys: {
+    total: number;
+    allowed: number;
+    blocked: number;
+    months: UsageDeployMonth[];
+  };
+}

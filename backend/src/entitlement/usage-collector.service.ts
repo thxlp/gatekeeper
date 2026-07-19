@@ -6,6 +6,7 @@ import { DATA_DIR } from '../common/paths';
 export interface UsageEvent {
   requestId?: string;
   accountId?: string;
+  appId?: string;
   plan?: string;
   feature?: string;
   runtime?: string;

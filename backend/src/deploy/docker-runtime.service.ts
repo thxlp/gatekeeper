@@ -4,6 +4,7 @@ import * as tarFs from 'tar-fs';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as net from 'net';
+import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { AddonConnection, AppAddon, GitApp } from '../common/types';
@@ -57,12 +58,31 @@ function parseExposedPort(dockerfileContent: string): number | undefined {
 }
 
 // resource default + cap (ผู้ใช้ตั้ง memoryMb/cpu ได้ แต่ไม่เกิน cap เพื่อกัน 1 app กิน host หมด)
-const DEFAULT_MEMORY_MB = 256;
+// default RAM แยกตาม runtime — static คือ nginx เสิร์ฟไฟล์ กินจริงหลัก MB ไม่ต้องกัน 256
+// (สำคัญตั้งแต่มีโควต้าต่อ user: default ที่เล็กลงทำให้ deploy หลาย app ในโควต้าเดียวได้จริง)
+const RUNTIME_DEFAULT_MEMORY_MB: Record<string, number> = { static: 64, node: 128, python: 128, docker: 128 };
+const FALLBACK_DEFAULT_MEMORY_MB = 128;
 const MAX_MEMORY_MB = Number(process.env.APP_MAX_MEMORY_MB || 1024);
 const MIN_MEMORY_MB = 64;
 const DEFAULT_CPU = 0.5;
 const MAX_CPU = Number(process.env.APP_MAX_CPU || 2);
 const MIN_CPU = 0.1;
+
+// resource ของ addon ต่อตัว (ตรงกับ HostConfig ตอนสร้างใน ensureAddon) — export ให้ QuotaService
+// เอาไปคิดรวมในโควต้าต่อ user ด้วย
+export const ADDON_MEMORY_MB = 256;
+export const ADDON_CPU = 0.5;
+
+/**
+ * ทรัพยากรที่ app จะถูกจำกัดจริงตอนรัน (หลัง clamp เข้ากรอบ MIN/MAX) — จุดเดียวที่ใช้ทั้ง
+ * ตอนสร้าง container (runContainer) และตอนคิดโควต้าต่อ user (QuotaService) เพื่อให้เลขตรงกันเสมอ
+ */
+export function appResources(app: Pick<GitApp, 'runtime' | 'memoryMb' | 'cpu'>): { memoryMb: number; cpu: number } {
+  const defaultMb = RUNTIME_DEFAULT_MEMORY_MB[app.runtime || 'static'] ?? FALLBACK_DEFAULT_MEMORY_MB;
+  const memoryMb = Math.min(MAX_MEMORY_MB, Math.max(MIN_MEMORY_MB, app.memoryMb || defaultMb));
+  const cpu = Math.min(MAX_CPU, Math.max(MIN_CPU, app.cpu || DEFAULT_CPU));
+  return { memoryMb, cpu };
+}
 // healthcheck รอนานขึ้นและตั้งค่าได้ผ่าน env — งานทั่วไปหลายตัว build/warm-up ตอน boot นานกว่า 30 วิ
 const HEALTHCHECK_TIMEOUT_MS = Number(process.env.DEPLOY_HEALTHCHECK_TIMEOUT_MS || 60_000);
 const HEALTHCHECK_INTERVAL_MS = 1_000;
@@ -102,16 +122,23 @@ const ADDON_SPEC: Record<
   },
 };
 
-/** จำกัด memory/cpu ให้อยู่ในกรอบ (คืน bytes + nanoCpus ตามที่ Docker ต้องการ) */
-function clampResources(memoryMb?: number, cpu?: number): { memoryBytes: number; nanoCpus: number } {
-  const mb = Math.min(MAX_MEMORY_MB, Math.max(MIN_MEMORY_MB, memoryMb || DEFAULT_MEMORY_MB));
-  const c = Math.min(MAX_CPU, Math.max(MIN_CPU, cpu || DEFAULT_CPU));
-  return { memoryBytes: mb * 1024 * 1024, nanoCpus: Math.round(c * 1e9) };
-}
-
-// network ภายในแยกต่างหากสำหรับ app ที่ deploy มา (ไม่ใช่ default network ที่ backend/postgres อยู่)
-// ต้องสร้าง network นี้ไว้ล่วงหน้าผ่าน docker-compose.yml (ดู deployments/docker/docker-compose.yml)
+// network กลางเดิม — เหลือไว้เป็น fallback สำหรับ app เก่าที่ยังไม่ได้ย้าย (ดู
+// deployments/docker/migrate-tenant-networks.sh) app ที่ deploy ใหม่ทุกตัวไปอยู่ network
+// ต่อ tenant (tenantNetworkFor) แทน เพื่อให้ app ข้าม user มองไม่เห็นกันเลยในระดับ network
 const APPS_NETWORK = process.env.GATEKEEPER_APPS_NETWORK || 'gatekeeper-apps-net';
+
+const TENANT_NETWORK_PREFIX = 'gatekeeper-tenant-';
+
+/**
+ * network ต่อ tenant: app ทุกตัวของ account เดียวกันอยู่วงเดียวกัน (คุยกันเองได้เหมือน
+ * Railway project) แต่มองไม่เห็น app ของ account อื่น — ชื่อ network ผูกกับ accountId
+ * ตรงๆ (sanitize อักขระที่ Docker ไม่รับ) ให้ migration script ฝั่ง shell ประกอบชื่อ
+ * เดียวกันได้โดยไม่ต้องพึ่งโค้ดนี้
+ */
+export function tenantNetworkFor(app: Pick<GitApp, 'accountId'>): string {
+  if (!app.accountId) return APPS_NETWORK;
+  return TENANT_NETWORK_PREFIX + app.accountId.replace(/[^A-Za-z0-9_.-]/g, '-');
+}
 
 /**
  * รัน container จริงต่อแอป — คุยกับ Docker ผ่าน dockerode ซึ่งชี้ไปที่ docker-socket-proxy
@@ -123,11 +150,59 @@ export class DockerRuntimeService {
   private readonly logger = new Logger(DockerRuntimeService.name);
   private docker: Docker;
 
+  // network ที่ instance นี้ต่อตัวเองเข้าไปแล้ว — กันการยิง connect ซ้ำทุก request /live
+  // (in-memory ต่อ instance พอ: connect ซ้ำเป็น no-op อยู่แล้ว แค่ประหยัด round-trip)
+  private selfConnectedNetworks = new Set<string>();
+
   constructor() {
     const dockerHost = process.env.DOCKER_HOST;
     this.docker = dockerHost
       ? new Docker({ host: dockerHost.replace(/^tcp:\/\//, ''), port: Number(process.env.DOCKER_PORT || 2375) })
       : new Docker({ socketPath: '/var/run/docker.sock' });
+  }
+
+  /** สร้าง network ของ tenant ถ้ายังไม่มี (idempotent — deploy พร้อมกันสอง app ของ user เดียวกันไม่ชน) */
+  private async ensureTenantNetwork(networkName: string): Promise<void> {
+    if (networkName === APPS_NETWORK) return; // network กลางถูกสร้างโดย docker-compose อยู่แล้ว
+    try {
+      await this.docker.getNetwork(networkName).inspect();
+      return;
+    } catch {
+      // ยังไม่มี — สร้างข้างล่าง; connection ที่เคย cache ไว้ผูกกับ network เก่าที่หายไปแล้ว
+      // (เช่นอีก instance cleanup ตอนลบ app สุดท้ายของ user) ต้องล้างให้ ensureSelfConnected ต่อใหม่
+      this.selfConnectedNetworks.delete(networkName);
+    }
+    try {
+      await this.docker.createNetwork({
+        Name: networkName,
+        Driver: 'bridge',
+        Labels: { 'gatekeeper.role': 'tenant-network' },
+      });
+    } catch (err: any) {
+      // 409 = อีก instance/deploy สร้างตัดหน้าไปแล้ว — จบเหมือนกัน
+      if (err?.statusCode !== 409) throw err;
+    }
+  }
+
+  /**
+   * ต่อ container ของ backend เอง (instance นี้) เข้า network ของ tenant — จำเป็นทั้งตอน
+   * healthcheck (probe ด้วย IP) และตอน proxy /live (ต่อผ่าน Docker DNS) เพราะ bridge network
+   * คนละวงมองไม่เห็นกัน ต้องทำแบบ lazy ต่อ instance: docker compose recreate แล้ว connection
+   * ที่เคยต่อไว้หายหมด จะมาพึ่งการต่อครั้งเดียวตอนสร้าง network ไม่ได้
+   */
+  async ensureSelfConnected(networkName: string): Promise<void> {
+    if (networkName === APPS_NETWORK) return; // อยู่แล้วผ่าน docker-compose
+    if (this.selfConnectedNetworks.has(networkName)) return;
+    await this.ensureTenantNetwork(networkName);
+    try {
+      // hostname ใน container = short container id (compose ไม่ได้ override hostname)
+      await this.docker.getNetwork(networkName).connect({ Container: os.hostname() });
+    } catch (err: any) {
+      // 403 "endpoint already exists" = ต่ออยู่แล้ว (เช่นจาก instance restart โดยไม่ recreate)
+      const msg = String(err?.message || '');
+      if (err?.statusCode !== 403 && !msg.includes('already exists')) throw err;
+    }
+    this.selfConnectedNetworks.add(networkName);
   }
 
   async buildImage(stagingDir: string, app: GitApp, requestId: string): Promise<BuildResult> {
@@ -297,6 +372,15 @@ export class DockerRuntimeService {
   async runContainer(app: GitApp, imageTag: string, servePort?: number): Promise<RunResult> {
     const containerName = `gatekeeper-app-${app.id}`;
     const port = servePort ?? resolveServePort(app);
+    const network = tenantNetworkFor(app);
+    try {
+      // เช็ค network ของจริงทุก deploy — cache ใน ensureSelfConnected เป็น per-instance
+      // อีก instance อาจ cleanupTenantNetwork ไปแล้ว (ตอนลบ app สุดท้ายของ user) โดย instance นี้ไม่รู้
+      await this.ensureTenantNetwork(network);
+      await this.ensureSelfConnected(network); // ต่อ backend เข้าไปให้ probe ถึง
+    } catch (err: any) {
+      return { ok: false, reason: `tenant_network_failed:${err.message}` };
+    }
 
     const previous = this.docker.getContainer(containerName);
     let previousExisted = true;
@@ -313,7 +397,7 @@ export class DockerRuntimeService {
       // ไม่มี container ค้างจากรอบก่อน ก็ไม่เป็นไร
     }
 
-    const { memoryBytes, nanoCpus } = clampResources(app.memoryMb, app.cpu);
+    const { memoryMb, cpu } = appResources(app);
     const dataVolume = `${containerName}-data`; // named volume (auto-create ตอน create ไม่ต้องใช้ /volumes API)
 
     let container: Docker.Container;
@@ -323,10 +407,10 @@ export class DockerRuntimeService {
         Image: imageTag,
         Env: this.buildContainerEnv(app, port),
         HostConfig: {
-          Memory: memoryBytes,
-          NanoCpus: nanoCpus,
+          Memory: memoryMb * 1024 * 1024,
+          NanoCpus: Math.round(cpu * 1e9),
           SecurityOpt: ['no-new-privileges'],
-          NetworkMode: APPS_NETWORK,
+          NetworkMode: network,
           RestartPolicy: { Name: 'unless-stopped' },
           // persistent storage: named volume mount ที่ /data — แอปเขียนข้อมูลถาวรไว้ที่นี่ได้
           // (คงอยู่ข้าม redeploy เพราะ volume ไม่ถูกลบตอน container ถูกแทนที่)
@@ -338,7 +422,7 @@ export class DockerRuntimeService {
       return { ok: false, reason: `container_start_failed:${err.message}` };
     }
 
-    const health = await this.waitForHealthy(container, port);
+    const health = await this.waitForHealthy(container, port, network);
     // rollback เฉพาะกรณี container ตายจริง (exit/crash) — ถ้ายังรันอยู่แต่ยังไม่ตอบ probe ('degraded')
     // ถือว่า deploy ได้ (งานทั่วไปหลายตัวไม่ตอบ HTTP ที่ '/' หรือไม่ใช่ HTTP เลย แต่ทำงานปกติ)
     if (health === 'dead') {
@@ -402,6 +486,9 @@ export class DockerRuntimeService {
   private async ensureAddon(app: GitApp, type: AppAddon): Promise<AddonConnection> {
     const spec = ADDON_SPEC[type];
     const containerName = `gatekeeper-app-${app.id}-${type}`;
+    const network = tenantNetworkFor(app);
+    await this.ensureTenantNetwork(network); // เช็คของจริงก่อน กัน cache stale ข้าม instance (ดู runContainer)
+    await this.ensureSelfConnected(network); // backend ต้อง probe addon ถึง
     const existing = app.addonConnections?.find((c) => c.type === type);
 
     // reuse password เดิมถ้าเคย provision แล้ว (volume ผูกกับ password ตอน init ครั้งแรก
@@ -442,9 +529,9 @@ export class DockerRuntimeService {
       Env: spec.containerEnv(password),
       ...(spec.cmd ? { Cmd: spec.cmd(password) } : {}),
       HostConfig: {
-        Memory: 256 * 1024 * 1024,
-        NanoCpus: Math.round(0.5 * 1e9),
-        NetworkMode: APPS_NETWORK,
+        Memory: ADDON_MEMORY_MB * 1024 * 1024,
+        NanoCpus: Math.round(ADDON_CPU * 1e9),
+        NetworkMode: network,
         RestartPolicy: { Name: 'unless-stopped' },
         Binds: [`${containerName}-data:${spec.dataPath}`],
       },
@@ -452,7 +539,7 @@ export class DockerRuntimeService {
     await created.start();
 
     // รอ addon เปิดรับ TCP ก่อนให้แอปต่อ (แอปมักต่อ DB ตอน boot)
-    const ready = await this.waitForAddon(created, spec.port);
+    const ready = await this.waitForAddon(created, spec.port, network);
     if (!ready) {
       throw new Error(`${type}_not_ready`);
     }
@@ -477,12 +564,12 @@ export class DockerRuntimeService {
     }
   }
 
-  private async waitForAddon(container: Docker.Container, port: number): Promise<boolean> {
+  private async waitForAddon(container: Docker.Container, port: number, network: string): Promise<boolean> {
     const deadline = Date.now() + ADDON_READY_TIMEOUT_MS;
     while (Date.now() < deadline) {
       try {
         const info = await container.inspect();
-        const ip = info.NetworkSettings?.Networks?.[APPS_NETWORK]?.IPAddress;
+        const ip = info.NetworkSettings?.Networks?.[network]?.IPAddress;
         if (ip && (await this.tcpProbe(ip, port))) return true;
       } catch {
         return false;
@@ -498,6 +585,64 @@ export class DockerRuntimeService {
     for (const name of names) {
       await this.docker.getContainer(name).remove({ force: true }).catch(() => undefined);
     }
+    await this.cleanupTenantNetwork(tenantNetworkFor(app));
+  }
+
+  /**
+   * ลบ network ของ tenant เมื่อไม่เหลือ container ของแอปสักตัว (app สุดท้ายของ user ถูกลบ) —
+   * default address pool ของ Docker มี subnet จำกัด (~30 วง) ปล่อย network เปล่าค้างไว้ไม่ได้
+   * endpoint ที่เหลือได้มีแค่ backend-1/2 ที่ต่อตัวเองเข้าไป ต้อง disconnect ก่อนถึงจะ remove ผ่าน
+   */
+  private async cleanupTenantNetwork(networkName: string): Promise<void> {
+    if (networkName === APPS_NETWORK) return;
+    try {
+      const network = this.docker.getNetwork(networkName);
+      const info = await network.inspect();
+      const endpoints: Record<string, { Name?: string }> = info?.Containers || {};
+      const hasAppContainers = Object.values(endpoints).some((c) => (c.Name || '').startsWith('gatekeeper-app-'));
+      if (hasAppContainers) return;
+      for (const id of Object.keys(endpoints)) {
+        await network.disconnect({ Container: id, Force: true }).catch(() => undefined);
+      }
+      await network.remove();
+      this.selfConnectedNetworks.delete(networkName);
+    } catch {
+      // best-effort — network ไม่มีอยู่แล้ว หรือมี deploy อื่นแทรกเข้ามาใช้อยู่ ก็ปล่อยไว้
+    }
+  }
+
+  /**
+   * ดึง CPU/memory สดของ container หนึ่งตัวจาก docker stats แบบ one-shot (stream:false =
+   * daemon เก็บสองจังหวะให้แล้วคืน sample เดียวที่มี precpu ครบ เอามาคำนวณ % ได้เลย)
+   * คืน null ถ้า container ไม่มีอยู่/ยังไม่เคย deploy — caller แสดงเป็น "ไม่ได้รัน"
+   */
+  async getContainerStats(
+    containerName: string,
+  ): Promise<{ running: boolean; cpuPercent: number; memUsedMb: number; memLimitMb: number } | null> {
+    try {
+      const container = this.docker.getContainer(containerName);
+      const info = await container.inspect();
+      if (!info.State?.Running) {
+        return { running: false, cpuPercent: 0, memUsedMb: 0, memLimitMb: 0 };
+      }
+      const stats: any = await container.stats({ stream: false });
+      const cpuDelta = (stats?.cpu_stats?.cpu_usage?.total_usage || 0) - (stats?.precpu_stats?.cpu_usage?.total_usage || 0);
+      const sysDelta = (stats?.cpu_stats?.system_cpu_usage || 0) - (stats?.precpu_stats?.system_cpu_usage || 0);
+      const onlineCpus = stats?.cpu_stats?.online_cpus || 1;
+      const cpuPercent = sysDelta > 0 ? (cpuDelta / sysDelta) * onlineCpus * 100 : 0;
+      // หัก cache/inactive_file ออก (cgroup v2/v1) ให้ตรงกับที่ `docker stats` โชว์ ไม่ใช่ราคา page cache
+      const rawUsage = stats?.memory_stats?.usage || 0;
+      const cache = stats?.memory_stats?.stats?.inactive_file ?? stats?.memory_stats?.stats?.cache ?? 0;
+      const memUsed = Math.max(0, rawUsage - cache);
+      return {
+        running: true,
+        cpuPercent: Math.round(cpuPercent * 10) / 10,
+        memUsedMb: Math.round(memUsed / (1024 * 1024)),
+        memLimitMb: Math.round((stats?.memory_stats?.limit || 0) / (1024 * 1024)),
+      };
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -511,6 +656,7 @@ export class DockerRuntimeService {
   private async waitForHealthy(
     container: Docker.Container,
     port: number,
+    network: string,
   ): Promise<'healthy' | 'degraded' | 'dead'> {
     const deadline = Date.now() + HEALTHCHECK_TIMEOUT_MS;
 
@@ -527,7 +673,7 @@ export class DockerRuntimeService {
         return 'dead';
       }
 
-      const ip = info.NetworkSettings?.Networks?.[APPS_NETWORK]?.IPAddress;
+      const ip = info.NetworkSettings?.Networks?.[network]?.IPAddress;
       if (ip) {
         if (await this.httpProbe(ip, port)) return 'healthy';
         if (await this.tcpProbe(ip, port)) return 'healthy';

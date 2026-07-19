@@ -4,7 +4,138 @@ import { useEffect, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { Card, CardHeader } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
-import { GithubStatus } from '@/types';
+import { GithubStatus, UsageSummary } from '@/types';
+
+const USAGE_POLL_MS = 10_000;
+
+function StatTile({ label, value, tone }: { label: string; value: number; tone?: 'allow' | 'danger' }) {
+  const valueColor = tone === 'allow' ? 'text-allow-text' : tone === 'danger' ? 'text-danger-text' : 'text-ink';
+  return (
+    <div className="flex-1 rounded-[9px] border border-border bg-page-alt px-3 py-2.5">
+      <div className="text-[11px] text-muted">{label}</div>
+      <div className={`text-[19px] font-bold tabular-nums ${valueColor}`}>{value}</div>
+    </div>
+  );
+}
+
+// meter การใช้ RAM เทียบ limit ของ container — เกิน 90% เปลี่ยนเป็นโทนเตือน (มีตัวเลขกำกับเสมอ
+// ไม่ได้สื่อด้วยสีอย่างเดียว)
+function MemBar({ usedMb, limitMb }: { usedMb: number; limitMb: number }) {
+  const pct = limitMb > 0 ? Math.min(100, (usedMb / limitMb) * 100) : 0;
+  const critical = pct > 90;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-[6px] w-[110px] overflow-hidden rounded-full bg-page-alt">
+        <div
+          className={`h-full rounded-full ${critical ? 'bg-[rgba(214,109,82,.75)]' : 'bg-[rgba(60,56,48,.45)]'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-[11px] tabular-nums text-muted">
+        {usedMb}/{limitMb} MB
+      </span>
+    </div>
+  );
+}
+
+function UsageCard() {
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api
+        .usage()
+        .then((u) => {
+          if (!alive) return;
+          setUsage(u);
+          setFailed(false);
+        })
+        .catch(() => alive && setFailed(true));
+    load();
+    const timer = setInterval(load, USAGE_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader title="Usage" subtitle="ผลการใช้งานของบัญชีนี้ · CPU/RAM สดต่อแอป และสถิติ deploy" />
+      {!usage && !failed && <p className="text-[12.5px] text-muted">กำลังโหลด…</p>}
+      {failed && !usage && <p className="text-[12.5px] text-danger-text">โหลดข้อมูลการใช้งานไม่สำเร็จ</p>}
+      {usage && (
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-2.5">
+            <StatTile label="Deploy ทั้งหมด" value={usage.deploys.total} />
+            <StatTile label="ผ่าน" value={usage.deploys.allowed} tone="allow" />
+            <StatTile label="ถูกบล็อก" value={usage.deploys.blocked} tone="danger" />
+          </div>
+
+          {usage.deploys.months.length > 0 && (
+            <div>
+              <div className="mb-1.5 text-[11.5px] text-muted">รายเดือน (ล่าสุดก่อน)</div>
+              <div className="flex flex-col gap-1">
+                {usage.deploys.months.map((m) => (
+                  <div key={m.month} className="flex items-center justify-between text-[12px]">
+                    <span className="tabular-nums text-ink-soft">{m.month}</span>
+                    <span className="tabular-nums text-muted">
+                      {m.total} ครั้ง · ผ่าน {m.allowed} · บล็อก {m.blocked}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <div className="mb-1.5 text-[11.5px] text-muted">โควต้าทรัพยากรของบัญชี (ผลรวมเพดานทุกแอป+addon)</div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[12px] text-ink-soft">RAM</span>
+                <MemBar usedMb={usage.quota.memoryUsedMb} limitMb={usage.quota.memoryQuotaMb} />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[12px] text-ink-soft">CPU</span>
+                <span className="text-[11px] tabular-nums text-muted">
+                  {usage.quota.cpuUsed}/{usage.quota.cpuQuota} cores
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-[11.5px] text-muted">Resource ต่อแอป (สดจาก container)</div>
+            {usage.apps.length === 0 && <p className="text-[12.5px] text-muted">ยังไม่มีแอปที่ลงทะเบียนไว้</p>}
+            <div className="flex flex-col gap-2">
+              {usage.apps.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={`inline-block h-[7px] w-[7px] shrink-0 rounded-full ${a.running ? 'bg-[#73A98C]' : 'bg-[#C9C4B8]'}`}
+                    />
+                    <span className="truncate text-[12.5px] font-semibold">{a.name}</span>
+                    <span className="shrink-0 text-[10.5px] text-muted">{a.running ? 'running' : a.cpuPercent === null ? 'ยังไม่ deploy' : 'stopped'}</span>
+                  </div>
+                  {a.running && a.memUsedMb !== null && a.memLimitMb !== null ? (
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-[11px] tabular-nums text-muted">CPU {a.cpuPercent}%</span>
+                      <MemBar usedMb={a.memUsedMb} limitMb={a.memLimitMb} />
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-muted">—</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function PrefRow({ title, desc }: { title: string; desc: string }) {
   return (
@@ -67,6 +198,9 @@ export default function SettingsPage() {
               <div className="text-[13px] font-semibold">Node.js, Static</div>
             </div>
           </Card>
+
+          {/* usage — CPU/RAM สดต่อแอป + สถิติ deploy ของบัญชีนี้ */}
+          <UsageCard />
 
           {/* connected accounts */}
           <Card>

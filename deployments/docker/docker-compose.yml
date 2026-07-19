@@ -19,9 +19,12 @@ services:
       timeout: 5s
       retries: 10
     mem_limit: 256m
-  # จำกัดสิทธิ์ Docker API ให้แคบที่สุดเท่าที่ backend ต้องใช้จริง (containers+images+build เท่านั้น
-  # ปิด exec/networks/volumes/swarm) แทนการ mount /var/run/docker.sock ตรงเข้า backend-1/2 ซึ่งเท่ากับ
+  # จำกัดสิทธิ์ Docker API ให้แคบที่สุดเท่าที่ backend ต้องใช้จริง (containers+images+build+networks
+  # ปิด exec/volumes/swarm) แทนการ mount /var/run/docker.sock ตรงเข้า backend-1/2 ซึ่งเท่ากับ
   # ให้สิทธิ์ root ระดับ host แบบเต็มๆ — backend คุยกับตัวนี้แทนผ่าน tcp (DOCKER_HOST=docker-socket-proxy)
+  # NETWORKS=1 จำเป็นตั้งแต่แยก network ต่อ tenant: backend ต้อง create/connect/disconnect network
+  # แบบ dynamic ต่อ account (docker-runtime.service.ts) — tradeoff ที่รับ: โค้ด backend ที่หลุด RCE
+  # จะสั่งย้าย network container อื่นได้ด้วย แต่ยังแตะ volume/exec/host ไม่ได้เหมือนเดิม
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:latest
     container_name: docker-socket-proxy
@@ -33,7 +36,7 @@ services:
       - BUILD=1
       - POST=1
       - EXEC=0
-      - NETWORKS=0
+      - NETWORKS=1
       - VOLUMES=0
       - SWARM=0
       - SYSTEM=0
@@ -69,6 +72,9 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # โควต้าทรัพยากรรวมต่อ user (เพดานผลรวม limit แบบ overcommit) — เฉลี่ยจากเครื่อง 1CPU/2GB / ~20 user
+      - USER_QUOTA_MEMORY_MB=256
+      - USER_QUOTA_CPU=0.5
       # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
       # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
       # buildLiveUrl ใน common/pipeline.util.ts)
@@ -106,6 +112,9 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # โควต้าทรัพยากรรวมต่อ user (เพดานผลรวม limit แบบ overcommit) — เฉลี่ยจากเครื่อง 1CPU/2GB / ~20 user
+      - USER_QUOTA_MEMORY_MB=256
+      - USER_QUOTA_CPU=0.5
       # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
       # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
       # buildLiveUrl ใน common/pipeline.util.ts)
@@ -170,10 +179,11 @@ volumes:
   postgres-data:
 networks:
   default:
-  # network แยกต่างหากสำหรับ container ของแอปที่ deploy มา (git/manual) — ตั้งใจแยกจาก default
-  # ที่ postgres/gatekeeper/frontend/nginx อยู่ เพื่อไม่ให้โค้ดลูกค้าที่หลุด scan ผ่านมา (ถ้ามี)
-  # มองเห็น/เชื่อมต่อ service ภายในอื่นๆ ได้โดยตรงผ่าน Docker DNS — backend-1/2 อยู่ทั้งสอง network
-  # เพื่อ proxy request เข้า container เหล่านี้ได้ (ดู live/live.controller.ts)
+  # network กลางเดิมของแอปที่ deploy มา — ตอนนี้เหลือบทบาทแค่ fallback สำหรับ app ที่ยังไม่ถูก
+  # ย้ายเข้า network ต่อ tenant (gatekeeper-tenant-<accountId> สร้าง dynamic โดย backend ผ่าน
+  # NETWORKS=1 ด้านบน — ดู docker-runtime.service.ts + migrate-tenant-networks.sh) ยังต้องแยกจาก
+  # default ที่ postgres/backend/frontend/nginx อยู่เหมือนเดิม backend-1/2 ต่อเข้า network ของ
+  # tenant เองแบบ lazy ตอน deploy/proxy /live
   gatekeeper-apps-net:
     driver: bridge
     # pin ชื่อจริงให้ตรงกับที่โค้ดหา (docker-runtime APPS_NETWORK = 'gatekeeper-apps-net')

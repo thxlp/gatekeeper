@@ -6,6 +6,7 @@ import {
   GithubRegisterResult,
   GithubRepo,
   GithubStatus,
+  UsageSummary,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -155,4 +156,7 @@ export const api = {
 
   deleteGitApp: (id: string) =>
     request<{ ok: boolean }>(API_BASE, `/apps/${id}`, { method: 'DELETE' }),
+
+  // ผลการใช้งานของ account ตัวเอง (CPU/RAM สดต่อ app + สถิติ deploy) — หน้า Settings
+  usage: () => request<UsageSummary>(API_BASE, '/usage'),
 };

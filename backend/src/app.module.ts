@@ -10,6 +10,7 @@ import { GithubModule } from './github/github.module';
 import { AccountModule } from './account/account.module';
 import { AuthModule } from './auth/auth.module';
 import { LiveModule } from './live/live.module';
+import { UsageModule } from './entitlement/usage.module';
 import { databaseConfig } from './common/database.config';
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { databaseConfig } from './common/database.config';
     AccountModule,
     AuthModule,
     LiveModule,
+    UsageModule,
   ],
 })
 export class AppModule {}

@@ -115,6 +115,7 @@ export class DeployPipelineService {
       this.usageCollector.recordUsage({
         requestId,
         accountId: app.accountId,
+        appId: app.id, // ให้ /usage ตัดสถิติของ app ที่ถูกลบไปแล้วออกได้ (event เก่าที่ไม่มี appId ไม่ถูกนับ)
         feature: usageFeature,
         allowed: result.decision === 'ALLOW',
         stage: usageFeature,
