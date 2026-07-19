@@ -72,6 +72,9 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # โควต้าทรัพยากรรวมต่อ user (เพดานผลรวม limit แบบ overcommit) — เฉลี่ยจากเครื่อง 1CPU/2GB / ~20 user
+      - USER_QUOTA_MEMORY_MB=256
+      - USER_QUOTA_CPU=0.5
       # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
       # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
       # buildLiveUrl ใน common/pipeline.util.ts)
@@ -109,6 +112,9 @@ services:
       - DOCKER_HOST=docker-socket-proxy
       - DOCKER_PORT=2375
       - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
+      # โควต้าทรัพยากรรวมต่อ user (เพดานผลรวม limit แบบ overcommit) — เฉลี่ยจากเครื่อง 1CPU/2GB / ~20 user
+      - USER_QUOTA_MEMORY_MB=256
+      - USER_QUOTA_CPU=0.5
       # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
       # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
       # buildLiveUrl ใน common/pipeline.util.ts)

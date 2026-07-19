@@ -91,6 +91,22 @@ function UsageCard() {
           )}
 
           <div>
+            <div className="mb-1.5 text-[11.5px] text-muted">โควต้าทรัพยากรของบัญชี (ผลรวมเพดานทุกแอป+addon)</div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[12px] text-ink-soft">RAM</span>
+                <MemBar usedMb={usage.quota.memoryUsedMb} limitMb={usage.quota.memoryQuotaMb} />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[12px] text-ink-soft">CPU</span>
+                <span className="text-[11px] tabular-nums text-muted">
+                  {usage.quota.cpuUsed}/{usage.quota.cpuQuota} cores
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <div className="mb-1.5 text-[11.5px] text-muted">Resource ต่อแอป (สดจาก container)</div>
             {usage.apps.length === 0 && <p className="text-[12.5px] text-muted">ยังไม่มีแอปที่ลงทะเบียนไว้</p>}
             <div className="flex flex-col gap-2">

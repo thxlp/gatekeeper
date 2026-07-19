@@ -58,12 +58,31 @@ function parseExposedPort(dockerfileContent: string): number | undefined {
 }
 
 // resource default + cap (ผู้ใช้ตั้ง memoryMb/cpu ได้ แต่ไม่เกิน cap เพื่อกัน 1 app กิน host หมด)
-const DEFAULT_MEMORY_MB = 256;
+// default RAM แยกตาม runtime — static คือ nginx เสิร์ฟไฟล์ กินจริงหลัก MB ไม่ต้องกัน 256
+// (สำคัญตั้งแต่มีโควต้าต่อ user: default ที่เล็กลงทำให้ deploy หลาย app ในโควต้าเดียวได้จริง)
+const RUNTIME_DEFAULT_MEMORY_MB: Record<string, number> = { static: 64, node: 128, python: 128, docker: 128 };
+const FALLBACK_DEFAULT_MEMORY_MB = 128;
 const MAX_MEMORY_MB = Number(process.env.APP_MAX_MEMORY_MB || 1024);
 const MIN_MEMORY_MB = 64;
 const DEFAULT_CPU = 0.5;
 const MAX_CPU = Number(process.env.APP_MAX_CPU || 2);
 const MIN_CPU = 0.1;
+
+// resource ของ addon ต่อตัว (ตรงกับ HostConfig ตอนสร้างใน ensureAddon) — export ให้ QuotaService
+// เอาไปคิดรวมในโควต้าต่อ user ด้วย
+export const ADDON_MEMORY_MB = 256;
+export const ADDON_CPU = 0.5;
+
+/**
+ * ทรัพยากรที่ app จะถูกจำกัดจริงตอนรัน (หลัง clamp เข้ากรอบ MIN/MAX) — จุดเดียวที่ใช้ทั้ง
+ * ตอนสร้าง container (runContainer) และตอนคิดโควต้าต่อ user (QuotaService) เพื่อให้เลขตรงกันเสมอ
+ */
+export function appResources(app: Pick<GitApp, 'runtime' | 'memoryMb' | 'cpu'>): { memoryMb: number; cpu: number } {
+  const defaultMb = RUNTIME_DEFAULT_MEMORY_MB[app.runtime || 'static'] ?? FALLBACK_DEFAULT_MEMORY_MB;
+  const memoryMb = Math.min(MAX_MEMORY_MB, Math.max(MIN_MEMORY_MB, app.memoryMb || defaultMb));
+  const cpu = Math.min(MAX_CPU, Math.max(MIN_CPU, app.cpu || DEFAULT_CPU));
+  return { memoryMb, cpu };
+}
 // healthcheck รอนานขึ้นและตั้งค่าได้ผ่าน env — งานทั่วไปหลายตัว build/warm-up ตอน boot นานกว่า 30 วิ
 const HEALTHCHECK_TIMEOUT_MS = Number(process.env.DEPLOY_HEALTHCHECK_TIMEOUT_MS || 60_000);
 const HEALTHCHECK_INTERVAL_MS = 1_000;
@@ -102,13 +121,6 @@ const ADDON_SPEC: Record<
     buildUrl: (host, port, pw) => `redis://:${pw}@${host}:${port}`,
   },
 };
-
-/** จำกัด memory/cpu ให้อยู่ในกรอบ (คืน bytes + nanoCpus ตามที่ Docker ต้องการ) */
-function clampResources(memoryMb?: number, cpu?: number): { memoryBytes: number; nanoCpus: number } {
-  const mb = Math.min(MAX_MEMORY_MB, Math.max(MIN_MEMORY_MB, memoryMb || DEFAULT_MEMORY_MB));
-  const c = Math.min(MAX_CPU, Math.max(MIN_CPU, cpu || DEFAULT_CPU));
-  return { memoryBytes: mb * 1024 * 1024, nanoCpus: Math.round(c * 1e9) };
-}
 
 // network กลางเดิม — เหลือไว้เป็น fallback สำหรับ app เก่าที่ยังไม่ได้ย้าย (ดู
 // deployments/docker/migrate-tenant-networks.sh) app ที่ deploy ใหม่ทุกตัวไปอยู่ network
@@ -380,7 +392,7 @@ export class DockerRuntimeService {
       // ไม่มี container ค้างจากรอบก่อน ก็ไม่เป็นไร
     }
 
-    const { memoryBytes, nanoCpus } = clampResources(app.memoryMb, app.cpu);
+    const { memoryMb, cpu } = appResources(app);
     const dataVolume = `${containerName}-data`; // named volume (auto-create ตอน create ไม่ต้องใช้ /volumes API)
 
     let container: Docker.Container;
@@ -390,8 +402,8 @@ export class DockerRuntimeService {
         Image: imageTag,
         Env: this.buildContainerEnv(app, port),
         HostConfig: {
-          Memory: memoryBytes,
-          NanoCpus: nanoCpus,
+          Memory: memoryMb * 1024 * 1024,
+          NanoCpus: Math.round(cpu * 1e9),
           SecurityOpt: ['no-new-privileges'],
           NetworkMode: network,
           RestartPolicy: { Name: 'unless-stopped' },
@@ -511,8 +523,8 @@ export class DockerRuntimeService {
       Env: spec.containerEnv(password),
       ...(spec.cmd ? { Cmd: spec.cmd(password) } : {}),
       HostConfig: {
-        Memory: 256 * 1024 * 1024,
-        NanoCpus: Math.round(0.5 * 1e9),
+        Memory: ADDON_MEMORY_MB * 1024 * 1024,
+        NanoCpus: Math.round(ADDON_CPU * 1e9),
         NetworkMode: network,
         RestartPolicy: { Name: 'unless-stopped' },
         Binds: [`${containerName}-data:${spec.dataPath}`],

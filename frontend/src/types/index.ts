@@ -176,8 +176,17 @@ export interface UsageDeployMonth {
   blocked: number;
 }
 
+// โควต้าทรัพยากรรวมต่อบัญชี (เพดานผลรวม limit ของทุก app+addon ไม่ใช่การใช้งานจริงขณะนี้)
+export interface UsageQuota {
+  memoryUsedMb: number;
+  memoryQuotaMb: number;
+  cpuUsed: number;
+  cpuQuota: number;
+}
+
 export interface UsageSummary {
   apps: UsageAppStat[];
+  quota: UsageQuota;
   deploys: {
     total: number;
     allowed: number;

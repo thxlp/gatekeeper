@@ -5,6 +5,7 @@ import { DATA_DIR } from '../common/paths';
 import { GitApp } from '../common/types';
 import { GitAppStore } from '../apps/git-app.store';
 import { DockerRuntimeService } from '../deploy/docker-runtime.service';
+import { QuotaService, QuotaSummary } from './quota.service';
 
 export interface UsageAppStat {
   id: string;
@@ -25,6 +26,7 @@ export interface UsageDeployMonth {
 
 export interface UsageSummary {
   apps: UsageAppStat[];
+  quota: QuotaSummary;
   deploys: {
     total: number;
     allowed: number;
@@ -47,6 +49,7 @@ export class UsageStatsService {
   constructor(
     private gitAppStore: GitAppStore,
     private dockerRuntime: DockerRuntimeService,
+    private quota: QuotaService,
   ) {}
 
   async summary(accountId: string): Promise<UsageSummary> {
@@ -58,7 +61,7 @@ export class UsageStatsService {
         new Set(ownedApps.map((a) => a.id)),
       ),
     ]);
-    return { apps, deploys };
+    return { apps, quota: this.quota.summary(accountId), deploys };
   }
 
   private async collectAppStats(apps: GitApp[]): Promise<UsageAppStat[]> {
