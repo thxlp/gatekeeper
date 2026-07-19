@@ -129,6 +129,12 @@ const APPS_NETWORK = process.env.GATEKEEPER_APPS_NETWORK || 'gatekeeper-apps-net
 
 const TENANT_NETWORK_PREFIX = 'gatekeeper-tenant-';
 
+// capabilities ของ container ลูกค้า/addon — drop ทั้งหมดแล้วคืนเฉพาะที่ image ทางการยังต้องใช้:
+// nginx bind :80 (NET_BIND_SERVICE), entrypoint chown data dir + สลับลง user ธรรมดา
+// (CHOWN/SETUID/SETGID), postgres init แตะไฟล์ข้าม owner (DAC_OVERRIDE/FOWNER)
+// ตัวสำคัญที่หายไปคือ NET_RAW — ปิดทาง ARP spoof/sniff traffic ของ container อื่นในวง bridge เดียวกัน
+const CONTAINER_CAP_ADD = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID', 'NET_BIND_SERVICE'];
+
 /**
  * network ต่อ tenant: app ทุกตัวของ account เดียวกันอยู่วงเดียวกัน (คุยกันเองได้เหมือน
  * Railway project) แต่มองไม่เห็น app ของ account อื่น — ชื่อ network ผูกกับ accountId
@@ -410,6 +416,8 @@ export class DockerRuntimeService {
           Memory: memoryMb * 1024 * 1024,
           NanoCpus: Math.round(cpu * 1e9),
           SecurityOpt: ['no-new-privileges'],
+          CapDrop: ['ALL'],
+          CapAdd: CONTAINER_CAP_ADD,
           NetworkMode: network,
           RestartPolicy: { Name: 'unless-stopped' },
           // persistent storage: named volume mount ที่ /data — แอปเขียนข้อมูลถาวรไว้ที่นี่ได้
@@ -531,6 +539,9 @@ export class DockerRuntimeService {
       HostConfig: {
         Memory: ADDON_MEMORY_MB * 1024 * 1024,
         NanoCpus: Math.round(ADDON_CPU * 1e9),
+        SecurityOpt: ['no-new-privileges'],
+        CapDrop: ['ALL'],
+        CapAdd: CONTAINER_CAP_ADD,
         NetworkMode: network,
         RestartPolicy: { Name: 'unless-stopped' },
         Binds: [`${containerName}-data:${spec.dataPath}`],
