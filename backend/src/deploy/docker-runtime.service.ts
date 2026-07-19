@@ -168,7 +168,9 @@ export class DockerRuntimeService {
       await this.docker.getNetwork(networkName).inspect();
       return;
     } catch {
-      // ยังไม่มี — สร้างข้างล่าง
+      // ยังไม่มี — สร้างข้างล่าง; connection ที่เคย cache ไว้ผูกกับ network เก่าที่หายไปแล้ว
+      // (เช่นอีก instance cleanup ตอนลบ app สุดท้ายของ user) ต้องล้างให้ ensureSelfConnected ต่อใหม่
+      this.selfConnectedNetworks.delete(networkName);
     }
     try {
       await this.docker.createNetwork({
@@ -372,7 +374,10 @@ export class DockerRuntimeService {
     const port = servePort ?? resolveServePort(app);
     const network = tenantNetworkFor(app);
     try {
-      await this.ensureSelfConnected(network); // สร้าง network + ต่อ backend เข้าไปให้ probe ถึง
+      // เช็ค network ของจริงทุก deploy — cache ใน ensureSelfConnected เป็น per-instance
+      // อีก instance อาจ cleanupTenantNetwork ไปแล้ว (ตอนลบ app สุดท้ายของ user) โดย instance นี้ไม่รู้
+      await this.ensureTenantNetwork(network);
+      await this.ensureSelfConnected(network); // ต่อ backend เข้าไปให้ probe ถึง
     } catch (err: any) {
       return { ok: false, reason: `tenant_network_failed:${err.message}` };
     }
@@ -482,7 +487,8 @@ export class DockerRuntimeService {
     const spec = ADDON_SPEC[type];
     const containerName = `gatekeeper-app-${app.id}-${type}`;
     const network = tenantNetworkFor(app);
-    await this.ensureSelfConnected(network); // network ต้องมีก่อนสร้าง addon + backend ต้อง probe ถึง
+    await this.ensureTenantNetwork(network); // เช็คของจริงก่อน กัน cache stale ข้าม instance (ดู runContainer)
+    await this.ensureSelfConnected(network); // backend ต้อง probe addon ถึง
     const existing = app.addonConnections?.find((c) => c.type === type);
 
     // reuse password เดิมถ้าเคย provision แล้ว (volume ผูกกับ password ตอน init ครั้งแรก
