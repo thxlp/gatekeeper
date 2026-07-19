@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { LiveController } from './live.controller';
-import { GitAppStore } from '../apps/git-app.store';
+import { DeployModule } from '../deploy/deploy.module';
 
+// GitAppStore + DockerRuntimeService มาจาก DeployModule (ไม่ประกาศซ้ำ — DockerRuntimeService
+// มี state ภายใน เช่น cache network ที่ต่อแล้ว ควรเป็น instance เดียวกันทั้ง process)
 @Module({
+  imports: [DeployModule],
   controllers: [LiveController],
-  providers: [GitAppStore],
 })
 export class LiveModule {}

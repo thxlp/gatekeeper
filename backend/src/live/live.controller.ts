@@ -2,7 +2,7 @@ import { All, Controller, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as httpProxy from 'http-proxy';
 import { GitAppStore } from '../apps/git-app.store';
-import { resolveServePort } from '../deploy/docker-runtime.service';
+import { DockerRuntimeService, resolveServePort, tenantNetworkFor } from '../deploy/docker-runtime.service';
 
 /**
  * Reverse-proxy path-based ต่อแอปที่ deploy แล้ว: /live/<app-id>/... -> container ชื่อ
@@ -18,7 +18,10 @@ import { resolveServePort } from '../deploy/docker-runtime.service';
 export class LiveController {
   private proxy = httpProxy.createProxyServer({});
 
-  constructor(private gitAppStore: GitAppStore) {
+  constructor(
+    private gitAppStore: GitAppStore,
+    private dockerRuntime: DockerRuntimeService,
+  ) {
     this.proxy.on('error', (_err, _req, res) => {
       const r = res as Response;
       if (!r.headersSent) {
@@ -30,13 +33,18 @@ export class LiveController {
 
   @All(':appId')
   @All(':appId/*')
-  handle(@Req() req: Request, @Res() res: Response) {
+  async handle(@Req() req: Request, @Res() res: Response) {
     const appId = (req.params as any).appId as string;
     const app = this.gitAppStore.findById(appId);
     if (!app || !app.enabled) {
       res.status(404).type('text/plain').send('app_not_found');
       return;
     }
+
+    // instance นี้ต้องอยู่ใน network ของ tenant ถึงจะ resolve ชื่อ container ผ่าน Docker DNS ได้
+    // (จำเป็นหลัง compose recreate ซึ่งล้าง network ที่เคยต่อแบบ dynamic ทิ้งหมด) — พังก็ปล่อย
+    // ให้ proxy error ตอบ 502 ตามปกติ ไม่ต้องตายตรงนี้
+    await this.dockerRuntime.ensureSelfConnected(tenantNetworkFor(app)).catch(() => undefined);
 
     // port ที่ container listen จริง: app.port (จำไว้ตอน deploy) → default ตาม runtime
     const port = resolveServePort(app);
