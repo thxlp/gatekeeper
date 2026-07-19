@@ -24,6 +24,14 @@ if [ ! -f "$STORE" ]; then
   echo "ไม่พบไฟล์ store: $STORE" >&2
   exit 1
 fi
+if [ "$(jq 'length' "$STORE")" -eq 0 ]; then
+  # กันเคสชี้ผิดไฟล์แล้วสคริปต์จบแบบ "เสร็จ" โดยไม่ได้ย้ายอะไร — production เก็บ store
+  # ใน named volume ไม่ใช่ data/ ของ repo
+  echo "store ว่างเปล่า: $STORE" >&2
+  echo "ถ้า backend รันด้วย named volume ให้ชี้ path จริง เช่น:" >&2
+  echo "  $0 \"\$(docker volume inspect docker_backend-data -f '{{.Mountpoint}}')/git-apps-store.json\"" >&2
+  exit 1
+fi
 
 # sanitize ชื่อ network ให้ตรงกับ tenantNetworkFor() ใน docker-runtime.service.ts
 sanitize() { printf '%s' "$1" | sed 's/[^A-Za-z0-9_.-]/-/g'; }
