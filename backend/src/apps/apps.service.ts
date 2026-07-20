@@ -385,6 +385,15 @@ export class AppsService {
     app.updatedAt = new Date().toISOString();
 
     this.store.save(app);
+
+    // ถ้า config รอบนี้แตะ addons ให้หยุด container ของตัวที่ถูกถอดทันที (เลิกกิน RAM ไม่รอ
+    // deploy รอบหน้า) — fire-and-forget: docker ช้า/ล่มไม่ควรทำให้ PATCH ค้าง และ
+    // provisionAddons กวาดซ้ำให้อีกชั้นตอน deploy ถัดไปอยู่ดี ส่วน volume ถูกเก็บไว้ตาม
+    // retention (7 วัน default) แล้ว sweeper ใน pipeline ค่อยลบจริง
+    if (dto.addons !== undefined) {
+      void this.deployPipeline.cleanupUnwantedAddonContainers(app);
+    }
+
     this.audit.append({
       requestId: uuidv4(),
       accountId: account.id,
@@ -448,7 +457,13 @@ export class AppsService {
   private applyConfig(app: GitApp, dto: AppConfigDto): void {
     if (dto.envVars !== undefined) app.envVars = dto.envVars.filter((e) => e.key);
     if (dto.buildArgs !== undefined) app.buildArgs = dto.buildArgs.filter((e) => e.key);
-    if (dto.addons !== undefined) app.addons = dto.addons;
+    if (dto.addons !== undefined) {
+      app.addons = dto.addons;
+      // ติดธง retired ให้ connection ของ addon ที่ถูกถอด (แทนการลบ entry — เก็บ password ไว้
+      // เผื่อติ๊กกลับภายใน retention ได้ข้อมูลเดิมคืน) และล้างธงให้ตัวที่ถูกติ๊กกลับมา
+      // ต้องเกิดก่อน save เสมอ ธงถึงจะลง store — ดู retireUnwantedAddons ใน docker-runtime
+      this.deployPipeline.retireUnwantedAddons(app);
+    }
     if (dto.memoryMb !== undefined) app.memoryMb = dto.memoryMb;
     if (dto.cpuMilli !== undefined) app.cpu = dto.cpuMilli / 1000;
     if (dto.spa !== undefined) app.spa = dto.spa;

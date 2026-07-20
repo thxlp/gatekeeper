@@ -540,7 +540,10 @@ export class DockerRuntimeService {
       FLASK_RUN_HOST: '0.0.0.0',
       PORT: String(port),
     };
-    for (const c of app.addonConnections || []) merged[c.envKey] = c.url;
+    // ข้าม connection ที่ retired — addon ถูกถอดแล้ว container ไม่มีอยู่ ฝัง env ไปก็ชี้หาผี
+    for (const c of app.addonConnections || []) {
+      if (!c.retiredAt) merged[c.envKey] = c.url;
+    }
     for (const e of app.envVars || []) {
       if (e.key) merged[e.key] = e.value;
     }
@@ -553,14 +556,27 @@ export class DockerRuntimeService {
    * idempotent: ถ้า container มีอยู่แล้ว reuse connection เดิม (password เดิมใน volume)
    */
   async provisionAddons(app: GitApp): Promise<{ ok: boolean; reason?: string }> {
+    // จัดการ addon ที่ถูกถอดก่อนเสมอ — deploy ทุก path ผ่านตรงนี้ จึงเป็นตาข่ายรองรับเคสที่
+    // config มากับ manual deploy / git push โดยไม่ผ่าน PATCH: หยุด container ทันที แต่ volume
+    // เก็บไว้ตาม retention (sweeper ของ pipeline เป็นคนลบเมื่อพ้นกำหนด)
+    this.retireUnwantedAddons(app);
+    await this.removeUnwantedAddonContainers(app);
     const wanted = app.addons || [];
     const connections: AddonConnection[] = [];
     for (const type of wanted) {
       try {
-        connections.push(await this.ensureAddon(app, type));
+        // strip retiredAt เผื่อ reuse connection ที่เคยถูกถอด (ติ๊กกลับภายใน retention) —
+        // password เดิมใน connection ทำให้ mount volume เดิมแล้ว auth ผ่าน ข้อมูลกลับมาครบ
+        const { retiredAt: _cleared, ...active } = await this.ensureAddon(app, type);
+        connections.push(active);
       } catch (err: any) {
         return { ok: false, reason: `addon_${type}_failed:${err.message}` };
       }
+    }
+    // คง entry ที่ retired และยังไม่พ้น retention ไว้ใน store — เป็นที่เก็บ password เดิมสำหรับ
+    // การติ๊กกลับ (sweeper จะลบ entry เองพร้อม volume เมื่อครบกำหนด)
+    for (const c of app.addonConnections || []) {
+      if (c.retiredAt && !wanted.includes(c.type)) connections.push(c);
     }
     app.addonConnections = connections;
     return { ok: true };
@@ -668,6 +684,48 @@ export class DockerRuntimeService {
       await new Promise((r) => setTimeout(r, HEALTHCHECK_INTERVAL_MS));
     }
     return false;
+  }
+
+  /**
+   * ติดธง retiredAt ให้ connection ของ addon ที่ไม่อยู่ใน app.addons แล้ว (และล้างธงให้ตัวที่
+   * ถูกติ๊กกลับมา) — sync ล้วน caller เป็นคน save เอง. volume ยัง "ไม่" ถูกลบตรงนี้: เก็บไว้
+   * จนพ้น retention (sweepRetiredAddonVolumes ใน DeployPipelineService) เผื่อ user เปลี่ยนใจ
+   */
+  retireUnwantedAddons(app: GitApp): void {
+    const wanted = new Set(app.addons || []);
+    const now = new Date().toISOString();
+    for (const c of app.addonConnections || []) {
+      if (!wanted.has(c.type) && !c.retiredAt) c.retiredAt = now;
+      else if (wanted.has(c.type) && c.retiredAt) delete c.retiredAt; // ติ๊กกลับทัน ยกเลิกคิวลบ
+    }
+  }
+
+  /**
+   * ลบ container ของ addon ที่ถูกถอด (หยุดกิน RAM ทันที) — best-effort, "ไม่แตะ volume"
+   * เรียกจาก PATCH config (ผ่าน pipeline) และต้นทาง provisionAddons ให้ครอบทุก deploy path
+   */
+  async removeUnwantedAddonContainers(app: GitApp): Promise<void> {
+    const wanted = new Set(app.addons || []);
+    for (const type of Object.keys(ADDON_SPEC) as AppAddon[]) {
+      if (wanted.has(type)) continue;
+      await this.docker.getContainer(`gatekeeper-app-${app.id}-${type}`).remove({ force: true }).catch(() => undefined);
+    }
+  }
+
+  /**
+   * ลบ volume ของ addon ที่พ้น retention แล้ว (เรียกจาก sweeper เท่านั้น) — คืน true เมื่อ
+   * volume ไม่อยู่แล้วแน่ๆ (ลบสำเร็จหรือไม่เคยมี) ให้ caller ลบ entry ออกจาก store ได้
+   */
+  async removeRetiredAddonVolume(appId: string, type: AppAddon): Promise<boolean> {
+    const name = `gatekeeper-app-${appId}-${type}-data`;
+    try {
+      await this.docker.getVolume(name).remove();
+      return true;
+    } catch (err: any) {
+      if (err?.statusCode === 404) return true;
+      this.logger.warn(`retired addon volume ${name} not removed: ${err?.message}`);
+      return false;
+    }
   }
 
   /** ลบ container + named volume ของแอปและ addon ทั้งหมด (เรียกตอนลบ app) */

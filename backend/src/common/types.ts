@@ -109,6 +109,10 @@ export interface AddonConnection {
   containerName: string;
   envKey: string;
   url: string;
+  // มีค่า = addon ถูกถอดออกแล้วแต่ volume ยังถูกเก็บไว้ในช่วง retention (default 7 วัน) —
+  // เก็บ connection ทั้งก้อนไว้เพื่อรักษา password เดิม (volume ผูกกับ password ตอน init)
+  // ติ๊ก addon กลับภายในช่วงนี้จะได้ข้อมูลเดิมคืน พ้นกำหนด sweeper จะลบ volume + entry นี้ทิ้ง
+  retiredAt?: string;
 }
 
 // ชื่อ "GitApp" เป็นชื่อเดิมตั้งแต่ตอนที่มีแค่ git-webhook deploy — ตอนนี้ type นี้ครอบคลุมทั้ง
