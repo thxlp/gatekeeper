@@ -129,6 +129,14 @@ const APPS_NETWORK = process.env.GATEKEEPER_APPS_NETWORK || 'gatekeeper-apps-net
 
 const TENANT_NETWORK_PREFIX = 'gatekeeper-tenant-';
 
+// network เฉพาะช่วง build — RUN ใน Dockerfile ของลูกค้า (โดยเฉพาะ runtime 'docker' ที่คุม FROM/RUN
+// เองทั้งหมด) ถูกบังคับให้รันบน network นี้แทน default bridge ของ daemon เพื่อให้ปิด egress ที่
+// firewall ฝั่ง host ได้ (deployments/docker/build-egress-firewall.sh): ออก registry สาธารณะได้
+// (npm/pip ยังลงได้) แต่แตะ internal (docker-socket-proxy/backend/postgres) + cloud metadata ไม่ได้
+// subnet ต้อง pin ให้ตรงกับสคริปต์ firewall + docker-compose เพราะกฎ iptables อ้าง subnet นี้ตรงๆ
+const BUILD_NETWORK = process.env.GATEKEEPER_BUILD_NETWORK || 'gatekeeper-build-net';
+const BUILD_NETWORK_SUBNET = process.env.GATEKEEPER_BUILD_SUBNET || '172.31.238.0/24';
+
 // capabilities ของ container ลูกค้า/addon — drop ทั้งหมดแล้วคืนเฉพาะที่ image ทางการยังต้องใช้:
 // nginx bind :80 (NET_BIND_SERVICE), entrypoint chown data dir + สลับลง user ธรรมดา
 // (CHOWN/SETUID/SETGID), postgres init แตะไฟล์ข้าม owner (DAC_OVERRIDE/FOWNER)
@@ -211,6 +219,33 @@ export class DockerRuntimeService {
     this.selfConnectedNetworks.add(networkName);
   }
 
+  /**
+   * network สำหรับ build (idempotent) — แยกจาก default bridge ของ daemon และ pin subnet ให้
+   * firewall ฝั่ง host (build-egress-firewall.sh) อ้างอิงได้แน่นอน มี egress ออกเน็ตสาธารณะได้
+   * (bridge NAT ปกติ — npm/pip ยังลง dependency ได้) แต่ firewall ตัดปลายทาง private/metadata ทิ้ง
+   * enable_icc=false: build สองงานพร้อมกันของคนละ tenant คุยข้ามกันเองไม่ได้แม้อยู่ network เดียว
+   */
+  private async ensureBuildNetwork(): Promise<void> {
+    try {
+      await this.docker.getNetwork(BUILD_NETWORK).inspect();
+      return;
+    } catch {
+      // ยังไม่มี — สร้างข้างล่าง (ปกติ docker-compose สร้างให้แล้วตอน up แต่ ensure ไว้กันกรณีถูกลบ)
+    }
+    try {
+      await this.docker.createNetwork({
+        Name: BUILD_NETWORK,
+        Driver: 'bridge',
+        IPAM: { Config: [{ Subnet: BUILD_NETWORK_SUBNET }] },
+        Options: { 'com.docker.network.bridge.enable_icc': 'false' },
+        Labels: { 'gatekeeper.role': 'build-network' },
+      });
+    } catch (err: any) {
+      // 409 = อีก instance/deploy สร้างตัดหน้าไปแล้ว — จบเหมือนกัน
+      if (err?.statusCode !== 409) throw err;
+    }
+  }
+
   async buildImage(stagingDir: string, app: GitApp, requestId: string): Promise<BuildResult> {
     const runtime = app.runtime || 'static';
     const dockerfilePath = path.join(stagingDir, 'Dockerfile');
@@ -244,8 +279,18 @@ export class DockerRuntimeService {
     const imageTag = `gatekeeper-app-${app.id}:${requestId}`;
     const tarStream = tarFs.pack(stagingDir);
 
+    // fail-closed: ถ้า ensure network ไม่ผ่าน หยุด build ไปเลย ดีกว่าปล่อยให้ตกไป build บน
+    // default bridge ที่ egress ไม่ถูกจำกัด (RUN ของลูกค้าจะแตะ internal/metadata ได้)
     try {
-      const buildStream = await this.docker.buildImage(tarStream, { t: imageTag, buildargs });
+      await this.ensureBuildNetwork();
+    } catch (err: any) {
+      this.logger.error(`build network ensure failed for ${app.id}: ${err.message}`);
+      return { ok: false, reason: `build_network_failed:${err.message}` };
+    }
+
+    try {
+      // networkmode: บังคับให้ RUN ตอน build อยู่บน build-network ที่ firewall จำกัด egress ไว้
+      const buildStream = await this.docker.buildImage(tarStream, { t: imageTag, buildargs, networkmode: BUILD_NETWORK });
       await new Promise<void>((resolve, reject) => {
         this.docker.modem.followProgress(buildStream, (err: any, res: any[]) => {
           if (err) return reject(err);

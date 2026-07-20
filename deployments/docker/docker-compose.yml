@@ -190,3 +190,15 @@ networks:
     # ไม่งั้น compose จะ prefix ชื่อ project เป็น docker_gatekeeper-apps-net → dockerode หา
     # 'gatekeeper-apps-net' ไม่เจอ → container ของแอปที่ deploy มา start ไม่ขึ้น (network not found)
     name: gatekeeper-apps-net
+  # network เฉพาะช่วง build (RUN ใน Dockerfile ของลูกค้า โดยเฉพาะ runtime 'docker') — แยกจาก
+  # default bridge ของ daemon เพื่อให้ build-egress-firewall.sh จำกัด egress ได้: ออก registry
+  # สาธารณะ (npm/pip) ได้ แต่แตะ internal/metadata ไม่ได้ subnet + ชื่อ ต้องตรงกับ BUILD_NETWORK /
+  # BUILD_NETWORK_SUBNET ใน docker-runtime.service.ts และกฎ iptables ในสคริปต์ firewall เป๊ะๆ
+  gatekeeper-build-net:
+    name: gatekeeper-build-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.238.0/24
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
