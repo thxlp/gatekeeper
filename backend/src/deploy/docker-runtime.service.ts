@@ -96,6 +96,8 @@ const ADDON_SPEC: Record<
     port: number;
     envKey: string;
     dataPath: string;
+    // จุดที่ image ต้องเขียนนอก data volume — mount เป็น tmpfs เพื่อให้รัน rootfs read-only ได้
+    tmpfs: Record<string, string>;
     cmd?: (password: string) => string[];
     containerEnv: (password: string) => string[];
     buildUrl: (host: string, port: number, password: string) => string;
@@ -106,6 +108,8 @@ const ADDON_SPEC: Record<
     port: 5432,
     envKey: 'DATABASE_URL',
     dataPath: '/var/lib/postgresql/data',
+    // postgres เขียนนอก PGDATA แค่ unix socket (/var/run/postgresql) กับไฟล์ spill ตอน sort (/tmp)
+    tmpfs: { '/var/run/postgresql': 'rw,nosuid,size=8m', '/tmp': 'rw,nosuid,size=64m' },
     containerEnv: (pw) => [`POSTGRES_USER=appuser`, `POSTGRES_PASSWORD=${pw}`, `POSTGRES_DB=appdb`],
     buildUrl: (host, port, pw) => `postgres://appuser:${pw}@${host}:${port}/appdb`,
   },
@@ -114,6 +118,7 @@ const ADDON_SPEC: Record<
     port: 6379,
     envKey: 'REDIS_URL',
     dataPath: '/data',
+    tmpfs: { '/tmp': 'rw,nosuid,size=16m' },
     // ตั้ง requirepass เสมอ — apps-net เป็น network ที่แชร์กันทุก tenant ถ้า redis ไม่มีรหัส
     // แอปของ tenant อื่นสแกนเจอแล้วต่อเข้ามาอ่าน/เขียนข้อมูลได้ทันทีโดยไม่ต้อง auth
     cmd: (pw) => ['redis-server', '--appendonly', 'yes', '--requirepass', pw],
@@ -134,6 +139,22 @@ const TENANT_NETWORK_PREFIX = 'gatekeeper-tenant-';
 // (CHOWN/SETUID/SETGID), postgres init แตะไฟล์ข้าม owner (DAC_OVERRIDE/FOWNER)
 // ตัวสำคัญที่หายไปคือ NET_RAW — ปิดทาง ARP spoof/sniff traffic ของ container อื่นในวง bridge เดียวกัน
 const CONTAINER_CAP_ADD = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID', 'NET_BIND_SERVICE'];
+// หมายเหตุ seccomp: การไม่ใส่ seccomp ใน SecurityOpt = container ได้ default profile ของ daemon
+// อยู่แล้ว (บล็อก syscall อันตรายราว 40 กลุ่ม) — ห้ามเติม 'seccomp=unconfined' เด็ดขาด
+
+// เพดานจำนวน process ต่อ container — กัน fork bomb ในโค้ดลูกค้ากิน PID/scheduler ของทั้งเครื่อง
+// (memory limit เดิมกันไม่ได้: process เปล่าๆ หลายพันตัวใช้ RAM รวมกันนิดเดียวแต่ host ค้างทั้งตัว)
+// 256 เหลือเฟือสำหรับ web app ปกติ (nginx/node/python ใช้จริงหลักสิบ) — ปรับผ่าน env ได้
+const CONTAINER_PIDS_LIMIT = Number(process.env.APP_PIDS_LIMIT || 256);
+
+// tmpfs ที่ mount ให้ container static (nginx) ตอนบังคับ rootfs เป็น read-only — สามที่นี้คือ
+// จุดเดียวที่ nginx official image ต้องเขียนตอนรัน (tmpfs ถูก charge เข้า memory limit ของ
+// container เอง จึงใส่ size กันโค้ดลูกค้าเขียน tmpfs แทน disk จนดัน limit)
+const STATIC_READONLY_TMPFS: Record<string, string> = {
+  '/var/cache/nginx': 'rw,nosuid,size=32m',
+  '/var/run': 'rw,nosuid,size=4m',
+  '/tmp': 'rw,nosuid,size=16m',
+};
 
 /**
  * network ต่อ tenant: app ทุกตัวของ account เดียวกันอยู่วงเดียวกัน (คุยกันเองได้เหมือน
@@ -418,6 +439,15 @@ export class DockerRuntimeService {
           SecurityOpt: ['no-new-privileges'],
           CapDrop: ['ALL'],
           CapAdd: CONTAINER_CAP_ADD,
+          PidsLimit: CONTAINER_PIDS_LIMIT,
+          // read-only rootfs เฉพาะ runtime static — image nginx ที่เรา generate เองรู้แน่ว่า
+          // เขียนแค่ cache/run/tmp (tmpfs ด้านบน) ส่วน node/python/docker รันโค้ดลูกค้าที่มัก
+          // เขียนลง working dir ของตัวเอง บังคับ read-only จะพังงานจริงเป็นวงกว้าง จึงปล่อย rw
+          // ขอบเคส: app runtime static ที่แนบ Dockerfile เอง (ไม่ใช่ nginx) อาจ start ไม่ขึ้น
+          // → healthcheck rollback ให้เอง ทางแก้ฝั่ง user คือเปลี่ยน runtime เป็น docker
+          ...((app.runtime || 'static') === 'static'
+            ? { ReadonlyRootfs: true, Tmpfs: STATIC_READONLY_TMPFS }
+            : {}),
           NetworkMode: network,
           RestartPolicy: { Name: 'unless-stopped' },
           // persistent storage: named volume mount ที่ /data — แอปเขียนข้อมูลถาวรไว้ที่นี่ได้
@@ -542,6 +572,11 @@ export class DockerRuntimeService {
         SecurityOpt: ['no-new-privileges'],
         CapDrop: ['ALL'],
         CapAdd: CONTAINER_CAP_ADD,
+        PidsLimit: CONTAINER_PIDS_LIMIT,
+        // addon เป็น image ทางการที่เรารู้ write path ครบ (data volume + tmpfs ตาม spec)
+        // จึง read-only ได้เต็มตัว — มีผลเฉพาะ addon ที่สร้างใหม่ ตัวเดิมต้อง recreate เอง
+        ReadonlyRootfs: true,
+        Tmpfs: spec.tmpfs,
         NetworkMode: network,
         RestartPolicy: { Name: 'unless-stopped' },
         Binds: [`${containerName}-data:${spec.dataPath}`],
@@ -590,11 +625,29 @@ export class DockerRuntimeService {
     return false;
   }
 
-  /** ลบ container ของแอป + addon ทั้งหมด (เรียกตอนลบ app) — named volume ยังคงค้าง (proxy ปิด /volumes API) */
+  /** ลบ container + named volume ของแอปและ addon ทั้งหมด (เรียกตอนลบ app) */
   async removeAppContainers(app: GitApp): Promise<void> {
-    const names = [`gatekeeper-app-${app.id}`, ...(app.addons || []).map((t) => `gatekeeper-app-${app.id}-${t}`)];
-    for (const name of names) {
+    // ลบ volume ของ addon ทุกชนิดที่ระบบรู้จัก ไม่ใช่แค่ app.addons ปัจจุบัน — user ที่เคยเปิด
+    // addon แล้วถอดออกทีหลังจะมี volume กำพร้าค้างอยู่ ซึ่งลบตอนนี้เป็นจังหวะสุดท้ายที่ทำได้
+    const containerNames = [`gatekeeper-app-${app.id}`, ...(app.addons || []).map((t) => `gatekeeper-app-${app.id}-${t}`)];
+    const volumeNames = [
+      `gatekeeper-app-${app.id}-data`,
+      ...Object.keys(ADDON_SPEC).map((t) => `gatekeeper-app-${app.id}-${t}-data`),
+    ];
+    for (const name of containerNames) {
       await this.docker.getContainer(name).remove({ force: true }).catch(() => undefined);
+    }
+    // ลบ volume หลัง container หายแล้วเท่านั้น (volume ที่ยังถูก mount จะลบไม่ผ่าน) — ถ้าพลาด
+    // log ไว้ให้เห็น ไม่เงียบ: volume ค้างสะสมคือสาเหตุ disk เต็มที่ตั้งใจปิดในรอบนี้
+    for (const name of volumeNames) {
+      try {
+        await this.docker.getVolume(name).remove();
+      } catch (err: any) {
+        // 404 = ไม่เคยมี (เช่น app ไม่เคย deploy สำเร็จ / ไม่เคยเปิด addon ชนิดนั้น) — เงียบได้
+        if (err?.statusCode !== 404) {
+          this.logger.warn(`volume ${name} not removed while deleting app ${app.id}: ${err?.message}`);
+        }
+      }
     }
     await this.cleanupTenantNetwork(tenantNetworkFor(app));
   }
