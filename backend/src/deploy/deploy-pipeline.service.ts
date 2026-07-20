@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Finding, GitApp, PipelineStageKey, PipelineStageStatus } from '../common/types';
@@ -32,12 +32,53 @@ export interface PipelineOutcome {
  * (acquireSource callback: clone จาก git หรือแตก zip) ส่วนที่เหลือทั้งหมดใช้โค้ดเดียวกันทุกตัวอักษร
  * ย้ายมาจาก github-webhook.service.ts เดิม (ของเดิมทำ inline ทั้งหมดในที่เดียว เฉพาะ git เท่านั้น)
  */
+// volume ของ addon ที่ถูกถอดถูกเก็บไว้ก่อนช่วงหนึ่ง (ติ๊กกลับ = ได้ข้อมูลเดิมคืน) แล้วค่อยลบจริง
+const ADDON_VOLUME_RETENTION_MS = Number(process.env.ADDON_VOLUME_RETENTION_DAYS || 7) * 24 * 60 * 60 * 1000;
+const ADDON_VOLUME_SWEEP_INTERVAL_MS = 60 * 60 * 1000; // ชั่วโมงละครั้งพอ — งานมันหลัก "วัน"
+
 @Injectable()
-export class DeployPipelineService {
+export class DeployPipelineService implements OnModuleInit {
   private readonly logger = new Logger(DeployPipelineService.name);
   private stagingRoot = path.join(DATA_DIR, 'git-staging');
   private deployedRoot = path.join(DATA_DIR, 'git-deployed');
   private quarantineRoot = path.join(DATA_DIR, 'git-quarantine');
+
+  onModuleInit(): void {
+    // sweeper ลบ volume ของ addon ที่ retired พ้น retention — รันทั้ง backend-1/2 ได้พร้อมกัน
+    // ไม่เป็นไร (ลบซ้ำ = 404 = ถือว่าสำเร็จ) unref กัน timer ค้างตอน shutdown ใน test/CLI
+    const timer = setInterval(() => void this.sweepRetiredAddonVolumes(), ADDON_VOLUME_SWEEP_INTERVAL_MS);
+    timer.unref?.();
+    void this.sweepRetiredAddonVolumes(); // กวาดหนึ่งรอบตอน boot — ของที่ครบกำหนดระหว่าง backend down ไม่ต้องรออีกชั่วโมง
+  }
+
+  /**
+   * ลบ volume ของ addon ที่ถูกถอดและพ้น retention แล้ว + ตัด entry ออกจาก store — ข้าม
+   * ชนิดที่กลับมาอยู่ใน app.addons อีกรอบ (user ติ๊กกลับแต่ยังไม่ deploy จึงยังติดธง retired)
+   */
+  async sweepRetiredAddonVolumes(): Promise<void> {
+    const cutoff = Date.now() - ADDON_VOLUME_RETENTION_MS;
+    for (const app of this.gitAppStore.findAll()) {
+      const wanted = new Set(app.addons || []);
+      const due = (app.addonConnections || []).filter(
+        (c) => c.retiredAt && !wanted.has(c.type) && Date.parse(c.retiredAt) <= cutoff,
+      );
+      if (!due.length) continue;
+      const removedTypes = new Set<string>();
+      for (const c of due) {
+        if (await this.dockerRuntime.removeRetiredAddonVolume(app.id, c.type)) removedTypes.add(c.type);
+      }
+      if (removedTypes.size) {
+        // อ่าน app สดจาก store ก่อนเขียน — ระหว่างรอ docker อาจมี PATCH/deploy เขียนทับไปแล้ว
+        const fresh = this.gitAppStore.findById(app.id);
+        if (!fresh) continue; // app ถูกลบไประหว่างกวาด — volume โดน removeAppContainers จัดการแล้ว
+        fresh.addonConnections = (fresh.addonConnections || []).filter(
+          (c) => !(c.retiredAt && removedTypes.has(c.type)),
+        );
+        this.gitAppStore.save(fresh);
+        this.logger.log(`swept retired addon volumes of ${app.id}: ${[...removedTypes].join(',')}`);
+      }
+    }
+  }
 
   constructor(
     private automator: GitAutomatorService,
@@ -80,9 +121,14 @@ export class DeployPipelineService {
     await this.dockerRuntime.removeAppContainers(app);
   }
 
-  /** ลบ container+volume ของ addon ที่ถูกถอดออกจาก config (เรียกตอน PATCH app) — best-effort */
-  async cleanupUnwantedAddons(app: GitApp): Promise<void> {
-    await this.dockerRuntime.removeUnwantedAddons(app);
+  /** ติดธง retired ให้ addon ที่ถูกถอด (sync — เรียก "ก่อน" save ตอน PATCH เพื่อให้ธงลง store) */
+  retireUnwantedAddons(app: GitApp): void {
+    this.dockerRuntime.retireUnwantedAddons(app);
+  }
+
+  /** ลบ container ของ addon ที่ถูกถอด (volume คงไว้ตาม retention) — best-effort, เรียกหลัง save */
+  async cleanupUnwantedAddonContainers(app: GitApp): Promise<void> {
+    await this.dockerRuntime.removeUnwantedAddonContainers(app);
   }
 
   async runPipeline(

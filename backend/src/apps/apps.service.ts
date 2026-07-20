@@ -386,11 +386,12 @@ export class AppsService {
 
     this.store.save(app);
 
-    // ถ้า config รอบนี้แตะ addons ให้กวาด container+volume ของตัวที่ถูกถอดทันที (ไม่รอ deploy
-    // รอบหน้า) — fire-and-forget เหมือน cleanupContainers ตอนลบ app: docker ช้า/ล่มไม่ควร
-    // ทำให้ PATCH ค้างหรือพัง และ provisionAddons จะกวาดซ้ำให้อีกชั้นตอน deploy ถัดไปอยู่ดี
+    // ถ้า config รอบนี้แตะ addons ให้หยุด container ของตัวที่ถูกถอดทันที (เลิกกิน RAM ไม่รอ
+    // deploy รอบหน้า) — fire-and-forget: docker ช้า/ล่มไม่ควรทำให้ PATCH ค้าง และ
+    // provisionAddons กวาดซ้ำให้อีกชั้นตอน deploy ถัดไปอยู่ดี ส่วน volume ถูกเก็บไว้ตาม
+    // retention (7 วัน default) แล้ว sweeper ใน pipeline ค่อยลบจริง
     if (dto.addons !== undefined) {
-      void this.deployPipeline.cleanupUnwantedAddons(app);
+      void this.deployPipeline.cleanupUnwantedAddonContainers(app);
     }
 
     this.audit.append({
@@ -458,9 +459,10 @@ export class AppsService {
     if (dto.buildArgs !== undefined) app.buildArgs = dto.buildArgs.filter((e) => e.key);
     if (dto.addons !== undefined) {
       app.addons = dto.addons;
-      // ตัด connection ของ addon ที่ถูกถอดออกทิ้งด้วย — ไม่งั้น env DATABASE_URL/REDIS_URL
-      // ค้างชี้ไปหา container ที่กำลังจะถูกลบ (removeUnwantedAddons) จนกว่าจะ deploy รอบถัดไป
-      app.addonConnections = (app.addonConnections || []).filter((c) => dto.addons!.includes(c.type));
+      // ติดธง retired ให้ connection ของ addon ที่ถูกถอด (แทนการลบ entry — เก็บ password ไว้
+      // เผื่อติ๊กกลับภายใน retention ได้ข้อมูลเดิมคืน) และล้างธงให้ตัวที่ถูกติ๊กกลับมา
+      // ต้องเกิดก่อน save เสมอ ธงถึงจะลง store — ดู retireUnwantedAddons ใน docker-runtime
+      this.deployPipeline.retireUnwantedAddons(app);
     }
     if (dto.memoryMb !== undefined) app.memoryMb = dto.memoryMb;
     if (dto.cpuMilli !== undefined) app.cpu = dto.cpuMilli / 1000;
