@@ -80,6 +80,11 @@ export class DeployPipelineService {
     await this.dockerRuntime.removeAppContainers(app);
   }
 
+  /** ลบ container+volume ของ addon ที่ถูกถอดออกจาก config (เรียกตอน PATCH app) — best-effort */
+  async cleanupUnwantedAddons(app: GitApp): Promise<void> {
+    await this.dockerRuntime.removeUnwantedAddons(app);
+  }
+
   async runPipeline(
     app: GitApp,
     requestId: string,

@@ -553,6 +553,9 @@ export class DockerRuntimeService {
    * idempotent: ถ้า container มีอยู่แล้ว reuse connection เดิม (password เดิมใน volume)
    */
   async provisionAddons(app: GitApp): Promise<{ ok: boolean; reason?: string }> {
+    // กวาด addon ที่ถูกถอดออกก่อนเสมอ — deploy ทุก path ผ่านตรงนี้ จึงเป็นตาข่ายรองรับ
+    // เคสที่ PATCH config ไม่ได้เกิด (เช่น แนบ config มากับ manual deploy / git push)
+    await this.removeUnwantedAddons(app);
     const wanted = app.addons || [];
     const connections: AddonConnection[] = [];
     for (const type of wanted) {
@@ -668,6 +671,30 @@ export class DockerRuntimeService {
       await new Promise((r) => setTimeout(r, HEALTHCHECK_INTERVAL_MS));
     }
     return false;
+  }
+
+  /**
+   * ลบ container + volume ของ addon ที่ "ไม่อยู่ใน app.addons แล้ว" (user ถอดออกจาก dashboard)
+   * — ถ้าไม่กวาด container จะรันกิน RAM ต่อไปเรื่อยๆ และ volume ค้างเป็นซากแบบที่เคยเจอ
+   * ระวัง: ลบ volume = ข้อมูลของ addon นั้นหายถาวร ถ้า user ติ๊กกลับมาใหม่จะได้ instance เปล่า
+   * (ตั้งใจ — ตรงกับความคาดหวังว่า "ถอดแล้วต้องไม่เหลืออะไร") best-effort ไม่ throw:
+   * เรียกทั้งจาก PATCH config (มีผลทันที) และต้นทางของ provisionAddons (กันหลุดทุก deploy)
+   */
+  async removeUnwantedAddons(app: GitApp): Promise<void> {
+    const wanted = new Set(app.addons || []);
+    for (const type of Object.keys(ADDON_SPEC) as AppAddon[]) {
+      if (wanted.has(type)) continue;
+      const containerName = `gatekeeper-app-${app.id}-${type}`;
+      await this.docker.getContainer(containerName).remove({ force: true }).catch(() => undefined);
+      try {
+        await this.docker.getVolume(`${containerName}-data`).remove();
+      } catch (err: any) {
+        // 404 = ไม่เคยมี addon ชนิดนี้ (เคสปกติของทุก app ที่ไม่ได้ใช้) — เงียบได้
+        if (err?.statusCode !== 404) {
+          this.logger.warn(`addon volume ${containerName}-data not removed: ${err?.message}`);
+        }
+      }
+    }
   }
 
   /** ลบ container + named volume ของแอปและ addon ทั้งหมด (เรียกตอนลบ app) */

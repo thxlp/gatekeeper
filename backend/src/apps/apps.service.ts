@@ -385,6 +385,14 @@ export class AppsService {
     app.updatedAt = new Date().toISOString();
 
     this.store.save(app);
+
+    // ถ้า config รอบนี้แตะ addons ให้กวาด container+volume ของตัวที่ถูกถอดทันที (ไม่รอ deploy
+    // รอบหน้า) — fire-and-forget เหมือน cleanupContainers ตอนลบ app: docker ช้า/ล่มไม่ควร
+    // ทำให้ PATCH ค้างหรือพัง และ provisionAddons จะกวาดซ้ำให้อีกชั้นตอน deploy ถัดไปอยู่ดี
+    if (dto.addons !== undefined) {
+      void this.deployPipeline.cleanupUnwantedAddons(app);
+    }
+
     this.audit.append({
       requestId: uuidv4(),
       accountId: account.id,
@@ -448,7 +456,12 @@ export class AppsService {
   private applyConfig(app: GitApp, dto: AppConfigDto): void {
     if (dto.envVars !== undefined) app.envVars = dto.envVars.filter((e) => e.key);
     if (dto.buildArgs !== undefined) app.buildArgs = dto.buildArgs.filter((e) => e.key);
-    if (dto.addons !== undefined) app.addons = dto.addons;
+    if (dto.addons !== undefined) {
+      app.addons = dto.addons;
+      // ตัด connection ของ addon ที่ถูกถอดออกทิ้งด้วย — ไม่งั้น env DATABASE_URL/REDIS_URL
+      // ค้างชี้ไปหา container ที่กำลังจะถูกลบ (removeUnwantedAddons) จนกว่าจะ deploy รอบถัดไป
+      app.addonConnections = (app.addonConnections || []).filter((c) => dto.addons!.includes(c.type));
+    }
     if (dto.memoryMb !== undefined) app.memoryMb = dto.memoryMb;
     if (dto.cpuMilli !== undefined) app.cpu = dto.cpuMilli / 1000;
     if (dto.spa !== undefined) app.spa = dto.spa;
