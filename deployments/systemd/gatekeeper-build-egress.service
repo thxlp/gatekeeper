@@ -1,0 +1,16 @@
+# จำกัด egress ของ gatekeeper-build-net ทุกครั้งหลัง docker พร้อม (iptables ไม่รอดข้าม reboot)
+# ติดตั้ง: sudo cp deployments/systemd/gatekeeper-build-egress.service /etc/systemd/system/
+#         sudo systemctl daemon-reload && sudo systemctl enable --now gatekeeper-build-egress
+# แก้ path ExecStart ให้ตรงกับที่ repo อยู่จริงบนเครื่องถ้าไม่ใช่ /home/dup/gatekeeper
+[Unit]
+Description=Gatekeeper build-egress firewall (จำกัด egress ของ gatekeeper-build-net)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/dup/gatekeeper/deployments/docker/build-egress-firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
