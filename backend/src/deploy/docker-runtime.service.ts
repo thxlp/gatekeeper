@@ -629,7 +629,13 @@ export class DockerRuntimeService {
   async removeAppContainers(app: GitApp): Promise<void> {
     // ลบ volume ของ addon ทุกชนิดที่ระบบรู้จัก ไม่ใช่แค่ app.addons ปัจจุบัน — user ที่เคยเปิด
     // addon แล้วถอดออกทีหลังจะมี volume กำพร้าค้างอยู่ ซึ่งลบตอนนี้เป็นจังหวะสุดท้ายที่ทำได้
-    const containerNames = [`gatekeeper-app-${app.id}`, ...(app.addons || []).map((t) => `gatekeeper-app-${app.id}-${t}`)];
+    // รวม `-staging` ด้วย: deploy ที่พังกลางทางอาจทิ้ง staging container ที่ mount data volume
+    // เดียวกันค้างไว้ ถ้าไม่ลบก่อน volume จะติดสถานะ in-use แล้วลบไม่ผ่าน
+    const containerNames = [
+      `gatekeeper-app-${app.id}`,
+      `gatekeeper-app-${app.id}-staging`,
+      ...(app.addons || []).map((t) => `gatekeeper-app-${app.id}-${t}`),
+    ];
     const volumeNames = [
       `gatekeeper-app-${app.id}-data`,
       ...Object.keys(ADDON_SPEC).map((t) => `gatekeeper-app-${app.id}-${t}-data`),
