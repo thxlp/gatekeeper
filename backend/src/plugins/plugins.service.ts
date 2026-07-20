@@ -109,7 +109,7 @@ export class PluginsService {
       updated_at: now,
     };
 
-    this.store.save(plugin);
+    await this.store.save(plugin);
     this.audit.append({
       requestId: uuidv4(),
       accountId: account.id,
@@ -126,10 +126,10 @@ export class PluginsService {
 
   // ── Step 3: Trigger API Screening & Safety Check ──────────────────────────────
   async runScreening(pluginId: string, account: Account): Promise<Plugin> {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
 
     plugin.status = 'screening';
-    this.store.save(plugin);
+    await this.store.save(plugin);
 
     // สแกน base_url + endpoint paths
     let findings: Finding[] = [];
@@ -156,12 +156,12 @@ export class PluginsService {
 
     if (result.decision === 'BLOCK') {
       plugin.status = 'blocked';
-      this.store.save(plugin);
+      await this.store.save(plugin);
       return plugin;
     }
     if (result.decision === 'QUARANTINE') {
       plugin.status = 'quarantine';
-      this.store.save(plugin);
+      await this.store.save(plugin);
       return plugin;
     }
 
@@ -171,9 +171,9 @@ export class PluginsService {
 
   // ── Step 4: Generate Plugin Connection File ───────────────────────────────────
   async generateConnectionFile(pluginId: string, account: Account): Promise<Plugin> {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
     plugin.status = 'generating';
-    this.store.save(plugin);
+    await this.store.save(plugin);
 
     const manifest = {
       schema_version: '1.0',
@@ -202,7 +202,7 @@ export class PluginsService {
 
   // ── Step 5: Issue Plugin Code Signature ──────────────────────────────────────
   async issueSignature(pluginId: string, account: Account, manifest?: object): Promise<Plugin> {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
     const payload = manifest || plugin.connection_file;
     if (!payload) throw new BadRequestException('no_connection_file_to_sign');
 
@@ -214,7 +214,7 @@ export class PluginsService {
     plugin.signature = sig;
     plugin.status = 'active';
     plugin.last_verified_at = new Date().toISOString();
-    this.store.save(plugin);
+    await this.store.save(plugin);
 
     this.audit.append({
       requestId: uuidv4(),
@@ -228,8 +228,8 @@ export class PluginsService {
   }
 
   // ── Step 6: Verify Deployed Code Integrity ────────────────────────────────────
-  verifyIntegrity(pluginId: string, account: Account): { ok: boolean; reason?: string } {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+  async verifyIntegrity(pluginId: string, account: Account): Promise<{ ok: boolean; reason?: string }> {
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
     if (!plugin.connection_file || !plugin.signature) {
       return { ok: false, reason: 'no_signature_or_manifest' };
     }
@@ -258,7 +258,7 @@ export class PluginsService {
     if (!ok) {
       // auto-revoke ถ้า signature ไม่ตรง
       plugin.status = 'revoked';
-      this.store.save(plugin);
+      await this.store.save(plugin);
     }
 
     return { ok, reason: ok ? undefined : 'signature_mismatch' };
@@ -266,7 +266,7 @@ export class PluginsService {
 
   // ── Step 7: Test Handshake Connectivity ──────────────────────────────────────
   async testHandshake(pluginId: string, account: Account): Promise<{ ok: boolean; latency_ms?: number; error?: string }> {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
     if (plugin.status !== 'active') {
       return { ok: false, error: `plugin_not_active:${plugin.status}` };
     }
@@ -283,7 +283,7 @@ export class PluginsService {
 
       const latency_ms = Date.now() - start;
       plugin.last_handshake_at = new Date().toISOString();
-      this.store.save(plugin);
+      await this.store.save(plugin);
 
       this.audit.append({
         requestId: uuidv4(),
@@ -311,10 +311,10 @@ export class PluginsService {
 
   // ── Step 8: Execute Secure Proxy Call ────────────────────────────────────────
   async proxyCall(pluginId: string, account: Account, dto: ProxyCallDto): Promise<{ ok: boolean; status?: number; data?: any; error?: string }> {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
 
     // verify integrity ก่อน proxy ทุกครั้ง (fail-closed)
-    const integrity = this.verifyIntegrity(pluginId, account);
+    const integrity = await this.verifyIntegrity(pluginId, account);
     if (!integrity.ok) {
       return { ok: false, error: `proxy_rejected:${integrity.reason}` };
     }
@@ -404,12 +404,12 @@ export class PluginsService {
   }
 
   // ── Step 9: Revoke / Block Plugin Access ─────────────────────────────────────
-  revoke(pluginId: string, account: Account): Plugin {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+  async revoke(pluginId: string, account: Account): Promise<Plugin> {
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
     plugin.status = 'revoked';
     plugin.signature = undefined;
     plugin.connection_file = undefined;
-    this.store.save(plugin);
+    await this.store.save(plugin);
 
     this.audit.append({
       requestId: uuidv4(),
@@ -425,7 +425,7 @@ export class PluginsService {
 
   // ── Edit Plugin ───────────────────────────────────────────────────────────────
   async update(pluginId: string, dto: UpdatePluginDto, account: Account): Promise<Plugin> {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
 
     if (dto.base_url !== undefined) {
       await this.assertBaseUrlAllowed(dto.base_url, account, pluginId);
@@ -444,7 +444,7 @@ export class PluginsService {
     plugin.signature = undefined;
     plugin.connection_file = undefined;
     plugin.status = 'pending';
-    this.store.save(plugin);
+    await this.store.save(plugin);
 
     this.audit.append({
       requestId: uuidv4(),
@@ -458,9 +458,9 @@ export class PluginsService {
   }
 
   // ── Delete Plugin (ลบออกจาก store จริง ต่างจาก revoke ที่แค่ block ไว้) ────────────
-  remove(pluginId: string, account: Account): { ok: boolean } {
-    const plugin = this.getOwnedOrThrow(pluginId, account.id);
-    this.store.delete(plugin.id);
+  async remove(pluginId: string, account: Account): Promise<{ ok: boolean }> {
+    const plugin = await this.getOwnedOrThrow(pluginId, account.id);
+    await this.store.delete(plugin.id);
 
     this.audit.append({
       requestId: uuidv4(),
@@ -474,17 +474,17 @@ export class PluginsService {
   }
 
   // ── Step 10: Fetch Verification & Audit Logs ─────────────────────────────────
-  getAuditLogs(pluginId: string, account: Account) {
-    this.getOwnedOrThrow(pluginId, account.id);
+  async getAuditLogs(pluginId: string, account: Account) {
+    await this.getOwnedOrThrow(pluginId, account.id);
     return this.audit.readByPlugin(pluginId);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
-  getAll(account: Account): Plugin[] {
+  async getAll(account: Account): Promise<Plugin[]> {
     return this.store.findAll(account.id);
   }
 
-  getOne(pluginId: string, account: Account): Plugin {
+  async getOne(pluginId: string, account: Account): Promise<Plugin> {
     return this.getOwnedOrThrow(pluginId, account.id);
   }
 
@@ -511,8 +511,8 @@ export class PluginsService {
     }
   }
 
-  private getOwnedOrThrow(pluginId: string, accountId: string): Plugin {
-    const plugin = this.store.findById(pluginId);
+  private async getOwnedOrThrow(pluginId: string, accountId: string): Promise<Plugin> {
+    const plugin = await this.store.findById(pluginId);
     if (!plugin) throw new NotFoundException(`plugin_not_found:${pluginId}`);
     if (plugin.owner_account_id !== accountId) throw new ForbiddenException('not_your_plugin');
     return plugin;
