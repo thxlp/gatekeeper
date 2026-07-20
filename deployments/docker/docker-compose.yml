@@ -37,7 +37,11 @@ services:
       - POST=1
       - EXEC=0
       - NETWORKS=1
-      - VOLUMES=0
+      # VOLUMES=1 จำเป็นตั้งแต่ทำ cleanup named volume ตอนลบ app (removeAppContainers) —
+      # ไม่งั้น volume `gatekeeper-app-*-data` ค้างสะสมจน disk เต็ม tradeoff ที่รับ: โค้ด
+      # backend ที่หลุด RCE ลบ volume ได้ (รวม backend-data/postgres-data ของระบบเอง) แต่ยัง
+      # exec เข้า container / แตะ host ตรงๆ ไม่ได้เหมือนเดิม
+      - VOLUMES=1
       - SWARM=0
       - SYSTEM=0
       - SERVICES=0
