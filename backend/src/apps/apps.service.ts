@@ -30,7 +30,7 @@ import { QuotaService } from '../entitlement/quota.service';
 const DEFAULT_BRANCH = 'main';
 
 // URL สาธารณะของ webhook endpoint (ผ่าน nginx, มี /api prefix) — ตั้งผ่าน env ได้
-// ค่า default อิงจากโดเมนจริงที่ตั้งไว้ใน deployments/nginx/gatekeeper.conf
+// ค่า default อิงจากโดเมนจริงที่ตั้งไว้ใน deployments/host/gatekeeper-host.conf
 const PUBLIC_WEBHOOK_URL =
   process.env.PUBLIC_WEBHOOK_URL || 'https://gatekeeper.studiodup.com/api/webhooks/github';
 

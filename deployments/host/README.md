@@ -95,13 +95,12 @@ docker compose -p docker stop nginx frontend backend-1 backend-2 2>/dev/null; \
 ### 7. verify + เก็บกวาด
 
 - ยิงทดสอบผ่าน nginx ตามสูตร challenge cookie เดิม, login, deploy แอปทดสอบ, เปิด `/live/<id>`
-- ผ่านหมดแล้วค่อย: `docker rm gatekeeper-proxy frontend backend-1 backend-2` (volume
-  `backend-data` เก็บไว้ก่อนก็ได้ ลบเมื่อมั่นใจ: `docker volume rm docker_backend-data`)
-- ลบ `deployments/nginx/gatekeeper.conf` (เวอร์ชัน container) ออกจาก repo ได้หลัง verify แล้ว
+- ผ่านหมดแล้วค่อย: `docker rm gatekeeper-proxy frontend backend-1 backend-2` (ทำแล้ว 2026-07-21;
+  volume `backend-data` เก็บไว้ก่อนก็ได้ ลบเมื่อมั่นใจ: `docker volume rm docker_backend-data`)
+- ลบ `deployments/nginx/gatekeeper.conf` (เวอร์ชัน container) ออกจาก repo แล้ว 2026-07-21
 
-**Rollback** (ถ้าฝั่ง host มีปัญหา): `sudo systemctl stop nginx gatekeeper-backend@8089 \
-gatekeeper-backend@8090 gatekeeper-frontend` แล้ว `git checkout main -- deployments/docker` +
-`docker start backend-1 backend-2 frontend gatekeeper-proxy` — container เดิมยังอยู่ครบตราบใต้ยังไม่ `docker rm`
+**Rollback**: ทางลัด `docker start` container เดิมใช้ไม่ได้แล้ว (rm ไปแล้ว 2026-07-21) — ถ้าจำเป็นต้อง
+กลับไปรันใน docker ต้อง checkout compose เวอร์ชันก่อน host migration แล้ว build ใหม่
 
 ## Deploy รอบถัดไป
 
