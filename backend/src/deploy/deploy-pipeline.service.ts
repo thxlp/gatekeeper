@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Finding, GitApp, PipelineStageKey, PipelineStageStatus } from '../common/types';
+import { Finding, GitApp, PipelineStageKey, PipelineStageStatus, ReleaseRecord } from '../common/types';
 import { DATA_DIR } from '../common/paths';
 import { ScannerService } from '../scanner/scanner.service';
 import { RiskEngineService } from '../decision/risk-engine.service';
@@ -35,6 +35,10 @@ export interface PipelineOutcome {
 // volume ของ addon ที่ถูกถอดถูกเก็บไว้ก่อนช่วงหนึ่ง (ติ๊กกลับ = ได้ข้อมูลเดิมคืน) แล้วค่อยลบจริง
 const ADDON_VOLUME_RETENTION_MS = Number(process.env.ADDON_VOLUME_RETENTION_DAYS || 7) * 24 * 60 * 60 * 1000;
 const ADDON_VOLUME_SWEEP_INTERVAL_MS = 60 * 60 * 1000; // ชั่วโมงละครั้งพอ — งานมันหลัก "วัน"
+
+// จำนวน release ล่าสุดที่เก็บไว้ต่อ app (image + history) สำหรับ rollback — เกินนี้ prune image ทิ้ง
+// (ก่อนมีฟีเจอร์นี้ image เก่าไม่เคยถูกลบเลย สะสมไปเรื่อยๆ — retention นี้กันดิสก์โตไม่หยุด)
+const RELEASE_KEEP = Math.max(1, Number(process.env.RELEASE_KEEP) || 5);
 
 @Injectable()
 export class DeployPipelineService implements OnModuleInit {
@@ -116,6 +120,110 @@ export class DeployPipelineService implements OnModuleInit {
     app.pipelineStages = initialPipelineStages();
   }
 
+  /**
+   * บันทึก release ของ deploy ที่สำเร็จ + prune image ที่หลุด retention (เก็บ RELEASE_KEEP ตัวล่าสุด)
+   * ไม่ save เอง — caller (runPipeline) save ผ่าน persistStage ถัดไปในก้อนเดียวกัน
+   * keep-set รวม activeReleaseId เดิมเสมอ กันขอบเคส rollback ไป release เก่าแล้ว entry นั้น
+   * หลุด slice — image ที่เพิ่งรันอยู่ก่อนหน้าจะไม่ถูก prune ทันทีในรอบเดียวกัน
+   */
+  private recordRelease(app: GitApp, rec: ReleaseRecord): void {
+    // app แบบ static/ops-managed ไม่มี record ใน store — ไม่มีที่เก็บ history ข้ามไปเลย
+    const fresh = this.gitAppStore.findById(app.id);
+    if (!fresh) return;
+
+    // อ่าน releases จาก store สดๆ กัน lost-update — ระหว่าง pipeline วิ่ง instance อื่นอาจเขียน store ไปแล้ว
+    const prevActiveId = fresh.activeReleaseId;
+    const releases = [rec, ...(fresh.releases ?? []).filter((r) => r.id !== rec.id)];
+    const keep = new Set(releases.slice(0, RELEASE_KEEP).map((r) => r.id));
+    keep.add(rec.id);
+    if (prevActiveId) keep.add(prevActiveId);
+
+    const pruned = releases.filter((r) => !keep.has(r.id));
+    app.releases = releases.filter((r) => keep.has(r.id));
+    app.activeReleaseId = rec.id;
+    for (const r of pruned) {
+      void this.dockerRuntime.removeImage(r.imageTag);
+    }
+  }
+
+  /**
+   * Rollback = สั่ง runContainer ด้วย image ของ release เดิมที่เก็บ tag ไว้ (ไม่ rebuild/ไม่ scan ซ้ำ
+   * เพราะ artifact ตัวนี้เคยผ่านทุก gate มาแล้วตอน deploy รอบนั้น) — ใช้ blue-green swap เดิม:
+   * ตัวใหม่พังตอน start = container ปัจจุบันยังรันต่อเหมือนเดิม
+   * เรียกแบบ fire-and-forget จาก AppsService.rollback ให้ UI poll pipelineStages เอาเหมือน deploy ปกติ
+   */
+  async runRollback(app: GitApp, requestId: string, releaseId: string): Promise<void> {
+    try {
+      this.automator.acquireLock(app.id);
+    } catch {
+      this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: 'deploy_in_progress' });
+      throw new ConflictException('deploy_already_in_progress');
+    }
+
+    try {
+      // อ่านสดใต้ lock — releases อาจเพิ่งถูกเขียนโดย deploy รอบก่อนหน้า/instance อื่น
+      const fresh = this.gitAppStore.findById(app.id);
+      if (!fresh) return; // app ถูกลบไประหว่างทาง
+      app = fresh;
+      const release = (app.releases ?? []).find((r) => r.id === releaseId);
+
+      // stages ของรอบ rollback: 4 stage แรก success ทันที (ความหมาย: ใช้ artifact ที่ผ่าน gate
+      // พวกนี้มาแล้ว) เหลือ production_deploy วิ่งจริง — UI stepper + polling เดิมใช้ได้ไม่ต้องแก้
+      const now = new Date().toISOString();
+      app.pipelineStages = initialPipelineStages().map((s) =>
+        s.key === 'production_deploy' ? { ...s, status: 'running' as const, at: now } : { ...s, status: 'success' as const, at: now },
+      );
+      app.pipelineStatus = 'deploying';
+      this.gitAppStore.save(app);
+
+      if (!release || !(await this.dockerRuntime.imageExists(release.imageTag))) {
+        // image หาย (ถูกลบมือ/prune นอกระบบ) — ตัด entry ที่ชี้หาผีออกจาก history ด้วยเลย
+        if (release) {
+          app.releases = (app.releases ?? []).filter((r) => r.id !== releaseId);
+        }
+        this.persistStage(app, 'production_deploy', 'failed');
+        this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: 'rollback_image_missing' });
+        return;
+      }
+
+      // addon อาจถูก stop อยู่ (เช่นเพิ่งติ๊กกลับ) — provision ให้พร้อมก่อนเหมือน deploy ปกติ
+      if (app.addons?.length) {
+        const addon = await this.dockerRuntime.provisionAddons(app);
+        if (!addon.ok) {
+          this.persistStage(app, 'production_deploy', 'failed');
+          this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: addon.reason });
+          return;
+        }
+        this.gitAppStore.save(app); // persist connections (encrypted)
+      }
+
+      const runResult = await this.dockerRuntime.runContainer(app, release.imageTag, release.port);
+      if (!runResult.ok) {
+        this.persistStage(app, 'production_deploy', 'failed');
+        this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: runResult.reason });
+        return;
+      }
+
+      if (runResult.port) app.port = runResult.port;
+      app.activeReleaseId = release.id;
+      this.persistStage(app, 'production_deploy', 'success');
+      this.audit.append({
+        requestId,
+        accountId: app.accountId,
+        stage: 'rollback',
+        decision: 'INFO',
+        reason: `rollback_to:${release.id}`,
+        deployResult: { imageReused: true, port: runResult.port },
+      });
+    } catch (err: any) {
+      this.persistStage(app, 'production_deploy', 'failed');
+      this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: 'internal_error_fail_closed' });
+      this.logger.error(`rollback ${app.id} -> ${releaseId} failed: ${err.message}`);
+    } finally {
+      this.automator.releaseLock(app.id);
+    }
+  }
+
   /** ลบ container ของแอป + addon (เรียกตอนลบ app) — best-effort ผ่าน DockerRuntimeService */
   async cleanupContainers(app: GitApp): Promise<void> {
     await this.dockerRuntime.removeAppContainers(app);
@@ -150,6 +258,8 @@ export class DeployPipelineService implements OnModuleInit {
     try {
       this.persistStage(app, 'repo_cloning', 'running');
       await acquireSource(stagingDir);
+      // เก็บ SHA ตรงนี้ (ก่อน staging ถูก promote/ลบ) ไว้ลง ReleaseRecord ถ้า deploy สำเร็จ
+      const commitSha = await this.automator.revParseHead(stagingDir);
       this.persistStage(app, 'repo_cloning', 'success');
 
       currentStage = 'security_scan';
@@ -220,6 +330,19 @@ export class DeployPipelineService implements OnModuleInit {
         // จำ port ที่ container listen จริงไว้ใน store เพื่อให้ /live/<id> proxy เข้า container ถูก port
         // (มาจาก app.port ที่ผู้ใช้ระบุ, EXPOSE ใน Dockerfile, หรือ default ตาม runtime)
         if (runResult.port) app.port = runResult.port;
+
+        // บันทึก release + prune image ที่หลุด retention — ต้องมาก่อน persistStage success
+        // ข้างล่าง เพื่อให้ทั้ง stages และ releases ลง store ในการ save เดียวกัน
+        this.recordRelease(app, {
+          id: requestId,
+          imageTag: buildResult.imageTag!,
+          createdAt: new Date().toISOString(),
+          sourceType: app.sourceType ?? 'git',
+          commitSha,
+          branch: app.branch,
+          port: runResult.port,
+          degraded: runResult.degraded || undefined,
+        });
 
         // เก็บสำเนา source ที่ deploy สำเร็จล่าสุดไว้บน disk เพื่อ audit/debug (ตัว serving จริง
         // มาจาก container ผ่าน DockerRuntimeService แล้ว ไม่ได้พึ่งไฟล์ในนี้โดยตรงอีกต่อไป)

@@ -20,6 +20,7 @@ import { RegisterGitAppDto } from './register-git-app.dto';
 import { RegisterGithubAppDto } from './register-github-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
 import { ManualDeployDto } from './manual-deploy.dto';
+import { RollbackDto } from './rollback.dto';
 
 const MAX_ARCHIVE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB — เกินนี้ multer ปฏิเสธก่อน controller เห็นด้วยซ้ำ
 
@@ -60,6 +61,13 @@ export class AppsController {
   @Post(':id/deploy')
   triggerDeploy(@Param('id') id: string, @Req() req: any) {
     return this.svc.triggerGitDeploy(id, getAccount(req));
+  }
+
+  // กดกลับไป release เดิม (safety net ตอน deploy ใหม่พัง) — รัน image เดิมจาก history ไม่ rebuild
+  // ต้องประกาศหลัง 'manual/deploy' ด้วยเหตุผลเดียวกับ ':id/deploy' ข้างบน
+  @Post(':id/rollback')
+  rollback(@Param('id') id: string, @Body() dto: RollbackDto, @Req() req: any) {
+    return this.svc.rollback(id, dto.releaseId, getAccount(req));
   }
 
   @Get()

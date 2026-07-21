@@ -99,6 +99,20 @@ export class GitAutomatorService {
     );
   }
 
+  /**
+   * อ่าน commit SHA ของ HEAD ใน dir ที่เพิ่ง clone มา (shallow clone ยังมี .git ที่ resolve ได้)
+   * ใช้เก็บลง ReleaseRecord ให้หน้า UI แสดง — dir ที่ไม่ใช่ git repo (manual zip) ได้ undefined
+   */
+  async revParseHead(dir: string): Promise<string | undefined> {
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', dir, 'rev-parse', 'HEAD']);
+      const sha = stdout.trim();
+      return /^[0-9a-f]{40}$/.test(sha) ? sha : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** เดินไฟล์ทั้งหมดใน dir (ข้าม build artifact/dependency dir) เพื่อป้อนเข้า security scanner */
   listTextFiles(rootDir: string): ScannedFile[] {
     const results: ScannedFile[] = [];

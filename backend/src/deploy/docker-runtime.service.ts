@@ -302,6 +302,31 @@ export class DockerRuntimeService {
     }
   }
 
+  /** เช็คว่า image tag ยังอยู่บน host ไหม — ใช้กันก่อน rollback (tag อาจถูกลบมือ/prune ไปแล้ว) */
+  async imageExists(tag: string): Promise<boolean> {
+    try {
+      await this.docker.getImage(tag).inspect();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * ลบ image ที่หลุด release retention — best-effort: 404 (ไม่มีอยู่แล้ว) เงียบ, 409 (ยังมี
+   * container อ้างอยู่) หรือ error อื่นแค่ log ไม่ throw — ห้ามให้การ prune ทำ deploy พัง
+   */
+  async removeImage(tag: string): Promise<void> {
+    try {
+      await this.docker.getImage(tag).remove();
+      this.logger.log(`pruned image ${tag}`);
+    } catch (err: any) {
+      if (err?.statusCode !== 404) {
+        this.logger.warn(`image ${tag} not removed: ${err?.message}`);
+      }
+    }
+  }
+
   async buildImage(stagingDir: string, app: GitApp, requestId: string): Promise<BuildResult> {
     const runtime = app.runtime || 'static';
     const dockerfilePath = path.join(stagingDir, 'Dockerfile');

@@ -226,6 +226,38 @@ export class AppsService {
     return { ok: true, id: app.id, pipelineStatus: 'deploying' as const };
   }
 
+  /**
+   * Rollback ไป release เดิม — safety net ตอน deploy ตัวใหม่พัง (โดยเฉพาะเคส degraded ที่
+   * ถูก promote ทับตัวเก่าไปแล้ว) รัน image เดิมที่เก็บ tag ไว้ ไม่ rebuild/scan ซ้ำ
+   * ตอบทันทีแล้วให้ UI poll GET /apps/:id ดู stage เอา — แพทเทิร์นเดียวกับ triggerGitDeploy
+   */
+  rollback(id: string, releaseId: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    if (app.pipelineStatus === 'deploying') {
+      throw new ConflictException('deploy_already_in_progress');
+    }
+    const target = (app.releases ?? []).find((r) => r.id === releaseId);
+    if (!target) throw new NotFoundException(`release_not_found:${releaseId}`);
+    if (app.activeReleaseId === releaseId) {
+      throw new BadRequestException('release_already_active');
+    }
+
+    const requestId = uuidv4();
+    this.audit.append({
+      requestId,
+      accountId: account.id,
+      stage: 'gitapp:rollback',
+      decision: 'INFO',
+      reason: `rollback_requested:${app.id}:${releaseId}`,
+    });
+
+    this.deployPipeline
+      .runRollback(app, requestId, releaseId)
+      .catch((err) => this.logger.warn(`rollback ${app.id} failed: ${err.message}`));
+
+    return { ok: true, id: app.id, pipelineStatus: 'deploying' as const };
+  }
+
   /** clone + pipeline แบบ fire-and-forget — สถานะทั้งหมดอ่านผ่าน pipelineStages ใน store */
   private startGitDeploy(app: GitApp, token?: string): void {
     const requestId = uuidv4();
@@ -363,6 +395,16 @@ export class AppsService {
       liveUrl: buildLiveUrl(app.id),
       pipelineStatus: app.pipelineStatus,
       pipelineStages: app.pipelineStages,
+      // ประวัติ release สำหรับปุ่ม rollback — echo แค่ metadata ไม่ส่ง imageTag (internal)
+      releases: (app.releases ?? []).map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        sourceType: r.sourceType,
+        commitSha: r.commitSha,
+        branch: r.branch,
+        degraded: r.degraded ?? false,
+        active: r.id === app.activeReleaseId,
+      })),
       ...this.configSummary(app),
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,

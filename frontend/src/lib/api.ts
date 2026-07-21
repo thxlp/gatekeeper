@@ -112,6 +112,13 @@ export const api = {
   // ใช้ poll สถานะ pipeline ระหว่าง deploy กำลังวิ่งอยู่ (มี pipelineStages ที่ listGitApps ไม่มี)
   getApp: (id: string) => request<GitAppDetail>(API_BASE, `/apps/${id}`),
 
+  // กดกลับไป release เดิม (จากลิสต์ releases ใน getApp) — poll สถานะต่อผ่าน getApp(id)
+  rollbackApp: (id: string, releaseId: string) =>
+    request<{ ok: boolean; id: string; pipelineStatus: string }>(API_BASE, `/apps/${id}/rollback`, {
+      method: 'POST',
+      body: JSON.stringify({ releaseId }),
+    }),
+
   // Manual zip-upload deploy — formData ต้องมีฟิลด์ "archive" (ไฟล์ .zip) และถ้าจะ redeploy
   // app เดิมให้ใส่ฟิลด์ "appId" มาด้วย ไม่ใส่ = สร้าง app ใหม่ (ต้องมี "runtime" ตอนนั้น)
   deployManual: (formData: FormData) =>

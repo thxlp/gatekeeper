@@ -63,10 +63,22 @@ export interface GitAppSummary {
   updatedAt?: string;
 }
 
+// release ในประวัติ deploy (GET /apps/:id → releases) — ใช้แสดงลิสต์ + ปุ่ม rollback
+export interface ReleaseSummary {
+  id: string;
+  createdAt: string;
+  sourceType: AppSourceType;
+  commitSha?: string;
+  branch?: string;
+  degraded: boolean; // deploy ผ่านแบบเฝ้าระวัง (container รันแต่ไม่ตอบ healthcheck ตอนนั้น)
+  active: boolean;   // ตัวที่ container ปัจจุบันรันอยู่
+}
+
 // รายละเอียดเต็มของ app เดียว (GET /apps/:id) — ต่างจาก GitAppSummary ตรงมี pipelineStages
 // (ทั้ง 5 stage) ด้วย ใช้สำหรับ poll ระหว่าง deploy กำลังวิ่งอยู่
 export interface GitAppDetail extends GitAppSummary {
   pipelineStages?: PipelineStage[];
+  releases?: ReleaseSummary[];
 }
 
 export interface DeployOutcome {

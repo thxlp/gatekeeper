@@ -78,6 +78,21 @@ export interface AddonConnection {
   retiredAt?: string;
 }
 
+// ประวัติ release ต่อ deploy ที่สำเร็จ 1 รายการ — image ของ release ที่ยังอยู่ในลิสต์จะไม่ถูก
+// prune (เก็บ RELEASE_KEEP ตัวล่าสุด ดู recordRelease ใน deploy-pipeline.service.ts) ทำให้กด
+// rollback กลับไป run image เดิมได้โดยไม่ต้อง rebuild (source เก่าไม่ถูกเก็บ — zip อยู่แค่ใน
+// memory, git clone เป็น shallow ตาม branch tip จึง rebuild เวอร์ชันเก่าไม่ได้อยู่แล้ว)
+export interface ReleaseRecord {
+  id: string;        // = requestId ของ deploy รอบนั้น (ตรงกับ tag ส่วนท้ายของ image)
+  imageTag: string;  // gatekeeper-app-<appId>:<requestId> — internal ไม่ echo ออก API
+  createdAt: string;
+  sourceType: AppSourceType;
+  commitSha?: string; // เฉพาะ git deploy (rev-parse HEAD หลัง clone) — manual zip ไม่มี
+  branch?: string;
+  port?: number;      // port ที่ container listen ตอน deploy รอบนั้น — ใช้ตอน rollback
+  degraded?: boolean; // deploy ผ่านแบบเฝ้าระวัง (container รันแต่ไม่ตอบ healthcheck)
+}
+
 // ชื่อ "GitApp" เป็นชื่อเดิมตั้งแต่ตอนที่มีแค่ git-webhook deploy — ตอนนี้ type นี้ครอบคลุมทั้ง
 // git และ manual-upload app แล้ว (ตั้งใจไม่ rename ทั้ง codebase เป็น "App" เพื่อไม่ให้ diff ใหญ่เกินจำเป็น)
 export interface GitApp {
@@ -114,6 +129,10 @@ export interface GitApp {
   liveUrl?: string;
   pipelineStatus?: DeployStatus;
   pipelineStages?: PipelineStage[];
+  // ประวัติ release (ใหม่สุดก่อน) — อ่านแบบ (app.releases ?? []) เสมอ entry เก่าใน store ไม่มี field นี้
+  releases?: ReleaseRecord[];
+  // release ที่ container ปัจจุบันรันอยู่ — rollback แค่ย้ายค่านี้ ไม่ reorder/duplicate ลิสต์
+  activeReleaseId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

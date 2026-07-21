@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
 import { api } from '@/lib/api';
-import { GitAppDetail, PipelineStage } from '@/types';
+import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
 
 const POLL_MS = 1500;
 
@@ -40,6 +40,10 @@ function StepCircle({ stage }: { stage: PipelineStage }) {
 export default function PipelineDetailPage({ params }: { params: { id: string } }) {
   const [detail, setDetail] = useState<GitAppDetail | null>(null);
   const [error, setError] = useState('');
+  // bump ค่านี้ = restart polling loop (interval เดิมถูก clear ไปแล้วตอน deploy รอบก่อนจบ —
+  // กด rollback ต้องเริ่ม poll ใหม่ให้เห็น stage วิ่ง)
+  const [pollEpoch, setPollEpoch] = useState(0);
+  const [rollingBack, setRollingBack] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -63,7 +67,26 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
       cancelled = true;
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [params.id]);
+  }, [params.id, pollEpoch]);
+
+  const doRollback = async (r: ReleaseSummary) => {
+    const label = r.commitSha ? r.commitSha.slice(0, 7) : 'manual upload';
+    const ok = confirm(
+      `Rollback กลับไป release ${label} (${new Date(r.createdAt).toLocaleString('th-TH')})?\n\n` +
+        'หมายเหตุ: rollback ใช้โค้ดเวอร์ชันนั้น แต่ env vars/addons เป็นค่าปัจจุบัน ไม่ใช่ค่าตอน deploy รอบนั้น',
+    );
+    if (!ok) return;
+    setRollingBack(true);
+    setError('');
+    try {
+      await api.rollbackApp(params.id, r.id);
+      setPollEpoch((e) => e + 1); // เริ่ม poll ใหม่ให้เห็น production_deploy วิ่ง
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setRollingBack(false);
+    }
+  };
 
   const stages = detail?.pipelineStages;
   const name = detail?.projectName || detail?.repoFullName || params.id;
@@ -156,6 +179,54 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             >
               <i className="ph ph-arrow-square-out" /> Visit Live Site
             </a>
+          )}
+
+          {/* ประวัติ release + ปุ่ม rollback — safety net ตอน deploy ตัวใหม่พัง */}
+          {detail?.releases && detail.releases.length > 0 && (
+            <div className="mt-7">
+              <div className="mb-1 text-[14px] font-bold">Releases</div>
+              <div className="mb-2.5 text-[11.5px] text-muted">
+                เก็บเวอร์ชันล่าสุดไว้ให้กดกลับได้ — rollback ไม่ rebuild ใช้ image เดิมที่ผ่านการสแกนแล้ว
+              </div>
+              <div className="divide-y divide-border-alt rounded-lg border border-border-alt bg-white">
+                {detail.releases.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <i className={`ph ${r.sourceType === 'git' ? 'ph-git-commit' : 'ph-file-zip'} text-[15px] text-muted`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[12.5px] font-semibold">
+                          {r.commitSha ? r.commitSha.slice(0, 7) : 'manual upload'}
+                        </span>
+                        {r.active && (
+                          <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[10px] font-bold text-allow-text">
+                            ACTIVE
+                          </span>
+                        )}
+                        {r.degraded && (
+                          <span className="rounded-md border border-[rgba(214,158,82,.35)] bg-[rgba(214,158,82,.1)] px-1.5 py-px text-[10px] font-bold text-[#A97B2F]">
+                            DEGRADED
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-px text-[11px] text-muted">
+                        {new Date(r.createdAt).toLocaleString('th-TH')}
+                        {r.branch ? ` · ${r.branch}` : ''}
+                      </div>
+                    </div>
+                    {!r.active && (
+                      <button
+                        onClick={() => doRollback(r)}
+                        disabled={rollingBack || detail.pipelineStatus === 'deploying'}
+                        className="rounded-lg border border-border-alt px-3 py-1.5 text-[11.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <i className="ph ph-arrow-counter-clockwise mr-1" />
+                        Rollback
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
