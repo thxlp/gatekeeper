@@ -1,0 +1,9 @@
+# นโยบาย build script ของ dependency (pnpm 11: strictDepBuilds เปิดเป็น default)
+# ทั้ง 4 ตัวไม่จำเป็น: @nestjs/core = ข้อความ opencollective, ssh2/cpu-features = native
+# binding เสริม (เราคุย docker ผ่าน socket-proxy ไม่ใช้ ssh), protobufjs ทำงานได้โดยไม่รัน postinstall
+# dep ใหม่ที่มี build script จะ fail ตอน install ให้เห็น — ตัดสินใจแล้วค่อยเพิ่มที่นี่
+allowBuilds:
+  "@nestjs/core": false
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

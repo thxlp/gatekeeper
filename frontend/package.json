@@ -2,6 +2,7 @@
   "name": "gatekeeper-frontend",
   "version": "0.2.0",
   "private": true,
+  "packageManager": "pnpm@11.15.1",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

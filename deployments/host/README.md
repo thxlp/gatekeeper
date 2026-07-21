@@ -19,6 +19,9 @@ gateway IP ไม่ได้ มีแค่ nginx ที่เปิด 80/443
 ```bash
 # Node 22+ ระดับระบบ (systemd ชี้ /usr/bin/node) — ตอนนี้เครื่องมีแต่ node ใน nvm ของ user
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+# เปิด pnpm ผ่าน corepack (มากับ node) — เวอร์ชันจริงปักไว้ใน package.json field packageManager
+# ถ้า corepack ดึง pnpm ไม่ได้ (integrity error): sudo npm i -g pnpm@11.15.1 แทน
+sudo corepack enable
 # nginx บน host (ยังไม่ start — port 80/443 ยังถูก container เดิมจับอยู่)
 # mask ก่อนติดตั้ง: กัน postinst ของ apt auto-start แล้วชน port จน dpkg error
 sudo systemctl mask nginx
@@ -52,10 +55,10 @@ grep "=$" deployments/host/.env && echo "^^ มีค่าว่างค้า
 
 ```bash
 cd /home/dup/gatekeeper && bash -c '
-  cd backend && npm ci && npm run build && cd ..
-  cd frontend && npm ci
+  cd backend && pnpm install --frozen-lockfile && pnpm run build && cd ..
+  cd frontend && pnpm install --frozen-lockfile
   set -a; source ../deployments/host/.env; set +a
-  npm run build
+  pnpm run build
   cp -r .next/static .next/standalone/.next/static
   cp -r public .next/standalone/public'
 sudo cp deployments/systemd/gatekeeper-backend@.service deployments/systemd/gatekeeper-frontend.service /etc/systemd/system/
