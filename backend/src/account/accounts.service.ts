@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -14,6 +14,12 @@ const MAX_KEYS_PER_ACCOUNT = 5;
 // Idle timeout: key ที่ไม่ถูกใช้ยิง request เกินช่วงนี้ถือว่า session หมดอายุ ต้อง login ใหม่
 // ใช้กับทุก key (รวม script ที่ยิง API ตรง) — ตัดสินใจร่วมกับ user 2026-07-07
 const SESSION_IDLE_MS = Number(process.env.SESSION_IDLE_MINUTES || 15) * 60 * 1000;
+
+// ===== Email OTP (2FA) =====
+export type OtpPurpose = 'login' | 'enable' | 'disable';
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_COOLDOWN_MS = 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
 
 export type ApiKeyLookup =
   | { status: 'ok'; account: Account }
@@ -110,6 +116,69 @@ export class AccountsService {
 
   findById(id: string): Promise<Account | null> {
     return this.repo.findOne({ where: { id } });
+  }
+
+  /**
+   * ออก OTP challenge ใหม่ (6 หลัก TTL 10 นาที) — คืน plaintext ให้ caller เอาไปส่งเมล
+   * "ที่เดียวเท่านั้น" DB เก็บแค่ hash; cooldown 60s กันกดขอรัวยิงเมลถล่ม (บังคับข้าม instance
+   * เพราะ otp_sent_at อยู่ใน Postgres)
+   */
+  async issueOtp(account: Account, purpose: OtpPurpose): Promise<string> {
+    const fresh = (await this.repo.findOne({ where: { id: account.id } })) ?? account;
+    if (fresh.otpSentAt && Date.now() - fresh.otpSentAt.getTime() < OTP_COOLDOWN_MS) {
+      throw new HttpException('otp_cooldown — ขอรหัสใหม่ได้ทุก 1 นาที', 429);
+    }
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    await this.repo.update(account.id, {
+      otpHash: sha256Hex(`${account.id}:${code}`),
+      otpExpiresAt: new Date(Date.now() + OTP_TTL_MS),
+      otpAttempts: 0,
+      otpSentAt: new Date(),
+      otpPurpose: purpose,
+    });
+    return code;
+  }
+
+  /** มี OTP ของ purpose นี้ที่ยังใช้ได้ค้างอยู่ไหม — กัน /auth/session ที่ถูกเรียกซ้ำส่งเมลรัว */
+  hasActiveOtp(account: Account, purpose: OtpPurpose): boolean {
+    return !!(
+      account.otpHash &&
+      account.otpPurpose === purpose &&
+      account.otpExpiresAt &&
+      account.otpExpiresAt.getTime() > Date.now() &&
+      account.otpAttempts < OTP_MAX_ATTEMPTS
+    );
+  }
+
+  /**
+   * ตรวจรหัส OTP — อ่านสดจาก DB ก่อนเสมอ (attempts ต้องนับรวมข้าม instance) ผิด = นับพลาด
+   * ถาวร เกิน 5 ครั้ง = challenge ตาย ต้องขอรหัสใหม่; ถูก = ล้าง challenge (ใช้ครั้งเดียว)
+   */
+  async verifyOtp(account: Account, code: string, purpose: OtpPurpose): Promise<boolean> {
+    const fresh = await this.repo.findOne({ where: { id: account.id } });
+    if (!fresh?.otpHash || fresh.otpPurpose !== purpose) return false;
+    if (!fresh.otpExpiresAt || fresh.otpExpiresAt.getTime() <= Date.now()) return false;
+    if (fresh.otpAttempts >= OTP_MAX_ATTEMPTS) return false;
+
+    const expected = Buffer.from(fresh.otpHash, 'hex');
+    const got = Buffer.from(sha256Hex(`${account.id}:${(code || '').trim()}`), 'hex');
+    const ok = expected.length === got.length && crypto.timingSafeEqual(expected, got);
+    if (!ok) {
+      await this.repo.update(account.id, { otpAttempts: fresh.otpAttempts + 1 });
+      return false;
+    }
+    await this.repo.update(account.id, {
+      otpHash: null,
+      otpExpiresAt: null,
+      otpAttempts: 0,
+      otpSentAt: null,
+      otpPurpose: null,
+    });
+    return true;
+  }
+
+  async setTwoFactor(id: string, enabled: boolean): Promise<void> {
+    await this.repo.update(id, { twoFactorEnabled: enabled });
   }
 
   /** อัปเดต preference ของบัญชี (ตอนนี้มีแค่ notifyEmail — toggle ในหน้า Settings) */

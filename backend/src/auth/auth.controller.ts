@@ -1,13 +1,30 @@
-import { Controller, Post, Headers, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Post,
+  Req,
+  Res,
+  ServiceUnavailableException,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { AccountsService } from '../account/accounts.service';
+import { Account } from '../account/account.entity';
 import { SupabaseAuthService } from './supabase-auth.service';
 import { CookieChallengeGuard } from '../challenge/challenge.guard';
+import { AuthGuard, getAccount } from './auth.guard';
+import { MailService } from '../mail/mail.service';
+import { otpEmail } from '../mail/mail-templates';
+import { NotificationsService } from '../notification/notifications.service';
+import { OtpVerifyDto, TwoFaOtpRequestDto } from './otp.dto';
+import { SESSION_COOKIE_NAME } from './session.constants';
 
 // เก็บ api_key จริงใน httpOnly cookie เท่านั้น (ไม่ echo กลับใน JSON body) — JS บน dashboard
 // origin อ่านไม่ได้แม้เกิด XSS ก็ตาม ใช้ maxAge ยาว (30 วัน) เพราะตัวบังคับอายุจริงคือ idle
 // timeout ฝั่ง server (ดู AccountsService.findByApiKey) ไม่ใช่อายุของ cookie เอง
-export const SESSION_COOKIE_NAME = 'gk_session';
 const SESSION_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Controller('auth')
@@ -16,30 +33,23 @@ export class AuthController {
   constructor(
     private accounts: AccountsService,
     private supabaseAuth: SupabaseAuthService,
+    private mail: MailService,
+    private notifications: NotificationsService,
   ) {}
 
-  /**
-   * เรียกจาก frontend ทันทีหลัง Supabase auth สำเร็จ (email/password, GitHub, Google —
-   * หน้าตาเหมือนกันหมดตรงนี้) พร้อม Supabase access token ใน Authorization header
-   * ออก gatekeeper api_key "ตัวใหม่" ให้เสมอ (DB เก็บแค่ hash — ระบบไม่รู้ plaintext ของ key
-   * เดิมอีกแล้ว) frontend เรียกเฉพาะตอนยังไม่มี key ในเครื่อง จึงไม่ churn โดยไม่จำเป็น
-   * key เก่าของเครื่องอื่นยังใช้ได้ต่อจนหลุดโควตา (ดู AccountsService.issueApiKey)
-   *
-   * key จริงส่งผ่าน Set-Cookie เท่านั้น — response body มีแค่ keyPrefix (8 ตัวแรก) ไว้โชว์ผล
-   * ที่ UI (เช่น "API Key: a1b2c3d4…") โดยไม่ต้องมี plaintext เต็มอยู่ที่ไหนที่ JS แตะถึงได้
-   */
-  @Post('session')
-  async session(
-    @Headers('authorization') authHeader: string | undefined,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  /** แปลง Supabase access token (Authorization header) เป็น account ของเรา — first factor */
+  private async accountFromSupabaseToken(authHeader: string | undefined): Promise<Account> {
     const token = (authHeader || '').replace(/^Bearer\s+/i, '').trim();
     const identity = await this.supabaseAuth.verifyAccessToken(token);
     if (!identity) throw new UnauthorizedException('invalid_supabase_session');
 
     const account = await this.accounts.findOrCreateFromSupabase(identity.id, identity.email);
     if (account.status !== 'active') throw new UnauthorizedException('account_suspended');
+    return account;
+  }
 
+  /** ออก api_key + เซ็ต session cookie — จุดเดียวที่ session เกิดจริง (หลังผ่านครบทุก factor) */
+  private async issueSessionCookie(account: Account, res: Response) {
     const { plainKey, keyPrefix } = await this.accounts.issueApiKey(account);
     res.cookie(SESSION_COOKIE_NAME, plainKey, {
       httpOnly: true,
@@ -49,6 +59,129 @@ export class AuthController {
       maxAge: SESSION_COOKIE_MAX_AGE_MS,
     });
     return { keyPrefix, email: account.email, plan: account.plan };
+  }
+
+  /**
+   * เรียกจาก frontend ทันทีหลัง Supabase auth สำเร็จ (email/password, GitHub, Google —
+   * หน้าตาเหมือนกันหมดตรงนี้) พร้อม Supabase access token ใน Authorization header
+   * ออก gatekeeper api_key "ตัวใหม่" ให้เสมอ (DB เก็บแค่ hash — ระบบไม่รู้ plaintext ของ key
+   * เดิมอีกแล้ว) frontend เรียกเฉพาะตอนยังไม่มี key ในเครื่อง จึงไม่ churn โดยไม่จำเป็น
+   * key เก่าของเครื่องอื่นยังใช้ได้ต่อจนหลุดโควตา (ดู AccountsService.issueApiKey)
+   *
+   * บัญชีที่เปิด 2FA: ยังไม่ออก cookie — ส่งรหัส OTP ไปที่อีเมลแล้วตอบ { mfaRequired: true }
+   * ให้ frontend พาไปกรอกรหัส แล้วค่อยแลก cookie ผ่าน POST /auth/session/verify
+   * (SMTP ไม่พร้อม = 503 fail-closed — ทางหนีไฟ ops: UPDATE accounts SET two_factor_enabled=false)
+   *
+   * key จริงส่งผ่าน Set-Cookie เท่านั้น — response body มีแค่ keyPrefix (8 ตัวแรก) ไว้โชว์ผล
+   * ที่ UI (เช่น "API Key: a1b2c3d4…") โดยไม่ต้องมี plaintext เต็มอยู่ที่ไหนที่ JS แตะถึงได้
+   */
+  @Post('session')
+  async session(
+    @Headers('authorization') authHeader: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const account = await this.accountFromSupabaseToken(authHeader);
+
+    if (account.twoFactorEnabled) {
+      if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
+      if (!this.accounts.hasActiveOtp(account, 'login')) {
+        try {
+          const code = await this.accounts.issueOtp(account, 'login');
+          const t = otpEmail(code, 'เข้าสู่ระบบ');
+          void this.mail.send(account.email, t.subject, t.text);
+        } catch {
+          // ติด cooldown (เช่น endpoint ถูกเรียกซ้ำหลัง challenge เดิมพลาดครบ 5 ครั้ง) —
+          // ไม่ส่งซ้ำ ให้ผู้ใช้กด "ส่งรหัสอีกครั้ง" เองเมื่อพ้น cooldown
+        }
+      }
+      return { mfaRequired: true as const };
+    }
+
+    return this.issueSessionCookie(account, res);
+  }
+
+  /** step 2 ของ login แบบเปิด 2FA — Supabase token เดิม + รหัสจากอีเมล ถูกแล้วค่อยได้ cookie */
+  @Post('session/verify')
+  async sessionVerify(
+    @Headers('authorization') authHeader: string | undefined,
+    @Body() dto: OtpVerifyDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const account = await this.accountFromSupabaseToken(authHeader);
+    // 2FA ถูกปิดไประหว่างทาง (เช่น ops แก้ DB ให้) — first factor ผ่านแล้วออก cookie ได้เลย
+    if (!account.twoFactorEnabled) return this.issueSessionCookie(account, res);
+
+    const ok = await this.accounts.verifyOtp(account, dto.code, 'login');
+    if (!ok) throw new UnauthorizedException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
+    return this.issueSessionCookie(account, res);
+  }
+
+  /** ขอรหัส login ใหม่ (ปุ่ม "ส่งรหัสอีกครั้ง") — cooldown 60s บังคับใน issueOtp (ตอบ 429) */
+  @Post('session/resend')
+  async sessionResend(@Headers('authorization') authHeader: string | undefined) {
+    const account = await this.accountFromSupabaseToken(authHeader);
+    if (!account.twoFactorEnabled) throw new BadRequestException('two_factor_not_enabled');
+    if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
+
+    const code = await this.accounts.issueOtp(account, 'login');
+    const t = otpEmail(code, 'เข้าสู่ระบบ');
+    void this.mail.send(account.email, t.subject, t.text);
+    return { ok: true };
+  }
+
+  /**
+   * ขอรหัสสำหรับเปิด/ปิด 2FA (ต้อง login อยู่ — AuthGuard ทับ challenge guard ระดับ class)
+   * ปิดก็ต้องยืนยันรหัสจากอีเมลเหมือนเปิด — กัน session cookie ที่ถูกขโมยแอบปิด 2FA เงียบๆ
+   */
+  @Post('2fa/otp')
+  @UseGuards(AuthGuard)
+  async request2faOtp(@Body() dto: TwoFaOtpRequestDto, @Req() req: any) {
+    const account = await this.accounts.findById(getAccount(req).id);
+    if (!account) throw new UnauthorizedException('invalid_api_key');
+    if (!this.mail.isConfigured()) {
+      throw new BadRequestException('mail_not_configured — ต้องตั้งค่า SMTP บนเซิร์ฟเวอร์ก่อนใช้ 2FA');
+    }
+    if (dto.intent === 'enable' && account.twoFactorEnabled) throw new BadRequestException('already_enabled');
+    if (dto.intent === 'disable' && !account.twoFactorEnabled) throw new BadRequestException('not_enabled');
+
+    const code = await this.accounts.issueOtp(account, dto.intent);
+    const t = otpEmail(code, dto.intent === 'enable' ? 'การเปิดใช้ 2FA' : 'การปิดใช้ 2FA');
+    void this.mail.send(account.email, t.subject, t.text);
+    return { ok: true };
+  }
+
+  @Post('2fa/enable')
+  @UseGuards(AuthGuard)
+  async enable2fa(@Body() dto: OtpVerifyDto, @Req() req: any) {
+    const account = await this.accounts.findById(getAccount(req).id);
+    if (!account) throw new UnauthorizedException('invalid_api_key');
+
+    const ok = await this.accounts.verifyOtp(account, dto.code, 'enable');
+    if (!ok) throw new BadRequestException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
+    await this.accounts.setTwoFactor(account.id, true);
+    void this.notifications.notify(account.id, {
+      type: 'twofa_changed',
+      title: 'เปิดใช้ Two-Factor Authentication แล้ว',
+      body: 'การ login ครั้งถัดไปต้องกรอกรหัสจากอีเมลด้วย',
+    });
+    return { ok: true, twoFactorEnabled: true };
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(AuthGuard)
+  async disable2fa(@Body() dto: OtpVerifyDto, @Req() req: any) {
+    const account = await this.accounts.findById(getAccount(req).id);
+    if (!account) throw new UnauthorizedException('invalid_api_key');
+
+    const ok = await this.accounts.verifyOtp(account, dto.code, 'disable');
+    if (!ok) throw new BadRequestException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
+    await this.accounts.setTwoFactor(account.id, false);
+    void this.notifications.notify(account.id, {
+      type: 'twofa_changed',
+      title: 'ปิดใช้ Two-Factor Authentication แล้ว',
+      body: 'ถ้าคุณไม่ได้เป็นคนปิดเอง ให้เปลี่ยนรหัสผ่านทันที',
+    });
+    return { ok: true, twoFactorEnabled: false };
   }
 
   /** ล้าง session cookie ฝั่ง server — JS อ่าน/ลบ httpOnly cookie เองไม่ได้ ต้องมี endpoint นี้ */

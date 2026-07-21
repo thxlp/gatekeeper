@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { api, AuthResult } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
 
@@ -10,7 +10,10 @@ import AuthShell, { Field, PrimaryButton, OAuthButtons } from '@/components/shel
 const REASON_NOTICES: Record<string, string> = {
   idle: 'ออกจากระบบอัตโนมัติ เนื่องจากไม่มีการใช้งานเกิน 15 นาที — เข้าสู่ระบบใหม่อีกครั้ง',
   expired: 'เซสชันหมดอายุแล้ว — เข้าสู่ระบบใหม่อีกครั้ง',
+  mfa: 'บัญชีนี้เปิด Two-Factor Authentication — กรอกรหัสที่ส่งไปที่อีเมลเพื่อเข้าสู่ระบบ',
 };
+
+const RESEND_COOLDOWN_S = 60;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,25 +22,61 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
+  // 2FA: 'otp' = ผ่าน Supabase (first factor) แล้ว รอรหัสจากอีเมล — เก็บ access token ไว้ใช้
+  // เรียก verify/resend (ยังไม่มี gk_session cookie จนกว่ารหัสจะถูก)
+  const [stage, setStage] = useState<'credentials' | 'otp'>('credentials');
+  const [accessToken, setAccessToken] = useState('');
+  const [otp, setOtp] = useState('');
+  const [resendLeft, setResendLeft] = useState(0);
 
   // อ่าน ?reason= จาก URL ตรงๆ ใน effect แทน useSearchParams — เลี่ยงข้อบังคับ Suspense
   // boundary ของ Next ตอน prerender หน้า client component
   useEffect(() => {
     const reason = new URLSearchParams(window.location.search).get('reason') || '';
     if (REASON_NOTICES[reason]) setNotice(REASON_NOTICES[reason]);
+    // ถูกส่งกลับมาจาก use-api-key (เช่น OAuth landing แล้วเจอ mfaRequired) — Supabase session
+    // ยังอยู่ใน localStorage ดึงมาเข้าหน้ากรอกรหัสได้เลย (backend ส่งรหัสให้แล้วตอน /auth/session)
+    if (reason === 'mfa') {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setAccessToken(data.session.access_token);
+          setStage('otp');
+          setResendLeft(RESEND_COOLDOWN_S);
+        }
+      });
+    }
   }, []);
 
-  // หลัง Supabase auth สำเร็จ (มี access token จริงในมือ) ไปแลกเป็น gatekeeper api_key —
-  // backend เซ็ต key จริงผ่าน httpOnly cookie เอง (ดู lib/api.ts) เราเก็บแค่ flag ไม่ลับ
-  // "gk_authed" ไว้บอก UI/idle-timer ว่า login แล้ว (ไม่ใช่ secret — อ่านค่านี้ไม่ช่วยปลอมตัว)
-  const syncAndEnter = async (accessToken: string) => {
-    const res = await api.auth.syncSession(accessToken);
+  // countdown ปุ่ม "ส่งรหัสอีกครั้ง"
+  useEffect(() => {
+    if (resendLeft <= 0) return;
+    const t = setTimeout(() => setResendLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendLeft]);
+
+  const finishLogin = (res: AuthResult) => {
     localStorage.setItem('gk_authed', '1');
     localStorage.setItem('gk_key_prefix', res.keyPrefix);
     localStorage.setItem('gk_plan', res.plan);
     localStorage.setItem('gk_email', res.email);
     localStorage.setItem('gk_last_activity', String(Date.now()));
     router.push('/');
+  };
+
+  // หลัง Supabase auth สำเร็จ (มี access token จริงในมือ) ไปแลกเป็น gatekeeper api_key —
+  // backend เซ็ต key จริงผ่าน httpOnly cookie เอง (ดู lib/api.ts) เราเก็บแค่ flag ไม่ลับ
+  // "gk_authed" ไว้บอก UI/idle-timer ว่า login แล้ว — บัญชีที่เปิด 2FA จะได้ mfaRequired
+  // กลับมาแทน ต้องกรอกรหัสจากอีเมลก่อนถึงได้ cookie
+  const syncAndEnter = async (token: string) => {
+    const res = await api.auth.syncSession(token);
+    if ('mfaRequired' in res) {
+      setAccessToken(token);
+      setStage('otp');
+      setOtp('');
+      setResendLeft(RESEND_COOLDOWN_S);
+      return;
+    }
+    finishLogin(res);
   };
 
   const submit = async () => {
@@ -61,6 +100,32 @@ export default function LoginPage() {
     }
   };
 
+  const submitOtp = async () => {
+    setError('');
+    if (!otp.trim()) {
+      setError('กรอกรหัส 6 หลักจากอีเมล');
+      return;
+    }
+    setLoading(true);
+    try {
+      finishLogin(await api.auth.verifyOtp(accessToken, otp.trim()));
+    } catch (e: any) {
+      setError(e.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    setError('');
+    try {
+      await api.auth.resendOtp(accessToken);
+      setResendLeft(RESEND_COOLDOWN_S);
+    } catch (e: any) {
+      setError(e.message || 'เกิดข้อผิดพลาด');
+    }
+  };
+
   const oauth = async (provider: 'github' | 'google') => {
     setError('');
     await supabase.auth.signInWithOAuth({
@@ -69,6 +134,48 @@ export default function LoginPage() {
     });
     // เบราว์เซอร์จะ redirect ออกจากหน้านี้ไปเลย — ไม่มีอะไรต้องทำต่อ
   };
+
+  if (stage === 'otp') {
+    return (
+      <AuthShell>
+        <div className="mb-2 flex items-center text-xl font-semibold">ยืนยันตัวตน (2FA)</div>
+        <p className="mb-5 text-[12.5px] text-muted">
+          ส่งรหัส 6 หลักไปที่อีเมลของคุณแล้ว — รหัสหมดอายุใน 10 นาที
+        </p>
+
+        <Field label="รหัสจากอีเมล" type="text" placeholder="000000" value={otp} onChange={setOtp} />
+
+        {error && (
+          <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12.5px] text-danger-text">
+            {error}
+          </div>
+        )}
+
+        <PrimaryButton className="mt-2" onClick={submitOtp} disabled={loading}>
+          {loading ? 'กำลังตรวจสอบ…' : 'ยืนยัน'} <i className="ph ph-arrow-right" />
+        </PrimaryButton>
+
+        <div className="mt-4 flex justify-between text-[13px]">
+          <button
+            onClick={resendOtp}
+            disabled={resendLeft > 0}
+            className="font-medium text-primary disabled:cursor-not-allowed disabled:text-muted"
+          >
+            {resendLeft > 0 ? `ส่งรหัสอีกครั้ง (${resendLeft}s)` : 'ส่งรหัสอีกครั้ง'}
+          </button>
+          <button
+            onClick={() => {
+              setStage('credentials');
+              setError('');
+            }}
+            className="font-medium text-primary"
+          >
+            กลับไปหน้า login
+          </button>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell>

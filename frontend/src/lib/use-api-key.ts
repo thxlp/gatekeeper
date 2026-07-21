@@ -29,6 +29,12 @@ export function useApiKey() {
           return;
         }
         const res = await api.auth.syncSession(data.session.access_token);
+        // บัญชีเปิด 2FA — ยังไม่ได้ cookie ต้องไปกรอกรหัสจากอีเมลที่หน้า login ก่อน
+        // (backend ส่งรหัสให้แล้วตอนเรียก /auth/session เมื่อกี้)
+        if ('mfaRequired' in res) {
+          router.replace('/login?reason=mfa');
+          return;
+        }
         localStorage.setItem('gk_authed', '1');
         localStorage.setItem('gk_key_prefix', res.keyPrefix);
         localStorage.setItem('gk_plan', res.plan);

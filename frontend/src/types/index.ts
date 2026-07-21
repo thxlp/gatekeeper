@@ -117,7 +117,8 @@ export interface AccountMe {
   email?: string;
   plan?: string;
   notifyEmail: boolean;
-  // SMTP ฝั่ง server ถูกตั้งค่าหรือยัง — UI ใช้ disable toggle email ให้ตรงความจริง
+  twoFactorEnabled: boolean;
+  // SMTP ฝั่ง server ถูกตั้งค่าหรือยัง — UI ใช้ disable toggle email/ปุ่ม 2FA ให้ตรงความจริง
   mailConfigured: boolean;
 }
 

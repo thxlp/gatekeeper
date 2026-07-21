@@ -179,6 +179,128 @@ function ToggleRow({
   );
 }
 
+/**
+ * การ์ด 2FA (Email OTP) — flow เดียวกันทั้งเปิดและปิด: ขอรหัสไปที่อีเมล → กรอกรหัส → ยืนยัน
+ * (ปิดก็ต้องมีรหัส กัน session ที่ถูกขโมยแอบปิด 2FA เอง) ปุ่ม disabled ถ้า SMTP ยังไม่ถูกตั้งค่า
+ */
+function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: AccountMe) => void }) {
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const enabled = me?.twoFactorEnabled ?? false;
+  const intent: 'enable' | 'disable' = enabled ? 'disable' : 'enable';
+
+  const requestCode = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      await api.auth.request2faOtp(intent);
+      setCodeSent(true);
+      setCode('');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmCode = async () => {
+    if (!me || !code.trim()) return;
+    setError('');
+    setBusy(true);
+    try {
+      if (intent === 'enable') await api.auth.enable2fa(code.trim());
+      else await api.auth.disable2fa(code.trim());
+      setMe({ ...me, twoFactorEnabled: intent === 'enable' });
+      setCodeSent(false);
+      setCode('');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader title="Security" subtitle="เพิ่มระดับความปลอดภัยด้วยการยืนยันตัวตนสองขั้นตอน" />
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-[12.5px] font-semibold">
+            Two-Factor Authentication (2FA)
+            {enabled && (
+              <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[10px] font-bold text-allow-text">
+                เปิดอยู่
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-muted">
+            {enabled
+              ? 'ทุกครั้งที่ login ต้องกรอกรหัสที่ส่งไปที่อีเมลด้วย'
+              : 'ป้องกันการเข้าถึงที่ไม่ได้รับอนุญาต แม้รหัสผ่านจะถูกขโมย — ยืนยันด้วยรหัสทางอีเมล'}
+          </div>
+          {me && !me.mailConfigured && (
+            <div className="mt-0.5 text-[10.5px] text-danger-text">ยังไม่ได้ตั้งค่า SMTP บนเซิร์ฟเวอร์ — ใช้ 2FA ไม่ได้</div>
+          )}
+        </div>
+        {!codeSent && (
+          <button
+            onClick={requestCode}
+            disabled={!me || !me.mailConfigured || busy}
+            className={`rounded-[7px] border px-3.5 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+              enabled
+                ? 'border-[rgba(214,109,82,.35)] bg-surface text-danger-text'
+                : 'border-border bg-surface text-ink-soft hover:bg-page-alt'
+            }`}
+          >
+            {busy ? 'กำลังส่งรหัส…' : enabled ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+          </button>
+        )}
+      </div>
+
+      {codeSent && (
+        <div className="mt-3 border-t border-[#F0EDE6] pt-3">
+          <div className="mb-1.5 text-[11.5px] text-muted">
+            ส่งรหัส 6 หลักไปที่อีเมลของคุณแล้ว — กรอกเพื่อยืนยัน{enabled ? 'การปิด' : 'การเปิด'} 2FA
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="000000"
+              className="w-[120px] rounded-[7px] border border-border bg-page-alt px-3 py-2 font-mono text-[13px] tabular-nums outline-none focus:border-primary"
+            />
+            <button
+              onClick={confirmCode}
+              disabled={busy || !code.trim()}
+              className="rounded-[7px] bg-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ยืนยัน
+            </button>
+            <button
+              onClick={() => {
+                setCodeSent(false);
+                setError('');
+              }}
+              className="px-2 py-2 text-xs font-medium text-muted hover:text-ink"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-2.5 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12px] text-danger-text">
+          {error}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function PrefRow({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="flex items-center justify-between opacity-60">
@@ -295,17 +417,8 @@ export default function SettingsPage() {
             )}
           </Card>
 
-          {/* security — no 2FA backend support today */}
-          <Card>
-            <CardHeader title="Security" subtitle="เพิ่มระดับความปลอดภัยด้วยการยืนยันตัวตนสองขั้นตอน" />
-            <div className="flex items-center justify-between opacity-60">
-              <div>
-                <div className="text-[12.5px] font-semibold">Two-Factor Authentication (2FA)</div>
-                <div className="text-[11px] text-muted">ป้องกันการเข้าถึงที่ไม่ได้รับอนุญาต แม้รหัสผ่านจะถูกขโมย</div>
-              </div>
-              <span className="rounded-full border border-border bg-page-alt px-2 py-0.5 text-[10px] font-semibold text-muted">เร็วๆ นี้</span>
-            </div>
-          </Card>
+          {/* security — 2FA แบบรหัสทางอีเมล (เปิด/ปิดต้องยืนยันรหัสจากอีเมลทั้งคู่) */}
+          <TwoFactorCard me={me} setMe={setMe} />
         </div>
       </div>
     </>

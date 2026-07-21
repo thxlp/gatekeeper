@@ -24,6 +24,7 @@ export class AccountController {
       email: account?.email,
       plan: account?.plan,
       notifyEmail: account?.notifyEmail ?? false,
+      twoFactorEnabled: account?.twoFactorEnabled ?? false,
       mailConfigured: this.mail.isConfigured(),
     };
   }

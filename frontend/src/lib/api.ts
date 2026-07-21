@@ -61,6 +61,10 @@ export interface AuthResult {
   plan: 'free' | 'pro';
 }
 
+// บัญชีที่เปิด 2FA: /auth/session ตอบแบบนี้แทน (ยังไม่ได้ cookie) — ต้องไปกรอกรหัสจากอีเมล
+// แล้วเรียก verifyOtp ต่อ ใช้ type guard 'mfaRequired' in res แยกสองเคส
+export type SessionResult = AuthResult | { mfaRequired: true };
+
 export const api = {
   // เรียกหลัง Supabase auth สำเร็จ (ไม่ว่า email/password, GitHub, Google) พร้อม
   // supabase access token แทน gatekeeper api_key ปกติ (override header เอง) เพื่อแลกเป็น
@@ -68,9 +72,34 @@ export const api = {
   // ไม่ใช่ response body (ดู AuthResult) — logout เคลียร์ cookie ฝั่ง server เพราะเป็น httpOnly
   auth: {
     syncSession: (supabaseAccessToken: string) =>
-      request<AuthResult>(API_BASE, '/auth/session', {
+      request<SessionResult>(API_BASE, '/auth/session', {
         method: 'POST',
         headers: { Authorization: `Bearer ${supabaseAccessToken}` },
+      }),
+    // step 2 ของบัญชีที่เปิด 2FA — Supabase token เดิม + รหัส 6 หลักจากอีเมล แลก cookie จริง
+    verifyOtp: (supabaseAccessToken: string, code: string) =>
+      request<AuthResult>(API_BASE, '/auth/session/verify', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${supabaseAccessToken}` },
+        body: JSON.stringify({ code }),
+      }),
+    resendOtp: (supabaseAccessToken: string) =>
+      request<{ ok: boolean }>(API_BASE, '/auth/session/resend', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${supabaseAccessToken}` },
+      }),
+    // จัดการ 2FA จากหน้า Settings (ใช้ session cookie ปกติ) — ทั้งเปิดและปิดต้องยืนยันรหัสจากอีเมล
+    request2faOtp: (intent: 'enable' | 'disable') =>
+      request<{ ok: boolean }>(API_BASE, '/auth/2fa/otp', { method: 'POST', body: JSON.stringify({ intent }) }),
+    enable2fa: (code: string) =>
+      request<{ ok: boolean; twoFactorEnabled: boolean }>(API_BASE, '/auth/2fa/enable', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+    disable2fa: (code: string) =>
+      request<{ ok: boolean; twoFactorEnabled: boolean }>(API_BASE, '/auth/2fa/disable', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
       }),
     logout: () => request<{ ok: boolean }>(API_BASE, '/auth/logout', { method: 'POST' }),
   },

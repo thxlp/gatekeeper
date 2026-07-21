@@ -39,6 +39,30 @@ export class Account {
   @Column({ name: 'notify_email', type: 'boolean', default: false })
   notifyEmail: boolean;
 
+  // ===== 2FA แบบ Email OTP =====
+  // เปิดอยู่ = /auth/session ไม่ออก cookie จนกว่าจะ verify รหัสจากอีเมล (ดู auth.controller.ts)
+  @Column({ name: 'two_factor_enabled', type: 'boolean', default: false })
+  twoFactorEnabled: boolean;
+
+  // OTP challenge ที่ active อยู่ (ช่องเดียวต่อบัญชี ใช้ทั้ง login/enable/disable แยกด้วย purpose)
+  // เก็บเป็น sha256(accountId + ':' + code) — DB ไม่เห็นรหัส plaintext
+  @Column({ name: 'otp_hash', type: 'varchar', nullable: true })
+  otpHash: string | null;
+
+  @Column({ name: 'otp_expires_at', type: 'timestamptz', nullable: true })
+  otpExpiresAt: Date | null;
+
+  // นับพลาดสะสมใน Postgres — เพดาน brute force บังคับข้ามทั้ง 2 backend instance
+  @Column({ name: 'otp_attempts', type: 'int', default: 0 })
+  otpAttempts: number;
+
+  // ใช้บังคับ cooldown การส่งซ้ำ (กันกดขอรหัสรัวยิงเมลถล่ม)
+  @Column({ name: 'otp_sent_at', type: 'timestamptz', nullable: true })
+  otpSentAt: Date | null;
+
+  @Column({ name: 'otp_purpose', type: 'varchar', nullable: true })
+  otpPurpose: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

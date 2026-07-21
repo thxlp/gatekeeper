@@ -18,6 +18,11 @@ export default function RegisterPage() {
 
   const syncAndEnter = async (accessToken: string) => {
     const res = await api.auth.syncSession(accessToken);
+    // บัญชีสมัครใหม่ยังไม่มีทางเปิด 2FA — กันไว้เชิง type/ขอบเคส (เช่น email เดิม re-register)
+    if ('mfaRequired' in res) {
+      router.push('/login?reason=mfa');
+      return;
+    }
     localStorage.setItem('gk_authed', '1');
     localStorage.setItem('gk_key_prefix', res.keyPrefix);
     localStorage.setItem('gk_plan', res.plan);
