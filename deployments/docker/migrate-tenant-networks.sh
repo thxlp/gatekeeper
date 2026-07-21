@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# [หมายเหตุ 2026-07-21: สคริปต์นี้รันจบไปแล้ว (one-time) และส่วน connect backend-1/2 เข้า
+# tenant network ล้าสมัยแล้ว — backend ย้ายไปรันบน host ซึ่งมี route ถึงทุก bridge network
+# เอง ไม่มี container backend-1/2 อีกต่อไป (ดู deployments/host/README.md) เก็บไฟล์ไว้เป็น
+# บันทึกวิธี migrate เฉยๆ ถ้าจะรันใหม่ต้องตัด loop BACKENDS ออกก่อน]
+#
 # ย้าย container ของแอปที่รันอยู่แล้ว จาก network กลาง (gatekeeper-apps-net) ไป network
 # ต่อ tenant (gatekeeper-tenant-<accountId>) — รันครั้งเดียวหลังเปิด NETWORKS=1 บน
 # docker-socket-proxy และ restart backend แล้ว (deploy ใหม่หลังจากนั้นไปลง network ต่อ

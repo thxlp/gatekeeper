@@ -1,4 +1,6 @@
-# Full stack: backend (NestJS, 2 instances load-balanced) + frontend (Next.js) + nginx
+# เหลือเฉพาะ infra ที่ยังเป็น container: postgres + docker-socket-proxy
+# ตัว gatekeeper เอง (backend ×2 / frontend / nginx) ย้ายไปรันบน host แล้ว — ดู
+# deployments/host/README.md + deployments/systemd/ (backend ต่อเข้ามาที่ 127.0.0.1:5432/2375)
 # หมายเหตุ: นี่คือ docker-compose.yml ตัวจริงที่ใช้งาน (ไม่มีไฟล์แยกที่ repo root)
 services:
   postgres:
@@ -11,8 +13,10 @@ services:
       - POSTGRES_DB=gatekeeper
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    expose:
-      - "5432"
+    # publish เฉพาะ loopback — backend บน host ต่อได้ แต่ tenant container ยิงผ่าน
+    # bridge gateway IP ไม่ถึง (สำคัญ: ห้ามเปลี่ยนเป็น "5432:5432" เฉยๆ เด็ดขาด)
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gatekeeper"]
       interval: 5s
@@ -20,10 +24,10 @@ services:
       retries: 10
     mem_limit: 256m
   # จำกัดสิทธิ์ Docker API ให้แคบที่สุดเท่าที่ backend ต้องใช้จริง (containers+images+build+networks
-  # ปิด exec/volumes/swarm) แทนการ mount /var/run/docker.sock ตรงเข้า backend-1/2 ซึ่งเท่ากับ
-  # ให้สิทธิ์ root ระดับ host แบบเต็มๆ — backend คุยกับตัวนี้แทนผ่าน tcp (DOCKER_HOST=docker-socket-proxy)
-  # NETWORKS=1 จำเป็นตั้งแต่แยก network ต่อ tenant: backend ต้อง create/connect/disconnect network
-  # แบบ dynamic ต่อ account (docker-runtime.service.ts) — tradeoff ที่รับ: โค้ด backend ที่หลุด RCE
+  # ปิด exec/swarm) แทนการให้ backend แตะ /var/run/docker.sock ตรงๆ ซึ่งเท่ากับสิทธิ์ root ระดับ
+  # host แบบเต็มๆ — backend บน host คุยเข้ามาทาง tcp (DOCKER_HOST=127.0.0.1, DOCKER_PORT=2375)
+  # NETWORKS=1 จำเป็นตั้งแต่แยก network ต่อ tenant: backend ต้อง create network แบบ dynamic
+  # ต่อ account (docker-runtime.service.ts) — tradeoff ที่รับ: โค้ด backend ที่หลุด RCE
   # จะสั่งย้าย network container อื่นได้ด้วย แต่ยังแตะ volume/exec/host ไม่ได้เหมือนเดิม
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:latest
@@ -39,7 +43,7 @@ services:
       - NETWORKS=1
       # VOLUMES=1 จำเป็นตั้งแต่ทำ cleanup named volume ตอนลบ app (removeAppContainers) —
       # ไม่งั้น volume `gatekeeper-app-*-data` ค้างสะสมจน disk เต็ม tradeoff ที่รับ: โค้ด
-      # backend ที่หลุด RCE ลบ volume ได้ (รวม backend-data/postgres-data ของระบบเอง) แต่ยัง
+      # backend ที่หลุด RCE ลบ volume ได้ (รวม postgres-data ของระบบเอง) แต่ยัง
       # exec เข้า container / แตะ host ตรงๆ ไม่ได้เหมือนเดิม
       - VOLUMES=1
       - SWARM=0
@@ -56,138 +60,20 @@ services:
       - INFO=1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    expose:
-      - "2375"
-    mem_limit: 64m
-  backend-1:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-    container_name: backend-1
-    restart: unless-stopped
-    environment:
-      - PORT=8089
-      - NODE_ENV=production
-      - COOKIE_CHALLENGE_SECRET=${COOKIE_CHALLENGE_SECRET:?ต้องตั้งค่าใน .env ก่อน}
-      - DATABASE_URL=postgres://gatekeeper:${POSTGRES_PASSWORD:?ต้องตั้งค่าใน .env ก่อน}@postgres:5432/gatekeeper
-      - FRONTEND_URL=${FRONTEND_URL:?ต้องตั้งค่าใน .env ก่อน}
-      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:?ต้องตั้งค่าใน .env ก่อน}
-      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:?ต้องตั้งค่าใน .env ก่อน}
-      - DOCKER_HOST=docker-socket-proxy
-      - DOCKER_PORT=2375
-      - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
-      # โควต้าทรัพยากรรวมต่อ user (เพดานผลรวม limit แบบ overcommit) — เฉลี่ยจากเครื่อง 1CPU/2GB / ~20 user
-      - USER_QUOTA_MEMORY_MB=256
-      - USER_QUOTA_CPU=0.5
-      # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
-      # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
-      # buildLiveUrl ใน common/pipeline.util.ts)
-      - PUBLIC_LIVE_URL=${PUBLIC_LIVE_URL:-https://live.studiodup.com}
-      # master key เข้ารหัส secret ลูกค้า (hex 64 ตัว) — ไม่ตั้งก็ได้ backend จะ generate
-      # ไฟล์ data/master.key บน shared volume ให้เอง (แนะนำตั้งใน .env เพื่อแยก key ออกจาก data disk)
-      - GATEKEEPER_MASTER_KEY=${GATEKEEPER_MASTER_KEY:-}
-    volumes:
-      - backend-data:/app/data
-    expose:
-      - "8089"
-    networks:
-      - default
-      - gatekeeper-apps-net
-    depends_on:
-      postgres:
-        condition: service_healthy
-      docker-socket-proxy:
-        condition: service_started
-    mem_limit: 150m
-  backend-2:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-    container_name: backend-2
-    restart: unless-stopped
-    environment:
-      - PORT=8089
-      - NODE_ENV=production
-      - COOKIE_CHALLENGE_SECRET=${COOKIE_CHALLENGE_SECRET:?ต้องตั้งค่าใน .env ก่อน}
-      - DATABASE_URL=postgres://gatekeeper:${POSTGRES_PASSWORD:?ต้องตั้งค่าใน .env ก่อน}@postgres:5432/gatekeeper
-      - FRONTEND_URL=${FRONTEND_URL:?ต้องตั้งค่าใน .env ก่อน}
-      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:?ต้องตั้งค่าใน .env ก่อน}
-      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:?ต้องตั้งค่าใน .env ก่อน}
-      - DOCKER_HOST=docker-socket-proxy
-      - DOCKER_PORT=2375
-      - GATEKEEPER_APPS_NETWORK=gatekeeper-apps-net
-      # โควต้าทรัพยากรรวมต่อ user (เพดานผลรวม limit แบบ overcommit) — เฉลี่ยจากเครื่อง 1CPU/2GB / ~20 user
-      - USER_QUOTA_MEMORY_MB=256
-      - USER_QUOTA_CPU=0.5
-      # origin แยกต่างหากสำหรับแอปลูกค้า (/live/<id>) — คนละโดเมนกับ dashboard โดยตั้งใจ กัน
-      # JS ของแอปลูกค้าอ่าน localStorage/cookie ของ dashboard ผ่าน same-origin ได้ (ดู
-      # buildLiveUrl ใน common/pipeline.util.ts)
-      - PUBLIC_LIVE_URL=${PUBLIC_LIVE_URL:-https://live.studiodup.com}
-      # master key เข้ารหัส secret ลูกค้า (hex 64 ตัว) — ไม่ตั้งก็ได้ backend จะ generate
-      # ไฟล์ data/master.key บน shared volume ให้เอง (แนะนำตั้งใน .env เพื่อแยก key ออกจาก data disk)
-      - GATEKEEPER_MASTER_KEY=${GATEKEEPER_MASTER_KEY:-}
-    volumes:
-      - backend-data:/app/data
-    expose:
-      - "8089"
-    networks:
-      - default
-      - gatekeeper-apps-net
-    depends_on:
-      postgres:
-        condition: service_healthy
-      docker-socket-proxy:
-        condition: service_started
-    mem_limit: 150m
-  frontend:
-    build:
-      context: ../../frontend
-      dockerfile: Dockerfile # หรือตามชื่อ Dockerfile ของฝั่ง frontend คุณ
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?ต้องตั้งค่าใน .env ก่อน}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?ต้องตั้งค่าใน .env ก่อน}
-    container_name: frontend
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-    expose:
-      - "3000"
-    depends_on:
-      - backend-1
-      - backend-2
-    mem_limit: 220m
-  nginx:
-    image: nginx:alpine
-    container_name: gatekeeper-proxy
-    restart: unless-stopped
-    depends_on:
-      - backend-1
-      - backend-2
-      - frontend
+    # loopback เท่านั้น เหตุผลเดียวกับ postgres ข้างบน — ตัวนี้ยิ่งสำคัญกว่า (คุม docker ได้)
     ports:
-      - "443:443"
-      - "80:80"
-    volumes:
-      # mount ทั้ง directory แทนไฟล์เดียว — bind mount ของไฟล์เดี่ยวผูกกับ inode ตอน container
-      # start ถ้าแก้ไฟล์ด้วยเครื่องมือที่เขียนแบบ write-then-rename (เปลี่ยน inode) container
-      # ที่รันอยู่แล้วจะยังเห็นไฟล์เก่าค้างอยู่ (nginx -t/-s reload ผ่านแต่ไม่ได้ config ใหม่จริง
-      # ต้อง recreate container ถึงจะเห็น) — mount directory ไม่มีปัญหานี้เพราะ resolve ผ่าน
-      # dentry ของ dir ทุกครั้งที่เปิดไฟล์ ไม่ได้ pin ที่ inode ของไฟล์ตรงๆ (เจอปัญหานี้จริงตอน
-      # deploy live.studiodup.com — เดินไปเดินมาสองรอบกว่าจะจับได้ 2026-07-07)
-      - ../nginx:/etc/nginx/conf.d:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
-    mem_limit: 128m
+      - "127.0.0.1:2375:2375"
+    mem_limit: 64m
 volumes:
-  backend-data:
   postgres-data:
+  # volume `backend-data` เดิม (audit.log, master.key) ไม่ได้ mount แล้ว — ข้อมูลย้ายไป
+  # backend/data บน host ตอน cutover; ตัว volume ยังอยู่ใน docker จนกว่าจะ `docker volume rm` เอง
 networks:
   default:
   # network กลางเดิมของแอปที่ deploy มา — ตอนนี้เหลือบทบาทแค่ fallback สำหรับ app ที่ยังไม่ถูก
   # ย้ายเข้า network ต่อ tenant (gatekeeper-tenant-<accountId> สร้าง dynamic โดย backend ผ่าน
-  # NETWORKS=1 ด้านบน — ดู docker-runtime.service.ts + migrate-tenant-networks.sh) ยังต้องแยกจาก
-  # default ที่ postgres/backend/frontend/nginx อยู่เหมือนเดิม backend-1/2 ต่อเข้า network ของ
-  # tenant เองแบบ lazy ตอน deploy/proxy /live
+  # NETWORKS=1 ด้านบน — ดู docker-runtime.service.ts) backend บน host มี route ถึงทุก bridge
+  # network อยู่แล้ว ไม่ต้องต่อตัวเองเข้า network ไหนอีก
   gatekeeper-apps-net:
     driver: bridge
     # pin ชื่อจริงให้ตรงกับที่โค้ดหา (docker-runtime APPS_NETWORK = 'gatekeeper-apps-net')

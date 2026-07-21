@@ -1,0 +1,36 @@
+# Gatekeeper backend บน host — template unit, instance = port ที่ฟัง (ใช้คู่กันสองตัวแทน
+# backend-1/backend-2 เดิมใน docker: gatekeeper-backend@8089 + gatekeeper-backend@8090)
+# ติดตั้ง:
+#   sudo cp deployments/systemd/gatekeeper-backend@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gatekeeper-backend@8089 gatekeeper-backend@8090
+[Unit]
+Description=Gatekeeper backend (NestJS) — instance :%i
+# docker.service: backend คุยกับ docker-socket-proxy (127.0.0.1:2375) + postgres (127.0.0.1:5432)
+# ซึ่งเป็น container ทั้งคู่ — ให้ daemon ขึ้นก่อน ตอน boot จะได้ไม่ crash-loop ยาว
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dup
+Group=dup
+WorkingDirectory=/home/dup/gatekeeper/backend
+EnvironmentFile=/home/dup/gatekeeper/deployments/host/.env
+Environment=NODE_ENV=production
+Environment=PORT=%i
+ExecStart=/usr/bin/node dist/main
+Restart=on-failure
+RestartSec=5
+
+# --- Hardening (สืบทอดแนวจาก unit เดิมยุคก่อน docker) ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+# จุดเดียวที่ backend เขียน: DATA_DIR (audit.log, master.key, git-staging/, upload-debug/ ฯลฯ
+# ดู backend/src/common/paths.ts) — ที่อื่น read-only หมด
+ReadWritePaths=/home/dup/gatekeeper/backend/data
+
+[Install]
+WantedBy=multi-user.target

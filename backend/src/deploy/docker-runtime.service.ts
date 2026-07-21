@@ -132,6 +132,14 @@ const ADDON_SPEC: Record<
 // ต่อ tenant (tenantNetworkFor) แทน เพื่อให้ app ข้าม user มองไม่เห็นกันเลยในระดับ network
 const APPS_NETWORK = process.env.GATEKEEPER_APPS_NETWORK || 'gatekeeper-apps-net';
 
+// backend รันบน host ตรงๆ (systemd) ไม่ใช่ container — ห้าม network connect ตัวเอง
+// (ไม่มี container ให้ connect) และไม่จำเป็นด้วย: host มี route ไปทุก bridge network อยู่แล้ว
+const HOST_MODE = process.env.GATEKEEPER_HOST_MODE === '1';
+
+// TTL cache ชื่อ container -> IP สำหรับ proxy /live — สั้นพอที่ deploy ใหม่ (IP เปลี่ยน)
+// จะหลุด cache เองไม่ต้อง invalidate ข้าม instance, ยาวพอไม่ต้อง inspect ทุก request
+const CONTAINER_IP_TTL_MS = 10_000;
+
 const TENANT_NETWORK_PREFIX = 'gatekeeper-tenant-';
 
 // network เฉพาะช่วง build — RUN ใน Dockerfile ของลูกค้า (โดยเฉพาะ runtime 'docker' ที่คุม FROM/RUN
@@ -189,6 +197,9 @@ export class DockerRuntimeService {
   // (in-memory ต่อ instance พอ: connect ซ้ำเป็น no-op อยู่แล้ว แค่ประหยัด round-trip)
   private selfConnectedNetworks = new Set<string>();
 
+  // ดู resolveContainerIp — cache ต่อ instance พอ (TTL สั้น ไม่ต้อง sync ข้าม instance)
+  private containerIpCache = new Map<string, { ip: string; at: number }>();
+
   constructor() {
     const dockerHost = process.env.DOCKER_HOST;
     this.docker = dockerHost
@@ -226,18 +237,42 @@ export class DockerRuntimeService {
    * ที่เคยต่อไว้หายหมด จะมาพึ่งการต่อครั้งเดียวตอนสร้าง network ไม่ได้
    */
   async ensureSelfConnected(networkName: string): Promise<void> {
-    if (networkName === APPS_NETWORK) return; // อยู่แล้วผ่าน docker-compose
+    if (networkName === APPS_NETWORK) return; // อยู่แล้วผ่าน docker-compose (host mode: มี route ถึงเสมอ)
     if (this.selfConnectedNetworks.has(networkName)) return;
     await this.ensureTenantNetwork(networkName);
-    try {
-      // hostname ใน container = short container id (compose ไม่ได้ override hostname)
-      await this.docker.getNetwork(networkName).connect({ Container: os.hostname() });
-    } catch (err: any) {
-      // 403 "endpoint already exists" = ต่ออยู่แล้ว (เช่นจาก instance restart โดยไม่ recreate)
-      const msg = String(err?.message || '');
-      if (err?.statusCode !== 403 && !msg.includes('already exists')) throw err;
+    if (!HOST_MODE) {
+      try {
+        // hostname ใน container = short container id (compose ไม่ได้ override hostname)
+        await this.docker.getNetwork(networkName).connect({ Container: os.hostname() });
+      } catch (err: any) {
+        // 403 "endpoint already exists" = ต่ออยู่แล้ว (เช่นจาก instance restart โดยไม่ recreate)
+        const msg = String(err?.message || '');
+        if (err?.statusCode !== 403 && !msg.includes('already exists')) throw err;
+      }
     }
     this.selfConnectedNetworks.add(networkName);
+  }
+
+  /**
+   * IP ของ container สำหรับให้ backend (บน host) ต่อตรง — แทนการ resolve ชื่อผ่าน Docker DNS
+   * ที่ใช้ได้เฉพาะตอน backend เป็น container ร่วม network เดียวกัน หยิบ IP แรกที่เจอพอ:
+   * ทุก network ที่ container เกาะเป็น bridge ที่ host route ถึงได้เหมือนกันหมด
+   */
+  async resolveContainerIp(containerName: string): Promise<string | null> {
+    const cached = this.containerIpCache.get(containerName);
+    if (cached && Date.now() - cached.at < CONTAINER_IP_TTL_MS) return cached.ip;
+    try {
+      const info = await this.docker.getContainer(containerName).inspect();
+      if (!info.State?.Running) return null;
+      const ip = Object.values(info.NetworkSettings?.Networks || {})
+        .map((n) => n?.IPAddress)
+        .find((addr): addr is string => Boolean(addr));
+      if (!ip) return null;
+      this.containerIpCache.set(containerName, { ip, at: Date.now() });
+      return ip;
+    } catch {
+      return null; // container ไม่มี/inspect พัง — caller ตอบ 502 เอง
+    }
   }
 
   /**

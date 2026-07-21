@@ -1,0 +1,33 @@
+# Gatekeeper frontend (Next.js standalone) บน host — ฟัง 127.0.0.1:3000 ให้ host nginx proxy เข้า
+# ติดตั้ง:
+#   sudo cp deployments/systemd/gatekeeper-frontend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now gatekeeper-frontend
+[Unit]
+Description=Gatekeeper frontend (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dup
+Group=dup
+WorkingDirectory=/home/dup/gatekeeper/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# bind loopback เท่านั้น — กัน tenant container ยิงตรงเข้า frontend ผ่าน bridge gateway IP
+Environment=HOSTNAME=127.0.0.1
+# server.js อยู่ที่นี่เพราะ next.config.js pin outputFileTracingRoot ไว้ (ดู comment ในไฟล์นั้น)
+# deploy script (deployments/host/deploy.sh) เป็นคน cp .next/static + public เข้า standalone ให้
+ExecStart=/usr/bin/node .next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+# Next เขียน cache ตอนรัน (image optimization ฯลฯ) ใต้ .next ของตัวเอง
+ReadWritePaths=/home/dup/gatekeeper/frontend/.next
+
+[Install]
+WantedBy=multi-user.target

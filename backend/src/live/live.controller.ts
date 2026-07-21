@@ -6,8 +6,8 @@ import { DockerRuntimeService, resolveServePort, tenantNetworkFor } from '../dep
 
 /**
  * Reverse-proxy path-based ต่อแอปที่ deploy แล้ว: /live/<app-id>/... -> container ชื่อ
- * gatekeeper-app-<app-id> ผ่าน Docker internal DNS (container อยู่ network เดียวกันกับ backend
- * เอง — ดู GATEKEEPER_APPS_NETWORK ใน docker-compose.yml)
+ * gatekeeper-app-<app-id> โดยต่อด้วย IP จริงจาก docker inspect (backend รันบน host ซึ่งมี
+ * route ไปทุก bridge network อยู่แล้ว — ไม่ได้พึ่ง Docker DNS เหมือนตอนเป็น container)
  *
  * ตั้งใจไม่เช็ค app.pipelineStatus === 'success' ก่อน proxy เพราะ deploy ที่ fail รอบล่าสุด
  * (rollback-safe) container เวอร์ชันก่อนหน้ายังรันอยู่จริงแม้ pipelineStatus ปัจจุบันจะเป็น
@@ -41,19 +41,27 @@ export class LiveController {
       return;
     }
 
-    // instance นี้ต้องอยู่ใน network ของ tenant ถึงจะ resolve ชื่อ container ผ่าน Docker DNS ได้
-    // (จำเป็นหลัง compose recreate ซึ่งล้าง network ที่เคยต่อแบบ dynamic ทิ้งหมด) — พังก็ปล่อย
-    // ให้ proxy error ตอบ 502 ตามปกติ ไม่ต้องตายตรงนี้
+    // host mode: แค่ ensure network ของ tenant มีจริง (ตอนเป็น container เคยต้อง connect
+    // ตัวเองเข้า network ด้วย) — พังก็ปล่อยให้ตอบ 502 ข้างล่างตามปกติ ไม่ต้องตายตรงนี้
     await this.dockerRuntime.ensureSelfConnected(tenantNetworkFor(app)).catch(() => undefined);
 
     // port ที่ container listen จริง: app.port (จำไว้ตอน deploy) → default ตาม runtime
     const port = resolveServePort(app);
+
+    const ip = await this.dockerRuntime.resolveContainerIp(`gatekeeper-app-${app.id}`);
+    if (!ip) {
+      res
+        .status(502)
+        .type('text/plain')
+        .send('live_app_unreachable — ยังไม่เคย deploy สำเร็จ หรือ container ยังไม่พร้อมให้บริการ');
+      return;
+    }
 
     const prefix = `/live/${appId}`;
     const originalUrl = req.originalUrl || req.url;
     const subPath = originalUrl.startsWith(prefix) ? originalUrl.slice(prefix.length) : '/';
     req.url = subPath.length ? subPath : '/';
 
-    this.proxy.web(req, res, { target: `http://gatekeeper-app-${app.id}:${port}` });
+    this.proxy.web(req, res, { target: `http://${ip}:${port}` });
   }
 }

@@ -33,7 +33,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
   const port = process.env.PORT || 8089;
-  await app.listen(port);
+  // บน host ต้อง bind 127.0.0.1 เท่านั้น — กัน tenant container ยิงตรงเข้า backend ผ่าน
+  // bridge gateway IP (ตอนอยู่ใน container เปิด 0.0.0.0 ได้เพราะ network แยกวงให้อยู่แล้ว)
+  await app.listen(port, process.env.BIND_HOST || '0.0.0.0');
   console.log(`[gatekeeper] listening on http://localhost:${port}`);
   console.log(`[gatekeeper] swagger docs at http://localhost:${port}/api/docs`);
 }
