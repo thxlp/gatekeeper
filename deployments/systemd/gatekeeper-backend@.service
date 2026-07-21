@@ -28,9 +28,10 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-# จุดเดียวที่ backend เขียน: DATA_DIR (audit.log, master.key, git-staging/, upload-debug/ ฯลฯ
-# ดู backend/src/common/paths.ts) — ที่อื่น read-only หมด
-ReadWritePaths=/home/dup/gatekeeper/backend/data
+# จุดเดียวที่ backend เขียน: DATA_DIR = <GATEKEEPER_ROOT>/data (audit.log, master.key,
+# git-staging/, upload-debug/ ฯลฯ ดู backend/src/common/paths.ts) — GATEKEEPER_ROOT ชี้
+# repo root เพราะ CONFIGS_DIR (configs/detection-rules/) อยู่ระดับ root ไม่ใช่ใน backend/
+ReadWritePaths=/home/dup/gatekeeper/data
 
 [Install]
 WantedBy=multi-user.target

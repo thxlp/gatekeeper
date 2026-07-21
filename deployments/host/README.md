@@ -66,10 +66,11 @@ sudo systemctl daemon-reload
 
 ```bash
 cd /home/dup/gatekeeper/deployments/docker
-docker compose up -d postgres docker-socket-proxy   # ได้ ports 127.0.0.1 ใหม่ (จะเตือน orphans — ปกติ ยังไม่ต้องลบ)
+sudo docker compose up -d postgres docker-socket-proxy   # ได้ ports 127.0.0.1 ใหม่ (จะเตือน orphans — ปกติ ยังไม่ต้องลบ)
 # ย้ายข้อมูลจาก volume backend-data เดิม (audit.log, master.key, git-deployed ฯลฯ)
-mkdir -p /home/dup/gatekeeper/backend/data
-docker cp backend-1:/app/data/. /home/dup/gatekeeper/backend/data/
+mkdir -p /home/dup/gatekeeper/data
+sudo docker cp backend-1:/app/data/. /home/dup/gatekeeper/data/
+sudo chown -R dup:dup /home/dup/gatekeeper/data
 ```
 
 ### 5. start ฝั่ง host แล้วเช็คก่อนสลับ
