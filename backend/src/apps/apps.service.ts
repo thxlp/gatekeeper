@@ -469,6 +469,10 @@ export class AppsService {
     // เก็บกวาด container ของแอป + addon (postgres/redis) — best-effort ไม่บล็อกการลบ
     void this.deployPipeline.cleanupContainers(app);
 
+    // ลบสำเนา source ล่าสุดที่เก็บไว้ audit/debug ด้วย — ไม่งั้น dir ค้างใน data/git-deployed
+    // ตลอดไปหลังแอปถูกลบ (ส่วน image ของ release history ถูกกวาดใน cleanupContainers ข้างบน)
+    this.deployPipeline.cleanupDeployedDir(app.id);
+
     // ถ้า webhook ฝั่ง GitHub เป็นของที่เราสร้างให้อัตโนมัติ ตามไปเก็บกวาดด้วย (best-effort —
     // token อาจถูก revoke หรือ repo ถูกลบไปแล้ว ไม่ต้อง fail การลบ app เพราะเรื่องนี้)
     const parsed = app.repoFullName ? parseGithubRepoUrl(`https://github.com/${app.repoFullName}`) : null;

@@ -27,7 +27,7 @@ pnpm install --frozen-lockfile
 # (ตั้งตอน runtime ไม่มีผล) เลย source ทั้งไฟล์เอา key พวกนั้นมา
 set -a; source "$ENV_FILE"; set +a
 pnpm run build
-# standalone ไม่ copy static/public ให้เอง (ตาม design ของ Next — ดู frontend/Dockerfile เดิม)
+# standalone ไม่ copy static/public ให้เอง (ตาม design ของ Next output:standalone)
 rm -rf .next/standalone/.next/static .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public

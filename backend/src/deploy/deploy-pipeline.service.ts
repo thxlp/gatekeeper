@@ -274,9 +274,21 @@ export class DeployPipelineService implements OnModuleInit {
     }
   }
 
-  /** ลบ container ของแอป + addon (เรียกตอนลบ app) — best-effort ผ่าน DockerRuntimeService */
+  /** ลบ container ของแอป + addon + image ทุก release (เรียกตอนลบ app) — best-effort ทั้งหมด */
   async cleanupContainers(app: GitApp): Promise<void> {
     await this.dockerRuntime.removeAppContainers(app);
+    // image ของ release history ไม่มีใครลบให้เอง — ลบตามหลัง container (ตอนนี้ไม่มีอะไรอ้างแล้ว)
+    for (const r of app.releases ?? []) {
+      await this.dockerRuntime.removeImage(r.imageTag);
+    }
+  }
+
+  /**
+   * ลบสำเนา source ที่ promote เก็บไว้ audit/debug (data/git-deployed/<id>) ตอนแอปถูกลบ —
+   * เดิมไม่มีใครลบเลย dir orphan สะสมทุกครั้งที่ลบแอป (เจอค้าง 19 dirs ตอน 2026-07-21)
+   */
+  cleanupDeployedDir(appId: string): void {
+    fs.rmSync(path.join(this.deployedRoot, appId), { recursive: true, force: true });
   }
 
   /** ติดธง retired ให้ addon ที่ถูกถอด (sync — เรียก "ก่อน" save ตอน PATCH เพื่อให้ธงลง store) */
