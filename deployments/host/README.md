@@ -20,7 +20,10 @@ gateway IP ไม่ได้ มีแค่ nginx ที่เปิด 80/443
 # Node 22+ ระดับระบบ (systemd ชี้ /usr/bin/node) — ตอนนี้เครื่องมีแต่ node ใน nvm ของ user
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
 # nginx บน host (ยังไม่ start — port 80/443 ยังถูก container เดิมจับอยู่)
-sudo apt-get install -y nginx && sudo systemctl stop nginx && sudo systemctl disable nginx
+# mask ก่อนติดตั้ง: กัน postinst ของ apt auto-start แล้วชน port จน dpkg error
+sudo systemctl mask nginx
+sudo apt-get install -y nginx
+sudo systemctl unmask nginx   # ปล่อยให้ start ได้ตอน cutover ข้อ 6 (ยังไม่ enable)
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo ln -sf /home/dup/gatekeeper/deployments/host/gatekeeper-host.conf /etc/nginx/conf.d/gatekeeper.conf
 sudo nginx -t   # ต้องผ่าน — ถ้าไม่ผ่านห้ามไปต่อ
