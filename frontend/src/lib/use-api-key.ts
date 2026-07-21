@@ -9,7 +9,6 @@ import { supabase } from '@/lib/supabase';
  * อยู่ใน httpOnly cookie แนบไปกับ fetch เองอัตโนมัติ ไม่มีให้ JS อ่าน) ถ้ายังไม่มีลองกู้ session
  * จาก Supabase ก่อน (เช่นเพิ่งกลับมาจาก OAuth redirect ที่ supabase-js auto-detect ให้จาก URL)
  * แล้วแลกเป็น gatekeeper api_key ผ่าน /auth/session ถ้ายังไม่มี session เลยค่อย redirect ไป /login
- * (แยกออกมาเป็น hook เพราะใช้ทั้งหน้า Projects และหน้า Plugins)
  */
 export function useApiKey() {
   const router = useRouter();

@@ -30,43 +30,6 @@ export interface RiskResult {
   findings: Finding[];
 }
 
-// ===== Plugin Registry =====
-export type PluginStatus =
-  | 'pending'      // รอตรวจสอบ
-  | 'screening'    // กำลัง scan (Step 3)
-  | 'generating'   // กำลังสร้าง connection file (Step 4)
-  | 'active'       // ใช้งานได้ปกติ
-  | 'quarantine'   // ผ่าน screening แต่รอ human review
-  | 'revoked'      // ถูก revoke (Step 9)
-  | 'blocked';     // ถูก block เด็ดขาด
-
-export interface PluginEndpoint {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  path: string;
-  description?: string;
-}
-
-export interface Plugin {
-  id: string;
-  name: string;
-  description?: string;
-  base_url: string;
-  auth_type: 'bearer' | 'api_key' | 'basic' | 'none';
-  auth_header?: string;       // เช่น 'Authorization', 'X-API-Key'
-  endpoints: PluginEndpoint[];
-  owner_account_id: string;
-  project_id?: string;        // อ้างถึง GitApp.id — ผูก plugin นี้เข้ากับโปรเจกต์ที่ลงทะเบียนไว้ (ไม่บังคับ)
-  status: PluginStatus;
-  risk_score?: number;
-  findings?: Finding[];
-  signature?: string;         // HMAC signature (Step 5)
-  connection_file?: object;   // generated manifest (Step 4)
-  created_at: string;
-  updated_at: string;
-  last_verified_at?: string;
-  last_handshake_at?: string;
-}
-
 // ===== Git Auto-Deploy (GitHub Webhook) =====
 export type PipelineStageKey =
   | 'payload_verification'
@@ -165,6 +128,5 @@ export interface AuditEntry {
   reason?: string;
   score?: number;
   findings?: Finding[];
-  pluginId?: string;
   deployResult?: object;
 }

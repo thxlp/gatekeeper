@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PluginsModule } from './plugins/plugins.module';
 import { AuditModule } from './audit/audit.module';
 import { HealthModule } from './health/health.module';
 import { ChallengeModule } from './challenge/challenge.module';
@@ -15,7 +14,6 @@ import { databaseConfig } from './common/database.config';
 @Module({
   imports: [
     TypeOrmModule.forRoot(databaseConfig),
-    PluginsModule,
     AuditModule,
     HealthModule,
     ChallengeModule,

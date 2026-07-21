@@ -35,10 +35,6 @@ export class AuditService {
     }
   }
 
-  readByPlugin(pluginId: string): AuditEntry[] {
-    return this.readAll().filter((e) => e.pluginId === pluginId);
-  }
-
   readByAccount(accountId: string): AuditEntry[] {
     return this.readAll().filter((e) => e.accountId === accountId);
   }

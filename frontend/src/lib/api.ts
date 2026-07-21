@@ -73,40 +73,6 @@ export const api = {
     logout: () => request<{ ok: boolean }>(API_BASE, '/auth/logout', { method: 'POST' }),
   },
 
-  // plugin lifecycle
-  getCertified: () => request<any[]>(API_BASE, '/plugins/certified'),
-
-  registerPlugin: (body: unknown) =>
-    request<any>(API_BASE, '/plugins', { method: 'POST', body: JSON.stringify(body) }),
-
-  listPlugins: () => request<any[]>(API_BASE, '/plugins'),
-  getPlugin: (id: string) => request<any>(API_BASE, `/plugins/${id}`),
-
-  screenPlugin: (id: string) =>
-    request<any>(API_BASE, `/plugins/${id}/screen`, { method: 'POST' }),
-
-  verifyPlugin: (id: string) => request<any>(API_BASE, `/plugins/${id}/verify`),
-
-  handshakePlugin: (id: string) =>
-    request<any>(API_BASE, `/plugins/${id}/handshake`, { method: 'POST' }),
-
-  proxyCall: (id: string, body: unknown) =>
-    request<any>(API_BASE, `/plugins/${id}/proxy`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-
-  revokePlugin: (id: string) =>
-    request<any>(API_BASE, `/plugins/${id}/revoke`, { method: 'DELETE' }),
-
-  updatePlugin: (id: string, body: unknown) =>
-    request<any>(API_BASE, `/plugins/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-
-  deletePlugin: (id: string) =>
-    request<{ ok: boolean }>(API_BASE, `/plugins/${id}`, { method: 'DELETE' }),
-
-  getPluginLogs: (id: string) => request<any[]>(API_BASE, `/plugins/${id}/logs`),
-
   // combined audit stream
   getMyAudit: () => request<any[]>(API_BASE, '/audit'),
 

@@ -5,8 +5,7 @@ import { AuditEntry } from '@/types';
 // enum server-side, and `decision` is only ever ALLOW/QUARANTINE/BLOCK/INFO
 // (no "OK"/"LIVE"). Group by stage *prefix* rather than a fixed list so new
 // stage strings added backend-side still render sensibly.
-export function stageBadge(stage: string): { label: string; kind: 'primary' | 'allow' | 'purple' } {
-  if (stage.startsWith('plugin:')) return { label: stage.split(':')[1].toUpperCase(), kind: 'purple' };
+export function stageBadge(stage: string): { label: string; kind: 'primary' | 'allow' } {
   if (stage.startsWith('gitapp:')) return { label: stage.split(':')[1].toUpperCase(), kind: 'primary' };
   if (stage === 'webhook') return { label: 'WEBHOOK', kind: 'allow' };
   return { label: stage.toUpperCase(), kind: 'primary' }; // decision | app_build | deploy | fatal
@@ -24,6 +23,5 @@ export function auditDetail(e: AuditEntry): string {
   if (e.reason) parts.push(e.reason);
   if (e.score !== undefined) parts.push(`score=${e.score}`);
   if (e.findings?.length) parts.push(`${e.findings.length} findings`);
-  if (e.pluginId) parts.push(`plugin: ${e.pluginId}`);
   return parts.join(' · ') || '—';
 }

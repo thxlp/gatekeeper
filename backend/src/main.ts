@@ -26,7 +26,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   const config = new DocumentBuilder()
     .setTitle('Gatekeeper API')
-    .setDescription('Security & Plugin Management Gatekeeper')
+    .setDescription('Security Deploy Gatekeeper')
     .setVersion('0.2.0')
     .addBearerAuth()
     .build();

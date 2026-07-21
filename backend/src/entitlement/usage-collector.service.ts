@@ -16,7 +16,7 @@ export interface UsageEvent {
 }
 
 /**
- * บันทึกทุกครั้งที่มีการ "เรียกใช้สิทธิ์" feature/plugin ไม่ว่าผลจะ allow หรือ block
+ * บันทึกทุกครั้งที่มีการ "เรียกใช้สิทธิ์" feature ไม่ว่าผลจะ allow หรือ block
  * ของจริงควรยิงเข้า Kafka/NATS แล้วลง TimescaleDB/ClickHouse แบบ async
  * ที่นี่ใช้ append JSON line ลงไฟล์เพื่อให้รันได้จริงแบบไม่มี dependency ภายนอก
  */

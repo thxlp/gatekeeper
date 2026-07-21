@@ -1,13 +1,12 @@
 import { ReactNode } from 'react';
 
 // Status kind → tailwind classes for the small pill badges used across
-// dashboard / audit / plugin views. Ported from gatemock/components/ui.tsx.
-export const pillClasses: Record<'allow' | 'warn' | 'danger' | 'primary' | 'purple' | 'muted', string> = {
+// dashboard / audit views. Ported from gatemock/components/ui.tsx.
+export const pillClasses: Record<'allow' | 'warn' | 'danger' | 'primary' | 'muted', string> = {
   allow: 'bg-[rgba(115,169,140,.12)] text-allow-text',
   warn: 'bg-[rgba(224,185,118,.15)] text-warn-text',
   danger: 'bg-[rgba(214,109,82,.1)] text-danger-text',
   primary: 'bg-[rgba(74,144,226,.08)] text-primary',
-  purple: 'bg-[rgba(139,92,246,.1)] text-purple',
   muted: 'bg-[rgba(150,144,140,.15)] text-muted',
 };
 

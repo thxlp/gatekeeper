@@ -9,11 +9,10 @@ import { auditDetail, decisionKind, stageBadge } from '@/lib/audit';
 
 const COLS = '130px 160px 1fr 130px';
 
-const pillClassByKind: Record<'primary' | 'allow' | 'danger' | 'purple', string> = {
+const pillClassByKind: Record<'primary' | 'allow' | 'danger', string> = {
   primary: 'bg-[rgba(74,144,226,.08)] text-primary',
   allow: 'bg-[rgba(115,169,140,.12)] text-allow-text',
   danger: 'bg-[rgba(214,109,82,.1)] text-danger-text',
-  purple: 'bg-[rgba(139,92,246,.1)] text-purple',
 };
 
 export default function AuditPage() {

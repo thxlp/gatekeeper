@@ -29,13 +29,6 @@ const items: RailItem[] = [
     label: 'Deploys',
   },
   {
-    href: '/plugins',
-    icon: 'ph ph-plugs',
-    activeIcon: 'ph-fill ph-plugs',
-    match: (p) => p.startsWith('/plugins'),
-    label: 'Plugins',
-  },
-  {
     href: '/audit',
     icon: 'ph ph-scroll',
     activeIcon: 'ph-fill ph-scroll',

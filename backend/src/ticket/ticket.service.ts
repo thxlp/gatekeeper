@@ -6,7 +6,6 @@ const SECRET = process.env.GATEKEEPER_TICKET_SECRET || 'dev-secret-change-me';
 interface TicketPayload {
   request_id: string;
   account_id: string;
-  plugin_id?: string;
   expires_at: number;
 }
 

@@ -24,7 +24,7 @@ function transformSecrets(app: GitApp, fn: (v: string) => string): GitApp {
  * ที่เป็น static list แบบ ops-managed) — เก็บใน DATA_DIR เพราะมี secret จริงอยู่ข้างใน
  * ต้องไม่ commit ลง git repo
  *
- * อ่านจากไฟล์สดทุกครั้ง (ไม่ cache เป็น in-memory Map เหมือน PluginStore) เพราะ backend
+ * อ่านจากไฟล์สดทุกครั้ง (ไม่ cache เป็น in-memory Map) เพราะ backend
  * รันหลาย instance (backend-1/backend-2) แชร์ volume เดียวกัน — ถ้า cache ไว้ instance ที่ไม่ได้
  * รับ register request จะไม่เห็น app ใหม่จนกว่าจะ restart ซึ่งพังกับ webhook ที่ยิงมาสุ่ม instance ผ่าน LB
  */
