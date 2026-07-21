@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import NotificationsBell from './NotificationsBell';
 
 // The top bar has two forms across the app:
 //  - dashboard: search input + primary actions
@@ -24,7 +25,8 @@ export default function TopBar({
           <div className="hidden w-60 items-center gap-2 rounded-[7px] border border-border bg-page-alt px-3 py-[7px] text-[13px] text-muted-3 sm:flex">
             <i className="ph ph-magnifying-glass" /> ค้นหาโปรเจกต์…
           </div>
-          <div className="ml-auto flex gap-2.5">
+          <div className="ml-auto flex items-center gap-2.5">
+            <NotificationsBell />
             <Link
               href="/deploy"
               className="hidden items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[13px] font-medium text-ink-soft hover:bg-page-alt sm:flex"
@@ -52,7 +54,10 @@ export default function TopBar({
               {title}
             </span>
           </div>
-          {right && <div className="ml-auto flex items-center gap-2.5">{right}</div>}
+          <div className="ml-auto flex items-center gap-2.5">
+            {right}
+            <NotificationsBell />
+          </div>
         </>
       )}
     </header>

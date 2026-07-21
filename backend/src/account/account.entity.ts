@@ -34,6 +34,11 @@ export class Account {
   @Column({ name: 'supabase_user_id', type: 'varchar', nullable: true })
   supabaseUserId: string | null;
 
+  // เปิดรับแจ้งเตือนทางอีเมล (deploy พัง/ถูกบล็อก ฯลฯ) — opt-in default false: SMTP อาจยัง
+  // ไม่ถูกตั้งค่า และไม่ควรมีเมลไปหาผู้ใช้โดยที่เขาไม่ได้เปิดเองใน Settings
+  @Column({ name: 'notify_email', type: 'boolean', default: false })
+  notifyEmail: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

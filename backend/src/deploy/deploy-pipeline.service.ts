@@ -13,6 +13,8 @@ import { ZipExtractionError } from '../apps/zip-extract.util';
 import { GitAutomatorService } from '../webhook/git-automator.service';
 import { DockerRuntimeService } from './docker-runtime.service';
 import { initialPipelineStages } from '../common/pipeline.util';
+import { NotificationsService } from '../notification/notifications.service';
+import { deployFailedEmail, rollbackFailedEmail } from '../mail/mail-templates';
 
 export interface PipelineOutcome {
   decision: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
@@ -93,6 +95,7 @@ export class DeployPipelineService implements OnModuleInit {
     private usageCollector: UsageCollectorService,
     private gitAppStore: GitAppStore,
     private dockerRuntime: DockerRuntimeService,
+    private notifications: NotificationsService,
   ) {
     fs.mkdirSync(this.stagingRoot, { recursive: true });
     fs.mkdirSync(this.deployedRoot, { recursive: true });
@@ -146,6 +149,43 @@ export class DeployPipelineService implements OnModuleInit {
     }
   }
 
+  private appName(app: GitApp): string {
+    return app.projectName || app.repoFullName || app.id;
+  }
+
+  /**
+   * แจ้งผล deploy ที่ไม่สำเร็จ (in-app เสมอ + email ตาม preference) — fire-and-forget:
+   * notify() fail-soft ในตัวอยู่แล้ว การแจ้งเตือนพังต้องไม่กระทบผล pipeline
+   */
+  private notifyDeployFailure(
+    app: GitApp,
+    requestId: string,
+    type: 'deploy_failed' | 'deploy_blocked',
+    reason: string,
+  ): void {
+    const name = this.appName(app);
+    void this.notifications.notify(app.accountId, {
+      type,
+      title: type === 'deploy_blocked' ? `Deploy ถูกบล็อก — ${name}` : `Deploy ไม่สำเร็จ — ${name}`,
+      body: reason,
+      meta: { appId: app.id, requestId },
+      email: true,
+      emailText: deployFailedEmail(name, reason).text,
+    });
+  }
+
+  private notifyRollbackFailure(app: GitApp, requestId: string, reason: string): void {
+    const name = this.appName(app);
+    void this.notifications.notify(app.accountId, {
+      type: 'rollback_failed',
+      title: `Rollback ไม่สำเร็จ — ${name}`,
+      body: reason,
+      meta: { appId: app.id, requestId },
+      email: true,
+      emailText: rollbackFailedEmail(name, reason).text,
+    });
+  }
+
   /**
    * Rollback = สั่ง runContainer ด้วย image ของ release เดิมที่เก็บ tag ไว้ (ไม่ rebuild/ไม่ scan ซ้ำ
    * เพราะ artifact ตัวนี้เคยผ่านทุก gate มาแล้วตอน deploy รอบนั้น) — ใช้ blue-green swap เดิม:
@@ -183,6 +223,7 @@ export class DeployPipelineService implements OnModuleInit {
         }
         this.persistStage(app, 'production_deploy', 'failed');
         this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: 'rollback_image_missing' });
+        this.notifyRollbackFailure(app, requestId, 'rollback_image_missing — image ของ release นี้ไม่อยู่บนเครื่องแล้ว');
         return;
       }
 
@@ -192,6 +233,7 @@ export class DeployPipelineService implements OnModuleInit {
         if (!addon.ok) {
           this.persistStage(app, 'production_deploy', 'failed');
           this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: addon.reason });
+          this.notifyRollbackFailure(app, requestId, addon.reason || 'addon_failed');
           return;
         }
         this.gitAppStore.save(app); // persist connections (encrypted)
@@ -201,6 +243,7 @@ export class DeployPipelineService implements OnModuleInit {
       if (!runResult.ok) {
         this.persistStage(app, 'production_deploy', 'failed');
         this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: runResult.reason });
+        this.notifyRollbackFailure(app, requestId, runResult.reason || 'container_failed');
         return;
       }
 
@@ -215,9 +258,16 @@ export class DeployPipelineService implements OnModuleInit {
         reason: `rollback_to:${release.id}`,
         deployResult: { imageReused: true, port: runResult.port },
       });
+      void this.notifications.notify(app.accountId, {
+        type: 'rollback_success',
+        title: `Rollback สำเร็จ — ${this.appName(app)}`,
+        body: `กลับไป release ${release.commitSha?.slice(0, 7) ?? release.id.slice(0, 8)} แล้ว`,
+        meta: { appId: app.id, requestId, releaseId: release.id },
+      });
     } catch (err: any) {
       this.persistStage(app, 'production_deploy', 'failed');
       this.audit.append({ requestId, accountId: app.accountId, stage: 'rollback', decision: 'BLOCK', reason: 'internal_error_fail_closed' });
+      this.notifyRollbackFailure(app, requestId, 'internal_error_fail_closed');
       this.logger.error(`rollback ${app.id} -> ${releaseId} failed: ${err.message}`);
     } finally {
       this.automator.releaseLock(app.id);
@@ -295,6 +345,7 @@ export class DeployPipelineService implements OnModuleInit {
           if (!addon.ok) {
             this.persistStage(app, 'app_build', 'failed');
             this.audit.append({ requestId, accountId: app.accountId, stage: 'app_build', decision: 'BLOCK', reason: addon.reason });
+            this.notifyDeployFailure(app, requestId, 'deploy_failed', addon.reason || 'addon_failed');
             return { decision: 'BLOCK', requestId, reason: addon.reason, score: result.score, findings: result.findings };
           }
           if (this.gitAppStore.findById(app.id)) this.gitAppStore.save(app); // persist connections (encrypted)
@@ -303,6 +354,7 @@ export class DeployPipelineService implements OnModuleInit {
         if (!buildResult.ok) {
           this.persistStage(app, 'app_build', 'failed');
           this.audit.append({ requestId, accountId: app.accountId, stage: 'app_build', decision: 'BLOCK', reason: buildResult.reason });
+          this.notifyDeployFailure(app, requestId, 'deploy_failed', buildResult.reason || 'build_failed');
           return { decision: 'BLOCK', requestId, reason: buildResult.reason, score: result.score, findings: result.findings };
         }
         this.persistStage(app, 'app_build', 'success');
@@ -324,6 +376,7 @@ export class DeployPipelineService implements OnModuleInit {
         if (!runResult.ok) {
           this.persistStage(app, 'production_deploy', 'failed');
           this.audit.append({ requestId, accountId: app.accountId, stage: 'deploy', decision: 'BLOCK', reason: runResult.reason });
+          this.notifyDeployFailure(app, requestId, 'deploy_failed', runResult.reason || 'container_failed');
           return { decision: 'BLOCK', requestId, reason: runResult.reason, score: result.score, findings: result.findings };
         }
 
@@ -360,6 +413,16 @@ export class DeployPipelineService implements OnModuleInit {
           deployResult: { deployedPath: deployedDir, port: runResult.port },
         });
 
+        // แจ้งสำเร็จแบบ in-app อย่างเดียว (เมลเฉพาะตอนพัง — success mail เป็น spam)
+        void this.notifications.notify(app.accountId, {
+          type: 'deploy_success',
+          title: `Deploy สำเร็จ — ${this.appName(app)}`,
+          body: runResult.degraded
+            ? 'ขึ้นระบบแล้วแบบเฝ้าระวัง: container รันอยู่แต่ยังไม่ตอบ healthcheck'
+            : 'ขึ้นระบบแล้ว',
+          meta: { appId: app.id, requestId },
+        });
+
         return { decision: 'ALLOW', requestId, score: result.score, deployedPath: deployedDir, restartOk: true };
       }
 
@@ -368,12 +431,14 @@ export class DeployPipelineService implements OnModuleInit {
         const qDir = path.join(this.quarantineRoot, `${app.id}-${requestId}`);
         fs.renameSync(stagingDir, qDir);
         this.audit.append({ requestId, accountId: app.accountId, stage: 'decision', decision: 'QUARANTINE', score: result.score, findings: result.findings });
+        this.notifyDeployFailure(app, requestId, 'deploy_blocked', 'quarantine — รอตรวจสอบจากทีม SecOps');
         return { decision: 'QUARANTINE', requestId, message: 'รอตรวจสอบจากทีม SecOps', score: result.score, findings: result.findings };
       }
 
       // BLOCK — ปล่อยให้ finally เก็บกวาด staging ทิ้ง ไม่แตะ deployedDir เดิม (แอปเวอร์ชันก่อนหน้ายังรันอยู่)
       this.persistStage(app, 'security_scan', 'failed');
       this.audit.append({ requestId, accountId: app.accountId, stage: 'decision', decision: 'BLOCK', score: result.score, findings: result.findings });
+      this.notifyDeployFailure(app, requestId, 'deploy_blocked', 'deploy_blocked_by_security_policy');
       return { decision: 'BLOCK', requestId, reason: 'deploy_blocked_by_security_policy', score: result.score, findings: result.findings };
     } catch (err: any) {
       this.persistStage(app, currentStage, 'failed');
@@ -382,6 +447,7 @@ export class DeployPipelineService implements OnModuleInit {
       // (ข้อความพวกนี้เราประกอบเองทั้งหมดใน zip-extract.util ไม่มี internal detail หลุด)
       // error อื่นคง fail-closed ด้วยข้อความกลางๆ เหมือนเดิม
       const reason = err instanceof ZipExtractionError ? err.message : 'internal_error_fail_closed';
+      this.notifyDeployFailure(app, requestId, 'deploy_failed', reason);
       return { decision: 'BLOCK', requestId, reason };
     } finally {
       if (fs.existsSync(stagingDir)) {

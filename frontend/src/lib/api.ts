@@ -1,4 +1,5 @@
 import {
+  AccountMe,
   DeployOutcome,
   GitAppDetail,
   GitAppRegistration,
@@ -6,6 +7,7 @@ import {
   GithubRegisterResult,
   GithubRepo,
   GithubStatus,
+  NotificationFeed,
   UsageSummary,
 } from '@/types';
 
@@ -75,6 +77,22 @@ export const api = {
 
   // combined audit stream
   getMyAudit: () => request<any[]>(API_BASE, '/audit'),
+
+  // feed แจ้งเตือน (กระดิ่งบน TopBar) — poll เป็นระยะตาม pattern polling ของทั้งแอป
+  notifications: {
+    list: () => request<NotificationFeed>(API_BASE, '/notifications'),
+    markRead: () => request<{ ok: boolean }>(API_BASE, '/notifications/read', { method: 'POST' }),
+  },
+
+  // ข้อมูล + preference ของบัญชีตัวเอง (toggle Email Notifications ในหน้า Settings)
+  account: {
+    me: () => request<AccountMe>(API_BASE, '/account/me'),
+    updatePrefs: (body: { notifyEmail: boolean }) =>
+      request<{ ok: boolean; notifyEmail: boolean }>(API_BASE, '/account/prefs', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+  },
 
   // GitHub connection (repo picker + auto webhook แบบ Railway)
   github: {

@@ -96,6 +96,31 @@ export interface DeployOutcome {
   restartOk?: boolean;
 }
 
+// ===== Notifications (กระดิ่งบน TopBar) =====
+export interface NotificationItem {
+  id: string;
+  type: string; // deploy_success | deploy_failed | deploy_blocked | rollback_success | rollback_failed | ...
+  title: string;
+  body: string;
+  meta?: { appId?: string; requestId?: string } & Record<string, unknown>;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationFeed {
+  items: NotificationItem[];
+  unread: number;
+}
+
+// ===== Account (GET /account/me) =====
+export interface AccountMe {
+  email?: string;
+  plan?: string;
+  notifyEmail: boolean;
+  // SMTP ฝั่ง server ถูกตั้งค่าหรือยัง — UI ใช้ disable toggle email ให้ตรงความจริง
+  mailConfigured: boolean;
+}
+
 // ===== GitHub connection (Railway-style repo picker) =====
 export interface GithubStatus {
   connected: boolean;

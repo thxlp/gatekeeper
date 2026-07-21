@@ -107,4 +107,15 @@ export class AccountsService {
     });
     return this.repo.save(account);
   }
+
+  findById(id: string): Promise<Account | null> {
+    return this.repo.findOne({ where: { id } });
+  }
+
+  /** อัปเดต preference ของบัญชี (ตอนนี้มีแค่ notifyEmail — toggle ในหน้า Settings) */
+  async updatePrefs(id: string, prefs: { notifyEmail?: boolean }): Promise<void> {
+    if (prefs.notifyEmail !== undefined) {
+      await this.repo.update(id, { notifyEmail: prefs.notifyEmail });
+    }
+  }
 }

@@ -10,6 +10,7 @@ import { AccountModule } from './account/account.module';
 import { AuthModule } from './auth/auth.module';
 import { LiveModule } from './live/live.module';
 import { UsageModule } from './entitlement/usage.module';
+import { NotificationModule } from './notification/notification.module';
 import { databaseConfig } from './common/database.config';
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { databaseConfig } from './common/database.config';
     AuthModule,
     LiveModule,
     UsageModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { Card, CardHeader } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
-import { GithubStatus, UsageSummary } from '@/types';
+import { AccountMe, GithubStatus, UsageSummary } from '@/types';
 
 const USAGE_POLL_MS = 10_000;
 
@@ -137,6 +137,48 @@ function UsageCard() {
   );
 }
 
+// สวิตช์เปิด/ปิดแบบง่าย — disabled พร้อม hint ตอน backend ยังไม่พร้อม (เช่น SMTP ไม่ถูกตั้งค่า)
+function ToggleRow({
+  title,
+  desc,
+  checked,
+  disabled,
+  hint,
+  onChange,
+}: {
+  title: string;
+  desc: string;
+  checked: boolean;
+  disabled?: boolean;
+  hint?: string;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className={`flex items-center justify-between ${disabled ? 'opacity-60' : ''}`}>
+      <div>
+        <div className="text-[12.5px] font-semibold">{title}</div>
+        <div className="text-[11px] text-muted">{desc}</div>
+        {hint && <div className="mt-0.5 text-[10.5px] text-danger-text">{hint}</div>}
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative h-[22px] w-[40px] flex-none rounded-full transition-colors ${
+          checked ? 'bg-primary' : 'bg-[#D8D3C8]'
+        } ${disabled ? 'cursor-not-allowed' : ''}`}
+      >
+        <span
+          className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${
+            checked ? 'left-[21px]' : 'left-[3px]'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 function PrefRow({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="flex items-center justify-between opacity-60">
@@ -154,11 +196,24 @@ function PrefRow({ title, desc }: { title: string; desc: string }) {
 export default function SettingsPage() {
   const [gh, setGh] = useState<GithubStatus | null>(null);
   const [plan, setPlan] = useState('free');
+  const [me, setMe] = useState<AccountMe | null>(null);
 
   useEffect(() => {
     api.github.status().then(setGh).catch(() => setGh({ connected: false }));
+    api.account.me().then(setMe).catch(() => undefined);
     setPlan(localStorage.getItem('gk_plan') || 'free');
   }, []);
+
+  const toggleNotifyEmail = async (next: boolean) => {
+    if (!me) return;
+    const prev = me;
+    setMe({ ...me, notifyEmail: next }); // optimistic — พลาดค่อย revert
+    try {
+      await api.account.updatePrefs({ notifyEmail: next });
+    } catch {
+      setMe(prev);
+    }
+  };
 
   const disconnectGithub = async () => {
     if (!confirm('ยกเลิกการเชื่อมต่อ GitHub?')) return;
@@ -172,11 +227,17 @@ export default function SettingsPage() {
 
       <div className="flex min-h-0 flex-1 justify-center overflow-auto px-6 py-6">
         <div className="flex w-full max-w-[640px] flex-col gap-4">
-          {/* preferences — no backend endpoint for these yet, shown as coming soon */}
           <Card>
             <CardHeader title="Preferences" subtitle="ตั้งค่าการแสดงผลและพฤติกรรมของระบบ" />
             <div className="flex flex-col gap-4">
-              <PrefRow title="Email Notifications" desc="รับการแจ้งเตือนเมื่อ pipeline รันล้มเหลว หรือถูกบล็อก" />
+              <ToggleRow
+                title="Email Notifications"
+                desc="รับการแจ้งเตือนทางอีเมลเมื่อ pipeline รันล้มเหลว หรือถูกบล็อก (in-app แจ้งเสมอ)"
+                checked={me?.notifyEmail ?? false}
+                disabled={!me || !me.mailConfigured}
+                hint={me && !me.mailConfigured ? 'ยังไม่ได้ตั้งค่า SMTP บนเซิร์ฟเวอร์ — เปิดใช้ไม่ได้' : undefined}
+                onChange={toggleNotifyEmail}
+              />
               <PrefRow title="Auto-deploy (GitHub)" desc="เปิดอยู่เสมอเมื่อเชื่อม repo ผ่าน picker — ยังไม่มีสวิตช์แยกปิด" />
             </div>
           </Card>
