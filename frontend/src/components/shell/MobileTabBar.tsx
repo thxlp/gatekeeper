@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 const tabs = [
   { href: '/', icon: 'ph-squares-four', label: 'Projects', match: (p: string) => p === '/' || p.startsWith('/apps') },
   { href: '/deploy', icon: 'ph-rocket-launch', label: 'Deploys', match: (p: string) => p.startsWith('/deploy') },
+  { href: '/databases', icon: 'ph-database', label: 'Databases', match: (p: string) => p.startsWith('/databases') },
   { href: '/audit', icon: 'ph-scroll', label: 'Audit', match: (p: string) => p.startsWith('/audit') },
   { href: '/settings', icon: 'ph-gear', label: 'Settings', match: (p: string) => p.startsWith('/settings') },
 ];

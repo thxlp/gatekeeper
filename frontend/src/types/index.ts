@@ -100,6 +100,32 @@ export interface LogSnapshot {
   lines: string[];
 }
 
+// ===== Managed database (ต่อ user) =====
+export type DbEngine = 'postgres' | 'redis' | 'mysql';
+
+export interface ManagedDbSummary {
+  id: string;
+  name: string;
+  engine: DbEngine;
+  status: 'provisioning' | 'running' | 'stopped' | 'error';
+  running: boolean;
+  lastError?: string;
+  attachedAppIds: string[];
+  // connection แบบไม่มี password (ปุ่ม copy เต็มเรียก endpoint แยก)
+  connection: { host: string; port: number; envKey: string; username: string; dbName: string };
+  createdAt?: string;
+}
+
+// connection string เต็ม (GET /databases/:id/connection) — มี password, internal เท่านั้น
+export interface DbConnection {
+  url: string;
+  host: string;
+  port: number;
+  envKey: string;
+  username: string;
+  dbName: string;
+}
+
 export interface DeployOutcome {
   id?: string;
   // manual deploy ตอบ { id, status: 'deploying' } ทันที (pipeline วิ่ง background) —

@@ -30,6 +30,13 @@ const items: RailItem[] = [
     label: 'Deploys',
   },
   {
+    href: '/databases',
+    icon: 'ph ph-database',
+    activeIcon: 'ph-fill ph-database',
+    match: (p) => p.startsWith('/databases'),
+    label: 'Databases',
+  },
+  {
     href: '/audit',
     icon: 'ph ph-scroll',
     activeIcon: 'ph-fill ph-scroll',

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DeployPipelineService } from './deploy-pipeline.service';
 import { DockerRuntimeService } from './docker-runtime.service';
+import { CrashMonitorService } from './crash-monitor.service';
 import { GitAutomatorService } from '../webhook/git-automator.service';
 import { GitAppStore } from '../apps/git-app.store';
 import { ScannerService } from '../scanner/scanner.service';
@@ -19,6 +20,7 @@ import { NotificationModule } from '../notification/notification.module';
   providers: [
     DeployPipelineService,
     DockerRuntimeService,
+    CrashMonitorService,
     GitAutomatorService,
     GitAppStore,
     ScannerService,

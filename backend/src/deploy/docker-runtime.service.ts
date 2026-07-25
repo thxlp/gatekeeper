@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { PassThrough } from 'stream';
-import { AddonConnection, AppAddon, GitApp } from '../common/types';
+import { AddonConnection, AppAddon, DbEngine, GitApp, ManagedDatabase } from '../common/types';
 
 /**
  * แกะ multiplexed stream ของ `docker logs` (ไม่ได้เปิด TTY → docker frame แต่ละบรรทัดด้วย
@@ -153,6 +153,96 @@ const ADDON_SPEC: Record<
     buildUrl: (host, port, pw) => `redis://:${pw}@${host}:${port}`,
   },
 };
+
+// ===== Managed database (ต่อ user) — spec แยกจาก addon (per-app) แต่โครง provisioning เดียวกัน =====
+export const MANAGED_DB_ENGINES: DbEngine[] = ['postgres', 'redis', 'mysql'];
+export const managedDbContainerName = (id: string) => `gatekeeper-db-${id}`;
+const managedDbVolumeName = (id: string) => `gatekeeper-db-${id}-data`;
+
+interface ManagedDbSpecEntry {
+  image: string;
+  port: number;
+  envKey: string;
+  dataPath: string;
+  tmpfs: Record<string, string>;
+  readonlyRootfs: boolean; // mysql เขียนนอก volume เยอะ → ปิด read-only เฉพาะตัวมัน
+  memoryMb: number;
+  username: string; // '' = ไม่มี auth user (redis)
+  dbName: string;
+  cmd?: (password: string) => string[];
+  containerEnv: (password: string) => string[];
+  buildUrl: (host: string, port: number, password: string) => string;
+}
+
+const MANAGED_DB_SPEC: Record<DbEngine, ManagedDbSpecEntry> = {
+  postgres: {
+    image: 'postgres:16-alpine',
+    port: 5432,
+    envKey: 'DATABASE_URL',
+    dataPath: '/var/lib/postgresql/data',
+    tmpfs: { '/var/run/postgresql': 'rw,nosuid,size=8m', '/tmp': 'rw,nosuid,size=64m' },
+    readonlyRootfs: true,
+    memoryMb: 256,
+    username: 'appuser',
+    dbName: 'appdb',
+    containerEnv: (pw) => [`POSTGRES_USER=appuser`, `POSTGRES_PASSWORD=${pw}`, `POSTGRES_DB=appdb`],
+    buildUrl: (host, port, pw) => `postgres://appuser:${pw}@${host}:${port}/appdb`,
+  },
+  redis: {
+    image: 'redis:7-alpine',
+    port: 6379,
+    envKey: 'REDIS_URL',
+    dataPath: '/data',
+    tmpfs: { '/tmp': 'rw,nosuid,size=16m' },
+    readonlyRootfs: true,
+    memoryMb: 256,
+    username: '',
+    dbName: '',
+    cmd: (pw) => ['redis-server', '--appendonly', 'yes', '--requirepass', pw],
+    containerEnv: () => [],
+    buildUrl: (host, port, pw) => `redis://:${pw}@${host}:${port}`,
+  },
+  mysql: {
+    image: 'mysql:8',
+    port: 3306,
+    envKey: 'DATABASE_URL',
+    dataPath: '/var/lib/mysql',
+    tmpfs: { '/var/run/mysqld': 'rw,nosuid,size=16m', '/tmp': 'rw,nosuid,size=64m' },
+    readonlyRootfs: false, // mysql:8 เขียน config/pid หลายที่ตอน init — read-only ทำ start ไม่ขึ้น
+    memoryMb: 512, // mysql กิน RAM มากกว่า pg/redis
+    username: 'appuser',
+    dbName: 'appdb',
+    containerEnv: (pw) => [
+      `MYSQL_ROOT_PASSWORD=${pw}`,
+      `MYSQL_DATABASE=appdb`,
+      `MYSQL_USER=appuser`,
+      `MYSQL_PASSWORD=${pw}`,
+    ],
+    buildUrl: (host, port, pw) => `mysql://appuser:${pw}@${host}:${port}/appdb`,
+  },
+};
+
+// ข้อมูล connection ที่ประกอบสดจาก spec + password (decrypt แล้ว) — internal เท่านั้น
+// (host เป็นชื่อ container ที่ resolve ได้เฉพาะแอปในวง tenant network เดียวกัน)
+export function managedDbConnectionInfo(db: Pick<ManagedDatabase, 'id' | 'engine' | 'password'>): {
+  url: string;
+  host: string;
+  port: number;
+  envKey: string;
+  username: string;
+  dbName: string;
+} {
+  const spec = MANAGED_DB_SPEC[db.engine];
+  const host = managedDbContainerName(db.id);
+  return {
+    url: spec.buildUrl(host, spec.port, db.password),
+    host,
+    port: spec.port,
+    envKey: spec.envKey,
+    username: spec.username,
+    dbName: spec.dbName,
+  };
+}
 
 // network กลางเดิม — เหลือไว้เป็น fallback สำหรับ app เก่าที่ยังไม่ได้ย้าย (ดู
 // deployments/docker/migrate-tenant-networks.sh) app ที่ deploy ใหม่ทุกตัวไปอยู่ network
@@ -308,6 +398,28 @@ export class DockerRuntimeService {
       return ip;
     } catch {
       return null; // container ไม่มี/inspect พัง — caller ตอบ 502 เอง
+    }
+  }
+
+  /**
+   * inspect สถานะ runtime ของ container (ใช้โดย crash-monitor + สถานะ managed DB) — คืน null
+   * เมื่อ container ไม่มี (ยังไม่เคยสร้าง/ถูกลบ) RestartCount เป็นตัวนับสะสมของ docker เอง
+   * (เพิ่มทุกครั้งที่ restart policy เด้ง container กลับมา) — crash-loop ดูจาก delta ของค่านี้
+   */
+  async inspectContainerState(
+    containerName: string,
+  ): Promise<{ running: boolean; status: string; restartCount: number; exitCode: number; startedAt?: string } | null> {
+    try {
+      const info = await this.docker.getContainer(containerName).inspect();
+      return {
+        running: Boolean(info.State?.Running),
+        status: info.State?.Status || 'unknown',
+        restartCount: info.RestartCount ?? 0,
+        exitCode: info.State?.ExitCode ?? 0,
+        startedAt: info.State?.StartedAt,
+      };
+    } catch {
+      return null;
     }
   }
 
@@ -886,6 +998,88 @@ export class DockerRuntimeService {
       this.logger.warn(`retired addon volume ${name} not removed: ${err?.message}`);
       return false;
     }
+  }
+
+  // ===== Managed database (ต่อ user) =====
+
+  /**
+   * provision managed DB container ต่อบัญชี (idempotent) — สร้าง container `gatekeeper-db-<id>`
+   * + named volume บน tenant network ของเจ้าของ แล้วรอ port พร้อม. reuse password เดิมจาก store
+   * (volume ผูกกับ password ตอน init ครั้งแรก) ถ้ามีอยู่แล้วก็ start/ผ่าน
+   */
+  async provisionManagedDb(db: ManagedDatabase): Promise<{ ok: boolean; reason?: string }> {
+    const spec = MANAGED_DB_SPEC[db.engine];
+    if (!spec) return { ok: false, reason: `unknown_engine:${db.engine}` };
+    const containerName = managedDbContainerName(db.id);
+    const network = tenantNetworkFor({ accountId: db.accountId });
+    try {
+      await this.ensureTenantNetwork(network);
+      await this.ensureSelfConnected(network); // backend ต้อง probe DB ถึงตอนเช็ค ready
+
+      const container = this.docker.getContainer(containerName);
+      let state: string | undefined;
+      try {
+        state = (await container.inspect()).State?.Status;
+      } catch {
+        state = undefined;
+      }
+      if (state === 'running') return { ok: true };
+      if (state) {
+        await container.start().catch(() => undefined);
+        const okStart = await this.waitForAddon(container, spec.port, network);
+        return okStart ? { ok: true } : { ok: false, reason: 'db_not_ready' };
+      }
+
+      await this.ensureImage(spec.image); // dockerode ไม่ auto-pull — ดึงเองถ้ายังไม่มี (เช่น mysql:8)
+      const created = await this.docker.createContainer({
+        name: containerName,
+        Image: spec.image,
+        Env: spec.containerEnv(db.password),
+        ...(spec.cmd ? { Cmd: spec.cmd(db.password) } : {}),
+        HostConfig: {
+          Memory: spec.memoryMb * 1024 * 1024,
+          NanoCpus: Math.round(ADDON_CPU * 1e9),
+          SecurityOpt: ['no-new-privileges'],
+          CapDrop: ['ALL'],
+          CapAdd: CONTAINER_CAP_ADD,
+          PidsLimit: CONTAINER_PIDS_LIMIT,
+          ...(spec.readonlyRootfs ? { ReadonlyRootfs: true } : {}),
+          Tmpfs: spec.tmpfs,
+          NetworkMode: network,
+          RestartPolicy: { Name: 'unless-stopped' },
+          LogConfig: { Type: 'json-file', Config: { 'max-size': LOG_MAX_SIZE, 'max-file': LOG_MAX_FILE } },
+          Binds: [`${managedDbVolumeName(db.id)}:${spec.dataPath}`],
+        },
+        Labels: { 'gatekeeper.role': 'managed-db', 'gatekeeper.account': db.accountId || '' },
+      });
+      await created.start();
+      const ready = await this.waitForAddon(created, spec.port, network);
+      return ready ? { ok: true } : { ok: false, reason: 'db_not_ready' };
+    } catch (err: any) {
+      return { ok: false, reason: err?.message || 'provision_failed' };
+    }
+  }
+
+  /** ensure image มีอยู่ในเครื่อง — pull ถ้ายังไม่มี (managed DB บาง engine ยังไม่เคยดึง) */
+  private async ensureImage(image: string): Promise<void> {
+    try {
+      await this.docker.getImage(image).inspect();
+      return;
+    } catch {
+      /* ยังไม่มี — pull ข้างล่าง */
+    }
+    await new Promise<void>((resolve, reject) => {
+      this.docker.pull(image, {}, (err: any, stream: NodeJS.ReadableStream) => {
+        if (err) return reject(err);
+        this.docker.modem.followProgress(stream, (e: any) => (e ? reject(e) : resolve()));
+      });
+    });
+  }
+
+  /** ลบ managed DB: container (force) + named volume (ข้อมูลหายถาวร) */
+  async removeManagedDb(db: Pick<ManagedDatabase, 'id'>): Promise<void> {
+    await this.docker.getContainer(managedDbContainerName(db.id)).remove({ force: true }).catch(() => undefined);
+    await this.docker.getVolume(managedDbVolumeName(db.id)).remove().catch(() => undefined);
   }
 
   /** ลบ container + named volume ของแอปและ addon ทั้งหมด (เรียกตอนลบ app) */

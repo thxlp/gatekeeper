@@ -1,5 +1,6 @@
 import {
   AccountMe,
+  DbConnection,
   DeployOutcome,
   EnvListResponse,
   GitAppDetail,
@@ -9,6 +10,7 @@ import {
   GithubRepo,
   GithubStatus,
   LogSnapshot,
+  ManagedDbSummary,
   NotificationFeed,
   UsageSummary,
 } from '@/types';
@@ -212,4 +214,18 @@ export const api = {
 
   // ผลการใช้งานของ account ตัวเอง (CPU/RAM สดต่อ app + สถิติ deploy) — หน้า Settings
   usage: () => request<UsageSummary>(API_BASE, '/usage'),
+
+  // ===== Managed databases (ต่อ user) — หน้า Databases =====
+  databases: {
+    list: () => request<ManagedDbSummary[]>(API_BASE, '/databases'),
+    create: (body: { name: string; engine: string }) =>
+      request<ManagedDbSummary>(API_BASE, '/databases', { method: 'POST', body: JSON.stringify(body) }),
+    // connection string เต็ม (มี password) — แยก endpoint ไม่ปนกับ list
+    connection: (id: string) => request<DbConnection>(API_BASE, `/databases/${id}/connection`),
+    attach: (id: string, appId: string) =>
+      request<ManagedDbSummary>(API_BASE, `/databases/${id}/attach`, { method: 'POST', body: JSON.stringify({ appId }) }),
+    detach: (id: string, appId: string) =>
+      request<ManagedDbSummary>(API_BASE, `/databases/${id}/detach`, { method: 'POST', body: JSON.stringify({ appId }) }),
+    remove: (id: string) => request<{ ok: boolean }>(API_BASE, `/databases/${id}`, { method: 'DELETE' }),
+  },
 };

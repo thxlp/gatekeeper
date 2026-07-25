@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { LiveModule } from './live/live.module';
 import { UsageModule } from './entitlement/usage.module';
 import { NotificationModule } from './notification/notification.module';
+import { ManagedDbModule } from './database/managed-db.module';
 import { databaseConfig } from './common/database.config';
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { databaseConfig } from './common/database.config';
     LiveModule,
     UsageModule,
     NotificationModule,
+    ManagedDbModule,
   ],
 })
 export class AppModule {}

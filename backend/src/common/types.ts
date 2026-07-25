@@ -67,6 +67,28 @@ export interface EnvVar {
 // backing service ที่ระบบ provision ให้ต่อ app (container พี่น้องบน apps-network เดียวกัน)
 export type AppAddon = 'postgres' | 'redis';
 
+// ===== Managed database (ต่อ user ไม่ผูกกับ app เดียว) =====
+export type DbEngine = 'postgres' | 'redis' | 'mysql';
+
+/**
+ * database ที่ระบบ provision ให้ต่อ "บัญชี" (ไม่ใช่ต่อ app แบบ addon) — อยู่บน tenant network
+ * ของ user ทุกแอปของเจ้าของเดียวกันต่อถึงได้ผ่านชื่อ container (Docker DNS ในวง bridge)
+ * password เข้ารหัสใน store; connection string ประกอบสดตอนใช้งาน (internal เท่านั้น)
+ */
+export interface ManagedDatabase {
+  id: string;
+  accountId: string;
+  name: string;               // ชื่อที่ user ตั้ง (เช่น "prod-db")
+  engine: DbEngine;
+  password: string;           // เข้ารหัสใน store (เหมือน secret อื่น)
+  status?: 'provisioning' | 'running' | 'stopped' | 'error';
+  lastError?: string;
+  // app ที่ attach ไว้ (inject connection url เป็น env ให้อัตโนมัติตอน deploy ถัดไป)
+  attachedAppIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // ข้อมูลการเชื่อมต่อ addon ที่ provision แล้ว — url เป็น secret (มี password) เข้ารหัสใน store
 // inject เข้า app เป็น env var ชื่อ envKey (เช่น DATABASE_URL, REDIS_URL)
 export interface AddonConnection {
