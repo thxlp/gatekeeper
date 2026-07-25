@@ -119,6 +119,23 @@ export interface ReleaseRecord {
 
 // ชื่อ "GitApp" เป็นชื่อเดิมตั้งแต่ตอนที่มีแค่ git-webhook deploy — ตอนนี้ type นี้ครอบคลุมทั้ง
 // git และ manual-upload app แล้ว (ตั้งใจไม่ rename ทั้ง codebase เป็น "App" เพื่อไม่ให้ diff ใหญ่เกินจำเป็น)
+export type GitProvider = 'github' | 'gitlab' | 'bitbucket';
+
+/**
+ * custom domain ที่ผูกกับแอป — ลูกค้า CNAME โดเมนมาที่ live origin ของเรา แล้วเราออก cert
+ * (Let's Encrypt HTTP-01) + สร้าง nginx vhost proxy เข้า container ของแอปนั้น
+ *   pending    — เพิ่งเพิ่ม รอ verify DNS + ออก cert
+ *   active     — cert ออกแล้ว nginx เสิร์ฟอยู่
+ *   error      — verify/ออก cert ไม่ผ่าน (ดู lastError)
+ */
+export interface CustomDomain {
+  domain: string;
+  status: 'pending' | 'active' | 'error';
+  lastError?: string;
+  addedAt: string;
+  activatedAt?: string;
+}
+
 export interface GitApp {
   id: string;
   accountId: string;
@@ -127,6 +144,12 @@ export interface GitApp {
   repoFullName?: string;          // เฉพาะ sourceType==='git': เช่น "octocat/hello-world" — จับคู่กับ payload.repository.full_name
   cloneUrl?: string;              // เฉพาะ sourceType==='git': URL ที่เราเชื่อและใช้ clone จริง (ไม่เชื่อ URL จาก payload กัน SSRF/repo-swap)
   branch?: string;                // เฉพาะ sourceType==='git': deploy เฉพาะ push ที่เข้า branch นี้ (เช่น "main")
+  // provider ของ git host — เลือก parser/verify ของ webhook (default 'github' ถ้าไม่ระบุ = app เก่า)
+  provider?: GitProvider;
+  // เปิด/ปิด auto-deploy ตอน push เข้า branch ที่เฝ้า — undefined/true = เปิด (default), false = ปิด
+  autoDeploy?: boolean;
+  // เวลา auto-deploy จาก push ล่าสุด (ISO) — โชว์สถานะในหน้า Settings ของแอป
+  lastAutoDeployAt?: string;
   webhookSecretEnvVar?: string;   // (แบบ static/ops-managed) ชื่อ env var ที่เก็บ webhook secret จริง
   webhookSecret?: string;         // (แบบ self-service/dynamic) secret ที่ระบบสุ่มให้ตอนลงทะเบียน เก็บตรงใน store
   githubHookId?: number;          // id ของ webhook ฝั่ง GitHub ถ้าเราสร้างให้อัตโนมัติ (ใช้ตามลบตอน user ลบ app)
@@ -151,6 +174,8 @@ export interface GitApp {
   spa?: boolean;
   // ลิงก์ auto-generate ไปที่โดเมนเราเอง (https://<domain>/live/<app-id>)
   liveUrl?: string;
+  // custom domain ที่ผู้ใช้ผูกกับแอปนี้ (CNAME → live origin ของเรา + cert ต่อโดเมน)
+  customDomains?: CustomDomain[];
   pipelineStatus?: DeployStatus;
   pipelineStages?: PipelineStage[];
   // ประวัติ release (ใหม่สุดก่อน) — อ่านแบบ (app.releases ?? []) เสมอ entry เก่าใน store ไม่มี field นี้

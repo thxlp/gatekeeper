@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { Account, EnvVar, GitApp } from '../common/types';
+import { Account, EnvVar, GitApp, GitProvider } from '../common/types';
 import { GitAppStore } from './git-app.store';
 import { RegisterGitAppDto } from './register-git-app.dto';
 import { RegisterGithubAppDto } from './register-github-app.dto';
@@ -17,7 +17,7 @@ import { ManualDeployDto } from './manual-deploy.dto';
 import { AppConfigDto } from './app-config.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { isSafeBranchName, parseGithubRepoUrl } from './git-url.util';
+import { isSafeBranchName, parseGitRepoUrl, parseGithubRepoUrl } from './git-url.util';
 import { extractZipSafely } from './zip-extract.util';
 import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
 import { AuditService } from '../audit/audit.service';
@@ -87,9 +87,11 @@ export class AppsService {
   ) {}
 
   registerGitApp(dto: RegisterGitAppDto, account: Account) {
-    const parsed = parseGithubRepoUrl(dto.repoUrl);
+    const parsed = parseGitRepoUrl(dto.repoUrl);
     if (!parsed) {
-      throw new BadRequestException('repoUrl ต้องเป็นลิงก์ในรูปแบบ https://github.com/<owner>/<repo> เท่านั้น');
+      throw new BadRequestException(
+        'repoUrl ต้องเป็นลิงก์ https ของ github.com / gitlab.com / bitbucket.org ในรูปแบบ <owner>/<repo>',
+      );
     }
 
     const branch = dto.branch?.trim() || DEFAULT_BRANCH;
@@ -111,6 +113,7 @@ export class AppsService {
       id,
       accountId: account.id,
       sourceType: 'git',
+      provider: parsed.provider,
       repoFullName: parsed.repoFullName,
       cloneUrl: parsed.cloneUrl,
       branch,
@@ -422,7 +425,18 @@ export class AppsService {
       branch: app.branch,
       runtime: app.runtime,
       enabled: app.enabled,
-      webhookUrl: (app.sourceType ?? 'git') === 'git' ? PUBLIC_WEBHOOK_URL : undefined,
+      // ===== auto-deploy / webhook setup (เฉพาะ git app, owner-only) =====
+      provider: (app.provider || 'github') as GitProvider,
+      // webhook URL ตาม provider (เปลี่ยน suffix /github → /gitlab|/bitbucket)
+      webhookUrl:
+        (app.sourceType ?? 'git') === 'git'
+          ? PUBLIC_WEBHOOK_URL.replace(/\/github$/, `/${app.provider || 'github'}`)
+          : undefined,
+      // secret สำหรับ setup webhook เอง (จำเป็นตอนตั้งค่าใน repo) — เฉพาะ self-service ที่ระบบสุ่มให้
+      webhookSecret: app.webhookSecret,
+      autoDeploy: app.autoDeploy !== false, // undefined = เปิด (default)
+      lastAutoDeployAt: app.lastAutoDeployAt,
+      customDomains: app.customDomains ?? [],
       dashboardUrl: dashboardUrl(app.id),
       // คำนวณสดทุกครั้งแทนอ่านค่าที่ persist ไว้ตอนสร้าง — กัน URL ค้างชี้โดเมนเก่าถ้า
       // PUBLIC_LIVE_URL เปลี่ยนหลังจาก app ถูกสร้างไปแล้ว (ดู buildLiveUrl ใน pipeline.util.ts)
@@ -456,6 +470,7 @@ export class AppsService {
     if (dto.runtime !== undefined) app.runtime = dto.runtime;
     if (dto.port !== undefined) app.port = dto.port;
     if (dto.enabled !== undefined) app.enabled = dto.enabled;
+    if (dto.autoDeploy !== undefined) app.autoDeploy = dto.autoDeploy;
     this.applyConfig(app, dto);
     this.quota.assertWithinQuota(app);
     app.updatedAt = new Date().toISOString();

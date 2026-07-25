@@ -6,16 +6,20 @@ import TopBar from '@/components/shell/TopBar';
 import DeploySuccessArt from '@/components/shell/DeploySuccessArt';
 import LogsTab from '@/components/shell/LogsTab';
 import VariablesTab from '@/components/shell/VariablesTab';
+import DeploySettingsTab from '@/components/shell/DeploySettingsTab';
+import DomainsTab from '@/components/shell/DomainsTab';
 import { api } from '@/lib/api';
 import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
 
 const POLL_MS = 1500;
 
-type TabKey = 'overview' | 'logs' | 'variables';
+type TabKey = 'overview' | 'logs' | 'variables' | 'deploy' | 'domains';
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'overview', label: 'Overview', icon: 'ph-git-branch' },
   { key: 'logs', label: 'Logs', icon: 'ph-terminal-window' },
   { key: 'variables', label: 'Variables', icon: 'ph-key' },
+  { key: 'deploy', label: 'Deploy', icon: 'ph-arrows-clockwise' },
+  { key: 'domains', label: 'Domains', icon: 'ph-globe' },
 ];
 
 function StepCircle({ stage }: { stage: PipelineStage }) {
@@ -60,7 +64,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
   // seed แท็บจาก ?tab= (deep-link) ครั้งแรกฝั่ง client
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'logs' || t === 'variables') setTab(t);
+    if (t === 'logs' || t === 'variables' || t === 'deploy' || t === 'domains') setTab(t);
   }, []);
 
   const changeTab = (t: TabKey) => {
@@ -160,12 +164,12 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             <span className="font-mono text-[13px] text-muted-3">({params.id})</span>
           </div>
           {/* tab bar — แยก Overview / Logs / Variables ให้ชัด ไม่รวมปุ่มเดียว */}
-          <div className="mb-5 flex gap-1 border-b border-border-alt">
+          <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border-alt">
             {TABS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => changeTab(t.key)}
-                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-[14px] font-semibold ${
+                className={`-mb-px flex flex-none items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2 text-[14px] font-semibold ${
                   tab === t.key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
                 }`}
               >
@@ -183,6 +187,18 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
 
           {tab === 'logs' && <LogsTab appId={params.id} />}
           {tab === 'variables' && <VariablesTab appId={params.id} onRequestRedeploy={handleRedeploy} />}
+          {tab === 'deploy' &&
+            (detail ? (
+              <DeploySettingsTab appId={params.id} detail={detail} />
+            ) : (
+              <p className="text-[14.5px] text-muted">กำลังโหลด…</p>
+            ))}
+          {tab === 'domains' && (
+            <DomainsTab
+              appId={params.id}
+              liveOriginHost={detail?.liveUrl ? new URL(detail.liveUrl).host : 'live.studiodup.com'}
+            />
+          )}
 
           {tab === 'overview' && (
             <>

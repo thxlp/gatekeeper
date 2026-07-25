@@ -1,5 +1,6 @@
 import {
   AccountMe,
+  CustomDomain,
   DbConnection,
   DeployOutcome,
   EnvListResponse,
@@ -175,8 +176,21 @@ export const api = {
   deployManual: (formData: FormData) =>
     request<DeployOutcome>(API_BASE, '/apps/manual/deploy', { method: 'POST', body: formData }),
 
-  updateGitApp: (id: string, body: { branch?: string; runtime?: string; port?: number; enabled?: boolean } & AppConfigBody) =>
-    request<GitAppSummary>(API_BASE, `/apps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateGitApp: (
+    id: string,
+    body: { branch?: string; runtime?: string; port?: number; enabled?: boolean; autoDeploy?: boolean } & AppConfigBody,
+  ) => request<GitAppSummary>(API_BASE, `/apps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // ===== custom domains ต่อแอป (แท็บ Domains) =====
+  domains: {
+    list: (appId: string) => request<CustomDomain[]>(API_BASE, `/apps/${appId}/domains`),
+    add: (appId: string, domain: string) =>
+      request<CustomDomain[]>(API_BASE, `/apps/${appId}/domains`, { method: 'POST', body: JSON.stringify({ domain }) }),
+    verify: (appId: string, domain: string) =>
+      request<CustomDomain[]>(API_BASE, `/apps/${appId}/domains/${encodeURIComponent(domain)}/verify`, { method: 'POST' }),
+    remove: (appId: string, domain: string) =>
+      request<CustomDomain[]>(API_BASE, `/apps/${appId}/domains/${encodeURIComponent(domain)}`, { method: 'DELETE' }),
+  },
 
   deleteGitApp: (id: string) =>
     request<{ ok: boolean }>(API_BASE, `/apps/${id}`, { method: 'DELETE' }),

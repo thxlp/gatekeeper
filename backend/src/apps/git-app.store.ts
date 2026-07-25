@@ -95,6 +95,14 @@ export class GitAppStore {
     return this.readAll().find((a) => a.enabled && a.repoFullName === repoFullName);
   }
 
+  // หาแอปจาก custom domain ที่ active แล้ว (ใช้ตอน proxy request จาก vhost ของโดเมนนั้น)
+  findByCustomDomain(domain: string): GitApp | undefined {
+    const d = domain.toLowerCase();
+    return this.readAll().find(
+      (a) => a.enabled && (a.customDomains || []).some((cd) => cd.status === 'active' && cd.domain === d),
+    );
+  }
+
   save(app: GitApp): GitApp {
     const all = this.readAll();
     const idx = all.findIndex((a) => a.id === app.id);

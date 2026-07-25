@@ -20,4 +20,9 @@ export class UpdateGitAppDto extends AppConfigDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+
+  // เปิด/ปิด auto-deploy ตอน push เข้า branch ที่เฝ้า
+  @IsOptional()
+  @IsBoolean()
+  autoDeploy?: boolean;
 }

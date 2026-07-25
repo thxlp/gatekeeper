@@ -76,9 +76,27 @@ export interface ReleaseSummary {
 
 // รายละเอียดเต็มของ app เดียว (GET /apps/:id) — ต่างจาก GitAppSummary ตรงมี pipelineStages
 // (ทั้ง 5 stage) ด้วย ใช้สำหรับ poll ระหว่าง deploy กำลังวิ่งอยู่
+export type GitProvider = 'github' | 'gitlab' | 'bitbucket';
+
+// custom domain ที่ผูกกับแอป (แท็บ Domains)
+export interface CustomDomain {
+  domain: string;
+  status: 'pending' | 'active' | 'error';
+  lastError?: string;
+  addedAt: string;
+  activatedAt?: string;
+}
+
 export interface GitAppDetail extends GitAppSummary {
   pipelineStages?: PipelineStage[];
   releases?: ReleaseSummary[];
+  // auto-deploy / webhook setup (owner-only)
+  provider?: GitProvider;
+  webhookUrl?: string;
+  webhookSecret?: string;
+  autoDeploy?: boolean;
+  lastAutoDeployAt?: string;
+  customDomains?: CustomDomain[];
 }
 
 // env var หนึ่งตัวในหน้า Variables — backend ไม่เคยส่งค่าจริงกลับ (เป็นความลับ) มีแค่ชื่อ+เวลาแก้
