@@ -9,9 +9,9 @@ const POLL_MS = 30_000;
 
 // สี dot ตามชนิดเหตุการณ์ — โทนเดียวกับ badge ในหน้า pipeline
 function dotClass(type: string): string {
-  if (type === 'deploy_success' || type === 'rollback_success') return 'bg-[#73A98C]';
-  if (type === 'deploy_failed' || type === 'deploy_blocked' || type === 'rollback_failed') return 'bg-[#D66D52]';
-  return 'bg-[#C9C4B8]';
+  if (type === 'deploy_success' || type === 'rollback_success') return 'bg-allow-dot';
+  if (type === 'deploy_failed' || type === 'deploy_blocked' || type === 'rollback_failed') return 'bg-danger-dot';
+  return 'bg-muted-3';
 }
 
 function timeLabel(iso: string): string {
@@ -79,7 +79,7 @@ export default function NotificationsBell() {
       >
         <i className="ph ph-bell text-[17px]" />
         {(feed?.unread ?? 0) > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[#D66D52] px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-danger-dot px-1 text-[12px] font-bold text-white">
             {feed!.unread > 9 ? '9+' : feed!.unread}
           </span>
         )}
@@ -87,9 +87,9 @@ export default function NotificationsBell() {
 
       {open && (
         <div className="absolute right-0 top-11 z-50 w-[320px] rounded-lg border border-border bg-surface shadow-lg">
-          <div className="border-b border-border px-4 py-2.5 text-[12.5px] font-bold">การแจ้งเตือน</div>
+          <div className="border-b border-border px-4 py-2.5 text-[14.5px] font-bold">การแจ้งเตือน</div>
           {items.length === 0 && (
-            <p className="px-4 py-5 text-center text-[12px] text-muted">ยังไม่มีการแจ้งเตือน</p>
+            <p className="px-4 py-5 text-center text-[14px] text-muted">ยังไม่มีการแจ้งเตือน</p>
           )}
           <div className="max-h-[360px] overflow-auto">
             {items.map((n) => {
@@ -98,11 +98,11 @@ export default function NotificationsBell() {
                 <div className="flex gap-2.5 px-4 py-2.5 hover:bg-page-alt">
                   <span className={`mt-[5px] inline-block h-[7px] w-[7px] shrink-0 rounded-full ${dotClass(n.type)}`} />
                   <div className="min-w-0">
-                    <div className={`truncate text-[12px] ${n.read ? 'font-medium text-ink-soft' : 'font-bold'}`}>
+                    <div className={`truncate text-[14px] ${n.read ? 'font-medium text-ink-soft' : 'font-bold'}`}>
                       {n.title}
                     </div>
-                    {n.body && <div className="truncate text-[11px] text-muted">{n.body}</div>}
-                    <div className="mt-px text-[10.5px] text-muted-3">{timeLabel(n.createdAt)}</div>
+                    {n.body && <div className="truncate text-[13px] text-muted">{n.body}</div>}
+                    <div className="mt-px text-[12.5px] text-muted-3">{timeLabel(n.createdAt)}</div>
                   </div>
                 </div>
               );

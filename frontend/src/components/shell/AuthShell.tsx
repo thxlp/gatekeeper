@@ -44,7 +44,7 @@ export function Field({
 }) {
   return (
     <div className="mb-4">
-      <div className="mb-1.5 text-[13px] font-medium">{label}</div>
+      <div className="mb-1.5 text-[15px] font-medium">{label}</div>
       <input
         type={type}
         name={name}
@@ -55,7 +55,7 @@ export function Field({
           error ? 'border-danger-text' : 'border-input-border'
         }`}
       />
-      {error && <div className="mt-1 text-[11px] text-danger-text">{error}</div>}
+      {error && <div className="mt-1 text-[13px] text-danger-text">{error}</div>}
     </div>
   );
 }
@@ -78,7 +78,7 @@ export function PrimaryButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-[11px] text-[14.5px] font-medium text-white hover:bg-primary-hover disabled:opacity-60 ${className}`}
+      className={`flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-[11px] text-[15.5px] font-medium text-white hover:bg-primary-hover disabled:opacity-60 ${className}`}
     >
       {children}
     </button>

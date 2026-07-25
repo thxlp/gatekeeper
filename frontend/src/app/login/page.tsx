@@ -139,14 +139,14 @@ export default function LoginPage() {
     return (
       <AuthShell>
         <div className="mb-2 flex items-center text-xl font-semibold">ยืนยันตัวตน (2FA)</div>
-        <p className="mb-5 text-[12.5px] text-muted">
+        <p className="mb-5 text-[14.5px] text-muted">
           ส่งรหัส 6 หลักไปที่อีเมลของคุณแล้ว — รหัสหมดอายุใน 10 นาที
         </p>
 
         <Field label="รหัสจากอีเมล" type="text" placeholder="000000" value={otp} onChange={setOtp} />
 
         {error && (
-          <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12.5px] text-danger-text">
+          <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
             {error}
           </div>
         )}
@@ -155,7 +155,7 @@ export default function LoginPage() {
           {loading ? 'กำลังตรวจสอบ…' : 'ยืนยัน'} <i className="ph ph-arrow-right" />
         </PrimaryButton>
 
-        <div className="mt-4 flex justify-between text-[13px]">
+        <div className="mt-4 flex justify-between text-[15px]">
           <button
             onClick={resendOtp}
             disabled={resendLeft > 0}
@@ -198,7 +198,7 @@ export default function LoginPage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12.5px] text-danger-text">
+        <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
           {error}
         </div>
       )}
@@ -206,7 +206,7 @@ export default function LoginPage() {
       <PrimaryButton className="mt-2" onClick={submit} disabled={loading}>
         {loading ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'} <i className="ph ph-arrow-right" />
       </PrimaryButton>
-      <div className="mt-4 flex justify-between text-[13px]">
+      <div className="mt-4 flex justify-between text-[15px]">
         <Link href="/forgot-password" className="font-medium text-primary">
           ลืมรหัสผ่าน?
         </Link>

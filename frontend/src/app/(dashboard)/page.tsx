@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
-import { Pill } from '@/components/ui/primitives';
+import { Pill, Skeleton } from '@/components/ui/primitives';
 import CopyField from '@/components/ui/CopyField';
 import { api } from '@/lib/api';
 import { GitAppSummary } from '@/types';
@@ -34,7 +34,7 @@ const rowTintByKind: Record<StatusKind, string> = {
 const dotByKind: Record<StatusKind, string> = {
   allow: 'bg-allow-dot',
   primary: 'bg-primary',
-  muted: 'bg-[#B7B2A7]',
+  muted: 'bg-muted-3',
   danger: 'bg-danger-dot',
 };
 
@@ -71,6 +71,22 @@ function DashboardPageInner() {
     return () => clearInterval(t);
   }, [apps, refresh]);
 
+  // browser tab title: โปรเจกต์ล่าสุด (เรียงตาม updatedAt/createdAt) แทนคำว่า
+  // "Gatekeeper" คงที่ — ถ้ายังไม่มีโปรเจกต์เลยให้ตั้งเป็น "Deploy" ชวนกดปุ่ม deploy บนหน้า
+  useEffect(() => {
+    if (!apps) return;
+    if (apps.length === 0) {
+      document.title = 'Deploy';
+      return;
+    }
+    const latest = [...apps].sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt || 0).getTime() -
+        new Date(a.updatedAt || a.createdAt || 0).getTime(),
+    )[0];
+    document.title = latest.projectName || latest.repoFullName || latest.id;
+  }, [apps]);
+
   const live = apps?.filter((a) => a.pipelineStatus === 'success').length ?? 0;
   const deploying = apps?.filter((a) => a.pipelineStatus === 'deploying').length ?? 0;
   const failed = apps?.filter((a) => a.pipelineStatus === 'failed').length ?? 0;
@@ -89,7 +105,7 @@ function DashboardPageInner() {
       <div className="flex items-end justify-between px-6 pt-5">
         <div>
           <div className="text-[21px] font-bold tracking-[-.3px]">Projects</div>
-          <div className="mt-[3px] text-[12.5px] text-muted">
+          <div className="mt-[3px] text-[14.5px] text-muted">
             ทุก deploy วิ่งผ่าน security pipeline ก่อนขึ้น live
           </div>
         </div>
@@ -103,7 +119,7 @@ function DashboardPageInner() {
             </div>
             <div>
               <div className="text-[17px] font-bold leading-none">{s.value}</div>
-              <div className="mt-1 text-[11px] text-muted">{s.label}</div>
+              <div className="mt-1 text-[13px] text-muted">{s.label}</div>
             </div>
           </div>
         ))}
@@ -111,12 +127,12 @@ function DashboardPageInner() {
 
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-1.5">
         {error && (
-          <div className="mb-3 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[12.5px] text-danger-text">
+          <div className="mb-3 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
             {error}
           </div>
         )}
 
-        {!apps && !error && <p className="text-[12.5px] text-muted">กำลังโหลด…</p>}
+        {!apps && !error && <ProjectsSkeleton />}
 
         {apps && apps.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
@@ -129,7 +145,7 @@ function DashboardPageInner() {
             </div>
             <Link
               href="/deploy"
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-white hover:bg-primary-hover"
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[15px] font-semibold text-white hover:bg-primary-hover"
             >
               <i className="ph ph-plus" /> New Project
             </Link>
@@ -141,7 +157,7 @@ function DashboardPageInner() {
             {/* table (desktop) */}
             <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
               <div
-                className="grid border-b border-[#EFEDE6] px-[18px] py-2.5 text-[10.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
+                className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
                 style={{ gridTemplateColumns: COLS }}
               >
                 <div>App</div>
@@ -162,18 +178,18 @@ function DashboardPageInner() {
                 return (
                   <div key={app.id}>
                     <div
-                      className={`grid items-center px-[18px] py-[13px] text-[12.5px] ${
-                        i < apps.length - 1 && !editing ? 'border-b border-[#F4F2EC]' : ''
+                      className={`grid items-center px-[18px] py-[13px] text-[14.5px] ${
+                        i < apps.length - 1 && !editing ? 'border-b border-border' : ''
                       } ${rowTintByKind[meta.kind]}`}
                       style={{ gridTemplateColumns: COLS }}
                     >
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span className={`h-2 w-2 flex-none rounded-full ${dotByKind[meta.kind]}`} />
                         <div className="min-w-0">
-                          <Link href={`/apps/${app.id}`} className="text-[13px] font-semibold text-ink hover:text-primary">
+                          <Link href={`/apps/${app.id}`} className="text-[15px] font-semibold text-ink hover:text-primary">
                             {name}
                           </Link>
-                          <div className="truncate font-mono text-[11px] text-muted-3">{subline}</div>
+                          <div className="truncate font-mono text-[13px] text-muted-3">{subline}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 text-ink-soft">
@@ -193,7 +209,7 @@ function DashboardPageInner() {
                           {meta.label}
                         </Pill>
                       </div>
-                      <div className="text-[11.5px] text-muted">
+                      <div className="text-[13.5px] text-muted">
                         {app.updatedAt ? new Date(app.updatedAt).toLocaleString('th-TH') : '—'}
                       </div>
                       <RowActions
@@ -203,7 +219,7 @@ function DashboardPageInner() {
                       />
                     </div>
                     {editing && (
-                      <div className={`px-[18px] pb-4 ${i < apps.length - 1 ? 'border-b border-[#F4F2EC]' : ''}`}>
+                      <div className={`px-[18px] pb-4 ${i < apps.length - 1 ? 'border-b border-border' : ''}`}>
                         <EditRow app={app} onCancel={() => setEditingId(null)} onSaved={() => { setEditingId(null); refresh(); }} />
                       </div>
                     )}
@@ -225,8 +241,8 @@ function DashboardPageInner() {
                   >
                     <span className={`h-2 w-2 flex-none rounded-full ${dotByKind[meta.kind]}`} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-semibold">{name}</div>
-                      <div className="truncate font-mono text-[11px] text-muted-3">
+                      <div className="text-[15px] font-semibold">{name}</div>
+                      <div className="truncate font-mono text-[13px] text-muted-3">
                         {app.repoFullName || app.projectName}
                       </div>
                     </div>
@@ -240,6 +256,63 @@ function DashboardPageInner() {
             </div>
           </>
         )}
+      </div>
+    </>
+  );
+}
+
+// โครง shimmer ตอนโหลดรายการ — ทรงตรงกับตาราง desktop + การ์ด mobile (กัน layout shift)
+function ProjectsSkeleton() {
+  const rows = Array.from({ length: 4 });
+  return (
+    <>
+      <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
+        <div
+          className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
+          style={{ gridTemplateColumns: COLS }}
+        >
+          <div>App</div>
+          <div>Source</div>
+          <div>Runtime</div>
+          <div>Status</div>
+          <div>Last updated</div>
+          <div className="text-right">Actions</div>
+        </div>
+        {rows.map((_, i) => (
+          <div
+            key={i}
+            className={`grid items-center px-[18px] py-[15px] ${i < rows.length - 1 ? 'border-b border-border' : ''}`}
+            style={{ gridTemplateColumns: COLS }}
+          >
+            <div className="flex items-center gap-2.5">
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <div className="flex flex-col gap-1.5">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-2.5 w-40" />
+              </div>
+            </div>
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-3.5 w-14" />
+            <Skeleton className="h-5 w-16 rounded-[5px]" />
+            <Skeleton className="h-3.5 w-28" />
+            <div className="flex justify-end">
+              <Skeleton className="h-7 w-16 rounded-md" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-2.5 sm:hidden">
+        {rows.map((_, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-[10px] border border-border bg-surface p-3">
+            <Skeleton className="h-2 w-2 rounded-full" />
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-2.5 w-40" />
+            </div>
+            <Skeleton className="h-5 w-14 rounded-[5px]" />
+          </div>
+        ))}
       </div>
     </>
   );
@@ -340,7 +413,7 @@ function EditRow({
           <input
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
         <div>
@@ -348,14 +421,14 @@ function EditRow({
           <select
             value={runtime}
             onChange={(e) => setRuntime(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             {RUNTIMES.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
         </div>
-        <label className="flex items-center gap-2 pt-5 text-[12.5px] text-ink-soft">
+        <label className="flex items-center gap-2 pt-5 text-[14.5px] text-ink-soft">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
           เปิดใช้งาน (auto-deploy)
         </label>
@@ -364,19 +437,19 @@ function EditRow({
       {app.webhookUrl && <div className="mb-3"><CopyField label="Webhook URL" value={app.webhookUrl} /></div>}
 
       {error && (
-        <div className="mb-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12px] text-danger-text">
+        <div className="mb-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14px] text-danger-text">
           {error}
         </div>
       )}
 
       <div className="flex gap-2">
-        <button onClick={onCancel} className="flex-1 rounded-lg border border-border bg-surface py-2 text-[12.5px] font-medium text-ink-soft">
+        <button onClick={onCancel} className="flex-1 rounded-lg border border-border bg-surface py-2 text-[14.5px] font-medium text-ink-soft">
           Cancel
         </button>
         <button
           onClick={save}
           disabled={loading}
-          className="flex-1 rounded-lg bg-primary py-2 text-[12.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+          className="flex-1 rounded-lg bg-primary py-2 text-[14.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {loading ? 'กำลังบันทึก…' : 'Save'}
         </button>

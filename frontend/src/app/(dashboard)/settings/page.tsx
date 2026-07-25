@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
-import { Card, CardHeader } from '@/components/ui/primitives';
+import { ThemeSegmentedControl } from '@/components/shell/ThemeToggle';
+import { Card, CardHeader, Skeleton } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
 import { AccountMe, GithubStatus, UsageSummary } from '@/types';
 
@@ -12,7 +13,7 @@ function StatTile({ label, value, tone }: { label: string; value: number; tone?:
   const valueColor = tone === 'allow' ? 'text-allow-text' : tone === 'danger' ? 'text-danger-text' : 'text-ink';
   return (
     <div className="flex-1 rounded-[9px] border border-border bg-page-alt px-3 py-2.5">
-      <div className="text-[11px] text-muted">{label}</div>
+      <div className="text-[13px] text-muted">{label}</div>
       <div className={`text-[19px] font-bold tabular-nums ${valueColor}`}>{value}</div>
     </div>
   );
@@ -27,13 +28,52 @@ function MemBar({ usedMb, limitMb }: { usedMb: number; limitMb: number }) {
     <div className="flex items-center gap-2">
       <div className="h-[6px] w-[110px] overflow-hidden rounded-full bg-page-alt">
         <div
-          className={`h-full rounded-full ${critical ? 'bg-[rgba(214,109,82,.75)]' : 'bg-[rgba(60,56,48,.45)]'}`}
+          className={`h-full rounded-full ${critical ? 'bg-[rgba(214,109,82,.75)]' : 'bg-[rgba(60,56,48,.45)] dark:bg-[rgba(201,196,184,.45)]'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[11px] tabular-nums text-muted">
+      <span className="text-[13px] tabular-nums text-muted">
         {usedMb}/{limitMb} MB
       </span>
+    </div>
+  );
+}
+
+// โครง shimmer ตอนโหลด usage — 3 stat tiles + แถบโควต้า + แถว resource ต่อแอป
+function UsageSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2.5">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex-1 rounded-[9px] border border-border bg-page-alt px-3 py-2.5">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-5 w-8" />
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-56" />
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-3.5 w-10" />
+          <Skeleton className="h-[6px] w-[110px] rounded-full" />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-3.5 w-10" />
+          <Skeleton className="h-3.5 w-24" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2.5">
+        <Skeleton className="h-3 w-48" />
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-[7px] w-[7px] rounded-full" />
+              <Skeleton className="h-3.5 w-28" />
+            </div>
+            <Skeleton className="h-3.5 w-32" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -64,8 +104,8 @@ function UsageCard() {
   return (
     <Card>
       <CardHeader title="Usage" subtitle="ผลการใช้งานของบัญชีนี้ · CPU/RAM สดต่อแอป และสถิติ deploy" />
-      {!usage && !failed && <p className="text-[12.5px] text-muted">กำลังโหลด…</p>}
-      {failed && !usage && <p className="text-[12.5px] text-danger-text">โหลดข้อมูลการใช้งานไม่สำเร็จ</p>}
+      {!usage && !failed && <UsageSkeleton />}
+      {failed && !usage && <p className="text-[14.5px] text-danger-text">โหลดข้อมูลการใช้งานไม่สำเร็จ</p>}
       {usage && (
         <div className="flex flex-col gap-4">
           <div className="flex gap-2.5">
@@ -76,10 +116,10 @@ function UsageCard() {
 
           {usage.deploys.months.length > 0 && (
             <div>
-              <div className="mb-1.5 text-[11.5px] text-muted">รายเดือน (ล่าสุดก่อน)</div>
+              <div className="mb-1.5 text-[13.5px] text-muted">รายเดือน (ล่าสุดก่อน)</div>
               <div className="flex flex-col gap-1">
                 {usage.deploys.months.map((m) => (
-                  <div key={m.month} className="flex items-center justify-between text-[12px]">
+                  <div key={m.month} className="flex items-center justify-between text-[14px]">
                     <span className="tabular-nums text-ink-soft">{m.month}</span>
                     <span className="tabular-nums text-muted">
                       {m.total} ครั้ง · ผ่าน {m.allowed} · บล็อก {m.blocked}
@@ -91,15 +131,15 @@ function UsageCard() {
           )}
 
           <div>
-            <div className="mb-1.5 text-[11.5px] text-muted">โควต้าทรัพยากรของบัญชี (ผลรวมเพดานทุกแอป+addon)</div>
+            <div className="mb-1.5 text-[13.5px] text-muted">โควต้าทรัพยากรของบัญชี (ผลรวมเพดานทุกแอป+addon)</div>
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] text-ink-soft">RAM</span>
+                <span className="text-[14px] text-ink-soft">RAM</span>
                 <MemBar usedMb={usage.quota.memoryUsedMb} limitMb={usage.quota.memoryQuotaMb} />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] text-ink-soft">CPU</span>
-                <span className="text-[11px] tabular-nums text-muted">
+                <span className="text-[14px] text-ink-soft">CPU</span>
+                <span className="text-[13px] tabular-nums text-muted">
                   {usage.quota.cpuUsed}/{usage.quota.cpuQuota} cores
                 </span>
               </div>
@@ -107,25 +147,25 @@ function UsageCard() {
           </div>
 
           <div>
-            <div className="mb-1.5 text-[11.5px] text-muted">Resource ต่อแอป (สดจาก container)</div>
-            {usage.apps.length === 0 && <p className="text-[12.5px] text-muted">ยังไม่มีแอปที่ลงทะเบียนไว้</p>}
+            <div className="mb-1.5 text-[13.5px] text-muted">Resource ต่อแอป (สดจาก container)</div>
+            {usage.apps.length === 0 && <p className="text-[14.5px] text-muted">ยังไม่มีแอปที่ลงทะเบียนไว้</p>}
             <div className="flex flex-col gap-2">
               {usage.apps.map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <span
-                      className={`inline-block h-[7px] w-[7px] shrink-0 rounded-full ${a.running ? 'bg-[#73A98C]' : 'bg-[#C9C4B8]'}`}
+                      className={`inline-block h-[7px] w-[7px] shrink-0 rounded-full ${a.running ? 'bg-allow-dot' : 'bg-muted-3'}`}
                     />
-                    <span className="truncate text-[12.5px] font-semibold">{a.name}</span>
-                    <span className="shrink-0 text-[10.5px] text-muted">{a.running ? 'running' : a.cpuPercent === null ? 'ยังไม่ deploy' : 'stopped'}</span>
+                    <span className="truncate text-[14.5px] font-semibold">{a.name}</span>
+                    <span className="shrink-0 text-[12.5px] text-muted">{a.running ? 'running' : a.cpuPercent === null ? 'ยังไม่ deploy' : 'stopped'}</span>
                   </div>
                   {a.running && a.memUsedMb !== null && a.memLimitMb !== null ? (
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-[11px] tabular-nums text-muted">CPU {a.cpuPercent}%</span>
+                      <span className="text-[13px] tabular-nums text-muted">CPU {a.cpuPercent}%</span>
                       <MemBar usedMb={a.memUsedMb} limitMb={a.memLimitMb} />
                     </div>
                   ) : (
-                    <span className="text-[11px] text-muted">—</span>
+                    <span className="text-[13px] text-muted">—</span>
                   )}
                 </div>
               ))}
@@ -156,9 +196,9 @@ function ToggleRow({
   return (
     <div className={`flex items-center justify-between ${disabled ? 'opacity-60' : ''}`}>
       <div>
-        <div className="text-[12.5px] font-semibold">{title}</div>
-        <div className="text-[11px] text-muted">{desc}</div>
-        {hint && <div className="mt-0.5 text-[10.5px] text-danger-text">{hint}</div>}
+        <div className="text-[14.5px] font-semibold">{title}</div>
+        <div className="text-[13px] text-muted">{desc}</div>
+        {hint && <div className="mt-0.5 text-[12.5px] text-danger-text">{hint}</div>}
       </div>
       <button
         role="switch"
@@ -166,7 +206,7 @@ function ToggleRow({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`relative h-[22px] w-[40px] flex-none rounded-full transition-colors ${
-          checked ? 'bg-primary' : 'bg-[#D8D3C8]'
+          checked ? 'bg-primary' : 'bg-[#D8D3C8] dark:bg-[#46433A]'
         } ${disabled ? 'cursor-not-allowed' : ''}`}
       >
         <span
@@ -228,21 +268,21 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
       <CardHeader title="Security" subtitle="เพิ่มระดับความปลอดภัยด้วยการยืนยันตัวตนสองขั้นตอน" />
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 text-[12.5px] font-semibold">
+          <div className="flex items-center gap-2 text-[14.5px] font-semibold">
             Two-Factor Authentication (2FA)
             {enabled && (
-              <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[10px] font-bold text-allow-text">
+              <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[12px] font-bold text-allow-text">
                 เปิดอยู่
               </span>
             )}
           </div>
-          <div className="text-[11px] text-muted">
+          <div className="text-[13px] text-muted">
             {enabled
               ? 'ทุกครั้งที่ login ต้องกรอกรหัสที่ส่งไปที่อีเมลด้วย'
               : 'ป้องกันการเข้าถึงที่ไม่ได้รับอนุญาต แม้รหัสผ่านจะถูกขโมย — ยืนยันด้วยรหัสทางอีเมล'}
           </div>
           {me && !me.mailConfigured && (
-            <div className="mt-0.5 text-[10.5px] text-danger-text">ยังไม่ได้ตั้งค่า SMTP บนเซิร์ฟเวอร์ — ใช้ 2FA ไม่ได้</div>
+            <div className="mt-0.5 text-[12.5px] text-danger-text">ยังไม่ได้ตั้งค่า SMTP บนเซิร์ฟเวอร์ — ใช้ 2FA ไม่ได้</div>
           )}
         </div>
         {!codeSent && (
@@ -261,8 +301,8 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
       </div>
 
       {codeSent && (
-        <div className="mt-3 border-t border-[#F0EDE6] pt-3">
-          <div className="mb-1.5 text-[11.5px] text-muted">
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="mb-1.5 text-[13.5px] text-muted">
             ส่งรหัส 6 หลักไปที่อีเมลของคุณแล้ว — กรอกเพื่อยืนยัน{enabled ? 'การปิด' : 'การเปิด'} 2FA
           </div>
           <div className="flex items-center gap-2">
@@ -270,7 +310,7 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="000000"
-              className="w-[120px] rounded-[7px] border border-border bg-page-alt px-3 py-2 font-mono text-[13px] tabular-nums outline-none focus:border-primary"
+              className="w-[120px] rounded-[7px] border border-border bg-page-alt px-3 py-2 font-mono text-[15px] tabular-nums outline-none focus:border-primary"
             />
             <button
               onClick={confirmCode}
@@ -293,7 +333,7 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
       )}
 
       {error && (
-        <div className="mt-2.5 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12px] text-danger-text">
+        <div className="mt-2.5 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14px] text-danger-text">
           {error}
         </div>
       )}
@@ -301,14 +341,26 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
   );
 }
 
+function ThemeRow() {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <div className="text-[14.5px] font-semibold">Theme</div>
+        <div className="text-[13px] text-muted">เลือกโหมดสี หรือให้ตามระบบปฏิบัติการ</div>
+      </div>
+      <ThemeSegmentedControl />
+    </div>
+  );
+}
+
 function PrefRow({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="flex items-center justify-between opacity-60">
       <div>
-        <div className="text-[12.5px] font-semibold">{title}</div>
-        <div className="text-[11px] text-muted">{desc}</div>
+        <div className="text-[14.5px] font-semibold">{title}</div>
+        <div className="text-[13px] text-muted">{desc}</div>
       </div>
-      <span className="rounded-full border border-border bg-page-alt px-2 py-0.5 text-[10px] font-semibold text-muted">
+      <span className="rounded-full border border-border bg-page-alt px-2 py-0.5 text-[12px] font-semibold text-muted">
         เร็วๆ นี้
       </span>
     </div>
@@ -352,6 +404,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader title="Preferences" subtitle="ตั้งค่าการแสดงผลและพฤติกรรมของระบบ" />
             <div className="flex flex-col gap-4">
+              <ThemeRow />
               <ToggleRow
                 title="Email Notifications"
                 desc="รับการแจ้งเตือนทางอีเมลเมื่อ pipeline รันล้มเหลว หรือถูกบล็อก (in-app แจ้งเสมอ)"
@@ -371,14 +424,14 @@ export default function SettingsPage() {
               subtitle="รายละเอียดแพ็กเกจที่คุณกำลังใช้งาน"
               divider={false}
               right={
-                <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.12)] px-3 py-[5px] text-[11.5px] font-bold text-allow-text">
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.12)] px-3 py-[5px] text-[13.5px] font-bold text-allow-text">
                   <i className="ph-fill ph-star" /> {plan.toUpperCase()}
                 </span>
               }
             />
-            <div className="mt-4 border-t border-[#F0EDE6] pt-3.5">
-              <div className="mb-[7px] text-[11.5px] text-muted">Allowed Runtimes</div>
-              <div className="text-[13px] font-semibold">Node.js, Static</div>
+            <div className="mt-4 border-t border-border pt-3.5">
+              <div className="mb-[7px] text-[13.5px] text-muted">Allowed Runtimes</div>
+              <div className="text-[15px] font-semibold">Node.js, Static</div>
             </div>
           </Card>
 
@@ -388,14 +441,14 @@ export default function SettingsPage() {
           {/* connected accounts */}
           <Card>
             <CardHeader title="Connected Accounts" subtitle="จัดการบัญชีผู้ให้บริการภายนอก · token เข้ารหัส AES-256-GCM" />
-            {!gh && <p className="text-[12.5px] text-muted">กำลังตรวจสอบ…</p>}
+            {!gh && <p className="text-[14.5px] text-muted">กำลังตรวจสอบ…</p>}
             {gh && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <i className="ph-fill ph-github-logo text-[30px]" />
                   <div>
-                    <div className="text-[13px] font-semibold">GitHub</div>
-                    <div className="text-[11.5px] text-muted">
+                    <div className="text-[15px] font-semibold">GitHub</div>
+                    <div className="text-[13.5px] text-muted">
                       {gh.connected ? (
                         <>Connected as <span className="font-semibold text-ink">{gh.username}</span></>
                       ) : (

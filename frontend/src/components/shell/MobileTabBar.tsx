@@ -30,7 +30,7 @@ export default function MobileTabBar() {
             <Link
               key={t.href}
               href={t.href}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] ${
+              className={`flex flex-1 flex-col items-center justify-center gap-0.5 text-[12px] ${
                 active ? 'text-primary' : 'text-muted'
               }`}
             >

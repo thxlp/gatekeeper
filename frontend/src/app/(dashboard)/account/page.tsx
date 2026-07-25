@@ -10,7 +10,7 @@ function ReadonlyField({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="mb-1.5 text-xs font-semibold">{label}</div>
-      <div className="rounded-lg border border-border bg-[#F0EDE6] px-3 py-[9px] text-[13px] text-muted">{value}</div>
+      <div className="rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px] text-muted">{value}</div>
     </div>
   );
 }
@@ -65,7 +65,7 @@ export default function AccountPage() {
         right={
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[12.5px] font-medium text-danger-text"
+            className="flex items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[14.5px] font-medium text-danger-text"
           >
             <i className="ph ph-sign-out" /> Logout
           </button>
@@ -89,7 +89,7 @@ export default function AccountPage() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
               <div>
@@ -99,24 +99,24 @@ export default function AccountPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
             </div>
             {pwError && (
-              <div className="mb-3.5 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12px] text-danger-text">
+              <div className="mb-3.5 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14px] text-danger-text">
                 {pwError}
               </div>
             )}
             {pwSuccess && (
-              <div className="mb-3.5 rounded-md border border-allow-dot/30 bg-[rgba(115,169,140,.08)] px-3 py-2 text-[12px] text-allow-text">
+              <div className="mb-3.5 rounded-md border border-allow-dot/30 bg-[rgba(115,169,140,.08)] px-3 py-2 text-[14px] text-allow-text">
                 อัปเดตรหัสผ่านสำเร็จ
               </div>
             )}
             <button
               onClick={updatePassword}
               disabled={pwLoading || !newPassword}
-              className="flex items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[12.5px] font-semibold text-ink disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[14.5px] font-semibold text-ink disabled:opacity-50"
             >
               <i className="ph ph-key" /> {pwLoading ? 'กำลังอัปเดต…' : 'Update Password'}
             </button>
@@ -128,7 +128,7 @@ export default function AccountPage() {
             <CardHeader title="API Key" subtitle="ใช้เชื่อมต่อ/deploy ผ่าน CLI · ระบบเก็บเป็น SHA-256 hash เท่านั้น" />
             <div className="flex items-center justify-between rounded-lg border border-border bg-page-alt px-3 py-[9px]">
               <span className="font-mono text-xs text-ink-soft">{keyPrefix || '—'}••••••••••••••••••••••••</span>
-              <span className="rounded-[5px] bg-[rgba(74,144,226,.08)] px-1.5 py-0.5 text-[9.5px] font-bold text-primary">อุปกรณ์นี้</span>
+              <span className="rounded-[5px] bg-[rgba(74,144,226,.08)] px-1.5 py-0.5 text-[11.5px] font-bold text-primary">อุปกรณ์นี้</span>
             </div>
           </Card>
 
@@ -144,10 +144,10 @@ export default function AccountPage() {
             />
             <div className="flex items-center justify-between opacity-60">
               <div>
-                <div className="text-[12.5px] font-semibold">Delete Account</div>
-                <div className="text-[11px] text-muted">ลบโปรเจกต์และข้อมูลทั้งหมดอย่างถาวร ไม่สามารถกู้คืนได้</div>
+                <div className="text-[14.5px] font-semibold">Delete Account</div>
+                <div className="text-[13px] text-muted">ลบโปรเจกต์และข้อมูลทั้งหมดอย่างถาวร ไม่สามารถกู้คืนได้</div>
               </div>
-              <span className="rounded-full border border-border bg-page-alt px-2 py-0.5 text-[10px] font-semibold text-muted">เร็วๆ นี้</span>
+              <span className="rounded-full border border-border bg-page-alt px-2 py-0.5 text-[12px] font-semibold text-muted">เร็วๆ นี้</span>
             </div>
           </Card>
         </div>

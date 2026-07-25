@@ -69,7 +69,7 @@ export default function StarterFilesModal({ onClose }: { onClose: () => void }) 
             <i className="ph ph-x text-base" />
           </button>
         </div>
-        <p className="mb-4 text-[11.5px] text-muted">
+        <p className="mb-4 text-[13.5px] text-muted">
           เลือกประเภทงานแล้วโหลดไฟล์ตั้งต้น — <b>Starter</b> คือโปรเจคตัวอย่างที่ deploy
           ได้ทันที ส่วน <b>ไฟล์ deploy</b> คือชุดไฟล์สำหรับเอาไปใส่ในโปรเจคที่มีอยู่แล้ว
         </p>
@@ -80,15 +80,15 @@ export default function StarterFilesModal({ onClose }: { onClose: () => void }) 
               <div className="flex items-center gap-2.5">
                 <i className={`${c.icon} text-xl text-primary`} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] font-bold text-ink">{c.title}</div>
-                  <div className="text-[11px] text-muted">{c.desc}</div>
+                  <div className="text-[14.5px] font-bold text-ink">{c.title}</div>
+                  <div className="text-[13px] text-muted">{c.desc}</div>
                 </div>
               </div>
               <div className="mt-2.5 flex gap-2">
                 <a
                   href={`/starters/${c.key}-starter.zip`}
                   download
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:opacity-90"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[13.5px] font-semibold text-white hover:opacity-90"
                 >
                   <i className="ph ph-download-simple" />
                   Starter เต็ม
@@ -96,7 +96,7 @@ export default function StarterFilesModal({ onClose }: { onClose: () => void }) 
                 <a
                   href={`/starters/${c.key}-deploy-files.zip`}
                   download
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-ink hover:bg-[rgba(0,0,0,.04)]"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[13.5px] font-semibold text-ink hover:bg-[rgba(0,0,0,.04)]"
                 >
                   <i className="ph ph-download-simple" />
                   ไฟล์ deploy

@@ -21,7 +21,7 @@ export function Pill({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-[5px] px-2 py-0.5 text-[10.5px] font-bold ${pillClasses[kind]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-[5px] px-2 py-0.5 text-[12.5px] font-bold ${pillClasses[kind]} ${className}`}
     >
       {children}
     </span>
@@ -47,7 +47,7 @@ export function Toggle({ on = true, onClick }: { on?: boolean; onClick?: () => v
     <div
       onClick={onClick}
       className={`relative h-5 w-[34px] flex-none rounded-[10px] ${onClick ? 'cursor-pointer' : ''} ${
-        on ? 'bg-allow-dot' : 'bg-[#D6CFC4]'
+        on ? 'bg-allow-dot' : 'bg-[#D6CFC4] dark:bg-[#46433A]'
       }`}
     >
       <div
@@ -57,6 +57,12 @@ export function Toggle({ on = true, onClick }: { on?: boolean; onClick?: () => v
       />
     </div>
   );
+}
+
+// Shimmer skeleton block — ใส่ขนาด/รูปทรงผ่าน className (h-*, w-*, rounded-*)
+// shimmer sweep + สีคุมใน .gk-skeleton (globals.css) เข้า light/dark theme เอง
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div aria-hidden className={`gk-skeleton ${className}`} />;
 }
 
 // Section card used on settings / account / detail pages.
@@ -84,11 +90,11 @@ export function CardHeader({
   right?: ReactNode;
 }) {
   return (
-    <div className={`${divider ? 'mb-3.5 border-b border-[#F0EDE6] pb-3.5' : ''}`}>
+    <div className={`${divider ? 'mb-3.5 border-b border-border pb-3.5' : ''}`}>
       <div className="flex items-start justify-between">
         <div>
           <div className="text-sm font-bold text-ink">{title}</div>
-          {subtitle && <div className="mt-1 text-[11.5px] text-muted">{subtitle}</div>}
+          {subtitle && <div className="mt-1 text-[13.5px] text-muted">{subtitle}</div>}
         </div>
         {right}
       </div>

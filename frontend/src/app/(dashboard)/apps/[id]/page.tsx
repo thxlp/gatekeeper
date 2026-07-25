@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
+import DeploySuccessArt from '@/components/shell/DeploySuccessArt';
 import { api } from '@/lib/api';
 import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
 
@@ -12,26 +13,26 @@ function StepCircle({ stage }: { stage: PipelineStage }) {
   if (stage.status === 'success') {
     return (
       <div className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full bg-[rgba(115,169,140,.14)] text-allow-text">
-        <i className="ph-fill ph-check text-[13px]" />
+        <i className="ph-fill ph-check text-[15px]" />
       </div>
     );
   }
   if (stage.status === 'failed') {
     return (
       <div className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full bg-[rgba(214,109,82,.12)] text-danger-text">
-        <i className="ph-bold ph-x text-[13px]" />
+        <i className="ph-bold ph-x text-[15px]" />
       </div>
     );
   }
   if (stage.status === 'running') {
     return (
-      <div className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-2 border-primary bg-white text-primary">
-        <i className="ph-bold ph-spinner gk-spin text-[13px]" />
+      <div className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-2 border-primary bg-surface text-primary">
+        <i className="ph-bold ph-spinner gk-spin text-[15px]" />
       </div>
     );
   }
   return (
-    <div className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-[1.5px] border-border-alt bg-white text-[#C4BFB4]">
+    <div className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-[1.5px] border-border-alt bg-surface text-[#C4BFB4] dark:text-[#5A564A]">
       <i className="ph ph-hourglass text-xs" />
     </div>
   );
@@ -93,15 +94,15 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
 
   const statusBadge =
     detail?.pipelineStatus === 'success' ? (
-      <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-3 py-1 text-[11px] font-bold text-allow-text">
+      <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-3 py-1 text-[13px] font-bold text-allow-text">
         <i className="ph-fill ph-check-circle" /> LIVE
       </span>
     ) : detail?.pipelineStatus === 'failed' ? (
-      <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(214,109,82,.3)] bg-[rgba(214,109,82,.08)] px-3 py-1 text-[11px] font-bold text-danger-text">
+      <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(214,109,82,.3)] bg-[rgba(214,109,82,.08)] px-3 py-1 text-[13px] font-bold text-danger-text">
         <i className="ph-fill ph-x-circle" /> FAILED
       </span>
     ) : (
-      <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(74,144,226,.25)] bg-[rgba(74,144,226,.08)] px-3 py-1 text-[11px] font-bold text-primary">
+      <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(74,144,226,.25)] bg-[rgba(74,144,226,.08)] px-3 py-1 text-[13px] font-bold text-primary">
         <i className="ph ph-spinner gk-spin" /> DEPLOYING
       </span>
     );
@@ -112,19 +113,19 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
 
       <div className="min-h-0 flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-[760px]">
-          <div className="mb-1 flex items-center gap-2.5 text-[12.5px] text-muted">
+          <div className="mb-1 flex items-center gap-2.5 text-[14.5px] text-muted">
             <span className="font-semibold text-ink">{name}</span>
-            <span className="font-mono text-[11px] text-muted-3">({params.id})</span>
+            <span className="font-mono text-[13px] text-muted-3">({params.id})</span>
           </div>
           <div className="mb-5 text-[19px] font-bold">Gatekeeper Pipeline</div>
 
           {error && (
-            <div className="mb-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[12.5px] text-danger-text">
+            <div className="mb-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
               {error}
             </div>
           )}
 
-          {!detail && !error && <p className="text-[12.5px] text-muted">กำลังโหลดสถานะ pipeline…</p>}
+          {!detail && !error && <p className="text-[14.5px] text-muted">กำลังโหลดสถานะ pipeline…</p>}
 
           {stages && (
             <div className="flex flex-col">
@@ -141,16 +142,16 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                     <div className="min-w-0 flex-1 pb-[18px]">
                       <div className="flex items-baseline gap-2">
                         <span
-                          className={`text-[13.5px] font-semibold ${
-                            stage.status === 'running' ? 'text-primary-hover' : stage.status === 'pending' ? 'text-[#B7B2A7]' : ''
+                          className={`text-[15.5px] font-semibold ${
+                            stage.status === 'running' ? 'text-primary-hover' : stage.status === 'pending' ? 'text-muted-3' : ''
                           }`}
                         >
                           {stage.label}
                         </span>
-                        {stage.status === 'running' && <span className="text-[11px] text-primary">กำลังดำเนินการ…</span>}
+                        {stage.status === 'running' && <span className="text-[13px] text-primary">กำลังดำเนินการ…</span>}
                       </div>
                       {stage.at && stage.status !== 'running' && (
-                        <div className={`mt-0.5 text-[11.5px] ${stage.status === 'failed' ? 'text-danger-text' : 'text-muted'}`}>
+                        <div className={`mt-0.5 text-[13.5px] ${stage.status === 'failed' ? 'text-danger-text' : 'text-muted'}`}>
                           {new Date(stage.at).toLocaleString('th-TH')}
                         </div>
                       )}
@@ -162,7 +163,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
           )}
 
           {detail?.pipelineStatus === 'failed' && (
-            <div className="mt-2 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-4 py-3 text-[12.5px] text-ink-soft">
+            <div className="mt-2 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-4 py-3 text-[14.5px] text-ink-soft">
               Deploy ไม่สำเร็จ — เหตุผลโดยละเอียด (findings/score) ดูได้ที่{' '}
               <Link href="/audit" className="font-semibold text-primary">
                 Audit Log
@@ -170,45 +171,50 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             </div>
           )}
 
-          {detail?.pipelineStatus === 'success' && detail.liveUrl && (
-            <a
-              href={detail.liveUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-hover"
-            >
-              <i className="ph ph-arrow-square-out" /> Visit Live Site
-            </a>
+          {detail?.pipelineStatus === 'success' && (
+            <>
+              <DeploySuccessArt />
+              {detail.liveUrl && (
+                <a
+                  href={detail.liveUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-hover"
+                >
+                  <i className="ph ph-arrow-square-out" /> Visit Live Site
+                </a>
+              )}
+            </>
           )}
 
           {/* ประวัติ release + ปุ่ม rollback — safety net ตอน deploy ตัวใหม่พัง */}
           {detail?.releases && detail.releases.length > 0 && (
             <div className="mt-7">
-              <div className="mb-1 text-[14px] font-bold">Releases</div>
-              <div className="mb-2.5 text-[11.5px] text-muted">
+              <div className="mb-1 text-[15px] font-bold">Releases</div>
+              <div className="mb-2.5 text-[13.5px] text-muted">
                 เก็บเวอร์ชันล่าสุดไว้ให้กดกลับได้ — rollback ไม่ rebuild ใช้ image เดิมที่ผ่านการสแกนแล้ว
               </div>
-              <div className="divide-y divide-border-alt rounded-lg border border-border-alt bg-white">
+              <div className="divide-y divide-border-alt rounded-lg border border-border-alt bg-surface">
                 {detail.releases.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
                     <i className={`ph ${r.sourceType === 'git' ? 'ph-git-commit' : 'ph-file-zip'} text-[15px] text-muted`} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[12.5px] font-semibold">
+                        <span className="font-mono text-[14.5px] font-semibold">
                           {r.commitSha ? r.commitSha.slice(0, 7) : 'manual upload'}
                         </span>
                         {r.active && (
-                          <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[10px] font-bold text-allow-text">
+                          <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[12px] font-bold text-allow-text">
                             ACTIVE
                           </span>
                         )}
                         {r.degraded && (
-                          <span className="rounded-md border border-[rgba(214,158,82,.35)] bg-[rgba(214,158,82,.1)] px-1.5 py-px text-[10px] font-bold text-[#A97B2F]">
+                          <span className="rounded-md border border-[rgba(214,158,82,.35)] bg-[rgba(214,158,82,.1)] px-1.5 py-px text-[12px] font-bold text-[#A97B2F] dark:text-[#D9A653]">
                             DEGRADED
                           </span>
                         )}
                       </div>
-                      <div className="mt-px text-[11px] text-muted">
+                      <div className="mt-px text-[13px] text-muted">
                         {new Date(r.createdAt).toLocaleString('th-TH')}
                         {r.branch ? ` · ${r.branch}` : ''}
                       </div>
@@ -217,7 +223,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                       <button
                         onClick={() => doRollback(r)}
                         disabled={rollingBack || detail.pipelineStatus === 'deploying'}
-                        className="rounded-lg border border-border-alt px-3 py-1.5 text-[11.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <i className="ph ph-arrow-counter-clockwise mr-1" />
                         Rollback

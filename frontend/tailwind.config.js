@@ -1,31 +1,39 @@
 /** @type {import('tailwindcss').Config} */
+
+// Neutral palette tokens are CSS variables (set in globals.css under :root /
+// .dark) so the same class names (bg-surface, text-ink, ...) resolve to
+// light or dark values depending on the `dark` class on <html>. Accent
+// colors (primary/allow/warn/danger/purple) stay static hex — verified they
+// still clear ~4.3:1+ against the dark palette below, so no separate dark
+// variant is needed for those.
+function withOpacity(varName) {
+  return ({ opacityValue }) =>
+    opacityValue === undefined ? `rgb(var(${varName}))` : `rgb(var(${varName}) / ${opacityValue})`;
+}
+
 module.exports = {
+  darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        // warm/cream light theme (gatemock redesign) — replaces the old dark
-        // terminal palette. Anchored to gatemock/app/globals.css body colors
-        // (#f8f7f3 / #33302b) and the primary blue used as a literal stroke
-        // color in the account usage chart (#4A90E2). Status colors reuse the
-        // exact rgba() hues gatemock tints its badges with, at full opacity.
-        ink: '#33302B',
-        'ink-soft': '#524D44',
-        'ink-alt': '#443F37',
-        muted: '#8A8478',
-        'muted-2': '#9C948A',
-        'muted-3': '#B7B2A7',
+        ink: withOpacity('--color-ink'),
+        'ink-soft': withOpacity('--color-ink-soft'),
+        'ink-alt': withOpacity('--color-ink-alt'),
+        muted: withOpacity('--color-muted'),
+        'muted-2': withOpacity('--color-muted-2'),
+        'muted-3': withOpacity('--color-muted-3'),
 
-        page: '#F8F7F3',
-        'page-alt': '#F1EFE8',
-        surface: '#FFFFFF',
+        page: withOpacity('--color-page'),
+        'page-alt': withOpacity('--color-page-alt'),
+        surface: withOpacity('--color-surface'),
 
         border: {
-          DEFAULT: '#EFEDE6',
-          alt: '#E3DFD5',
+          DEFAULT: withOpacity('--color-border'),
+          alt: withOpacity('--color-border-alt'),
         },
-        'input-border': '#E3DED2',
-        'input-fill': '#FBFAF7',
+        'input-border': withOpacity('--color-input-border'),
+        'input-fill': withOpacity('--color-input-fill'),
 
         primary: {
           DEFAULT: '#4A90E2',
@@ -58,7 +66,14 @@ module.exports = {
       },
       fontFamily: {
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        // ยกพื้นตัวเล็กขึ้น 2px จาก default ของ Tailwind (xs 12→14, sm 14→15.5)
+        // ให้สอดคล้องกับขนาด arbitrary px ที่ขยับ +2px ทั้งแอป
+        // (sm หยุดที่ 15.5 กันชนกับ base 16)
+        xs: ['14px', { lineHeight: '19px' }],
+        sm: ['15.5px', { lineHeight: '22px' }],
       },
     },
   },

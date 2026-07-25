@@ -1,31 +1,75 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * { box-sizing: border-box; }
 
-body {
-  background: #f8f7f3;
-  color: #33302b;
-  font-family: 'Inter', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+/* Neutral palette as CSS vars (R G B triples) so Tailwind's rgb(var(..)/a)
+   trick can toggle light/dark via the .dark class on <html> — see
+   tailwind.config.js. Light values are tuned down a notch from the original
+   gatemock cream (surface was pure #FFFFFF, which read too glary next to
+   busy tables/cards; page/page-alt darkened slightly to match). Dark values
+   reuse hues already present elsewhere in the app (rail #21201C, term-text
+   #C9C4B8) so the dark theme feels like the same product, not a bolt-on. */
+:root {
+  --color-ink: 51 48 43;
+  --color-ink-soft: 82 77 68;
+  --color-ink-alt: 68 63 55;
+  --color-muted: 124 117 104;
+  --color-muted-2: 140 132 120;
+  --color-muted-3: 156 150 138;
+
+  --color-page: 243 241 234;
+  --color-page-alt: 234 231 221;
+  --color-surface: 251 250 247;
+
+  --color-border: 230 225 213;
+  --color-border-alt: 217 211 196;
+  --color-input-border: 217 210 193;
+  --color-input-fill: 247 244 236;
 }
 
-/* ReactFlow overrides — re-themed light to match the gatemock redesign */
-.react-flow__background { background: #f8f7f3; }
+:root.dark {
+  --color-ink: 237 234 226;
+  --color-ink-soft: 201 196 184;
+  --color-ink-alt: 218 213 200;
+  --color-muted: 201 196 184;
+  --color-muted-2: 156 150 138;
+  --color-muted-3: 124 117 104;
+
+  --color-page: 28 27 24;
+  --color-page-alt: 35 34 32;
+  --color-surface: 42 40 34;
+
+  --color-border: 58 56 47;
+  --color-border-alt: 70 67 58;
+  --color-input-border: 70 67 58;
+  --color-input-fill: 35 32 25;
+}
+
+body {
+  background: rgb(var(--color-page));
+  color: rgb(var(--color-ink));
+  font-family: 'Inter', 'Noto Sans Thai', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+/* ReactFlow overrides — re-themed to match the app palette in both modes */
+.react-flow__background { background: rgb(var(--color-page)); }
 .react-flow__edge-path { stroke: #9C948A; stroke-width: 2; }
 .react-flow__edge.selected .react-flow__edge-path { stroke: #4A90E2; }
-.react-flow__controls { background: #FCFBF8; border: 1px solid #EFEDE6; border-radius: 8px; }
-.react-flow__controls-button { background: #FCFBF8; border-bottom: 1px solid #EFEDE6; color: #33302B; }
-.react-flow__controls-button:hover { background: #F1EFE8; color: #33302B; }
-.react-flow__minimap { background: #F0EDE6; border: 1px solid #EFEDE6; border-radius: 8px; }
+.react-flow__controls { background: rgb(var(--color-surface)); border: 1px solid rgb(var(--color-border)); border-radius: 8px; }
+.react-flow__controls-button { background: rgb(var(--color-surface)); border-bottom: 1px solid rgb(var(--color-border)); color: rgb(var(--color-ink)); }
+.react-flow__controls-button:hover { background: rgb(var(--color-page-alt)); color: rgb(var(--color-ink)); }
+.react-flow__minimap { background: rgb(var(--color-page-alt)); border: 1px solid rgb(var(--color-border)); border-radius: 8px; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f8f7f3; }
-::-webkit-scrollbar-thumb { background: #E3DFD5; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #B7B2A7; }
+::-webkit-scrollbar-track { background: rgb(var(--color-page)); }
+::-webkit-scrollbar-thumb { background: rgb(var(--color-border-alt)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--color-muted-3)); }
 
 /* status badge pulse */
 @keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:.5} }
@@ -61,6 +105,44 @@ body {
   margin-left: 4px;
   vertical-align: text-bottom;
   animation: gk-blink 1s steps(1) infinite;
+}
+
+/* ASCII deploy banner — reveal ทีละบรรทัด (stagger ด้วย animation-delay inline)
+   reduced-motion: media query ด้านบนย่อ duration เหลือ ~0 แต่ forwards ยังคงสถานะ opacity:1 ไว้ */
+@keyframes gk-art-line {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.gk-art-line {
+  opacity: 0;
+  animation: gk-art-line 0.5s ease-out forwards;
+}
+
+/* skeleton shimmer — แถบแสงวิ่งซ้าย→ขวา (sweep) ระหว่างโหลด
+   ใช้ token page-alt (ฐานจม) + surface (ไฮไลต์สว่างกว่าทั้ง light/dark) → เข้าธีมอัตโนมัติ
+   reduced-motion: media query ด้านบนหยุด sweep เหลือกล่องเทานิ่งๆ (pattern เป็น periodic เฟรมจบ=เฟรมเริ่ม) */
+@keyframes gk-shimmer {
+  to {
+    background-position-x: -200%;
+  }
+}
+.gk-skeleton {
+  border-radius: 6px;
+  background-color: rgb(var(--color-page-alt));
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--color-page-alt)) 0%,
+    rgb(var(--color-surface)) 50%,
+    rgb(var(--color-page-alt)) 100%
+  );
+  background-size: 200% 100%;
+  animation: gk-shimmer 1.5s linear infinite;
 }
 
 /* slow spin for phosphor spinner icons */

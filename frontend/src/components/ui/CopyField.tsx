@@ -22,7 +22,7 @@ export default function CopyField({ label, value }: { label: string; value: stri
         <button
           onClick={copy}
           title="Copy"
-          className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted transition-colors hover:text-primary"
+          className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-muted transition-colors hover:text-primary"
         >
           {copied ? (
             <span className="text-allow-text">คัดลอกแล้ว</span>

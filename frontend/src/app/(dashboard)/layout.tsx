@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen bg-page-alt text-ink">
+    <div className="relative flex h-screen bg-page-alt text-ink">
       <IconRail />
       <div className="flex min-w-0 flex-1 flex-col pb-[60px] sm:pb-0">{children}</div>
       <MobileTabBar />

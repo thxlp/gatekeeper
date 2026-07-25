@@ -83,7 +83,7 @@ export default function RegisterPage() {
         <div className="mb-2 flex items-center gap-2 text-xl font-semibold text-allow-text">
           <i className="ph-fill ph-envelope-simple-open" /> เช็คอีเมลของคุณ
         </div>
-        <p className="mb-6 text-[12.5px] leading-relaxed text-muted-2">
+        <p className="mb-6 text-[14.5px] leading-relaxed text-muted-2">
           ส่งลิงก์ยืนยันไปที่ {email.trim()} แล้ว — กดยืนยันก่อนถึงจะเข้าสู่ระบบได้
         </p>
         <Link
@@ -111,10 +111,10 @@ export default function RegisterPage() {
           onChange={setConfirmPassword}
         />
       </div>
-      <div className="my-1 text-[11px] text-muted-2">ต้องมีอย่างน้อย 8 ตัวอักษร ผสมตัวเลข</div>
+      <div className="my-1 text-[13px] text-muted-2">ต้องมีอย่างน้อย 8 ตัวอักษร ผสมตัวเลข</div>
 
       {error && (
-        <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12.5px] text-danger-text">
+        <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
           {error}
         </div>
       )}
@@ -122,7 +122,7 @@ export default function RegisterPage() {
       <PrimaryButton className="mt-3" onClick={submit} disabled={loading}>
         {loading ? 'กำลังสมัครสมาชิก…' : 'สมัครสมาชิก'} <i className="ph ph-arrow-right" />
       </PrimaryButton>
-      <div className="mt-4 text-center text-[13px] text-muted-2">
+      <div className="mt-4 text-center text-[15px] text-muted-2">
         มีบัญชีอยู่แล้ว?{' '}
         <Link href="/login" className="font-medium text-primary">
           เข้าสู่ระบบ

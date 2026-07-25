@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import TopBar from '@/components/shell/TopBar';
 import CopyField from '@/components/ui/CopyField';
 import FindingsList from '@/components/ui/FindingsList';
+import { Skeleton } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { filesToZipEntries, isZipBlob, readDropped, zipEntriesToBlob } from '@/lib/zip';
@@ -43,10 +44,10 @@ function DeployPageInner() {
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6 lg:flex-row">
         <div className="w-full flex-none lg:w-[640px]">
           {!redeployAppId && (
-            <div className="mb-[18px] flex w-fit gap-1 rounded-[9px] bg-[#EFEDE6] p-1">
+            <div className="mb-[18px] flex w-fit gap-1 rounded-[9px] bg-page-alt p-1">
               <button
                 onClick={() => setTab('github')}
-                className={`flex items-center gap-1.5 rounded-[7px] px-4 py-[7px] text-[12.5px] ${
+                className={`flex items-center gap-1.5 rounded-[7px] px-4 py-[7px] text-[14.5px] ${
                   tab === 'github' ? 'bg-surface font-semibold shadow-card-soft' : 'font-medium text-muted'
                 }`}
               >
@@ -54,7 +55,7 @@ function DeployPageInner() {
               </button>
               <button
                 onClick={() => setTab('manual')}
-                className={`flex items-center gap-1.5 rounded-[7px] px-4 py-[7px] text-[12.5px] ${
+                className={`flex items-center gap-1.5 rounded-[7px] px-4 py-[7px] text-[14.5px] ${
                   tab === 'manual' ? 'bg-surface font-semibold shadow-card-soft' : 'font-medium text-muted'
                 }`}
               >
@@ -94,13 +95,13 @@ function DropdownRow({
       <div className="mb-1.5 text-xs font-semibold">{label}</div>
       <button
         onClick={onClick}
-        className="flex w-full items-center justify-between rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[13px]"
+        className="flex w-full items-center justify-between rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px]"
       >
         <span className="flex items-center gap-1.5">
           {leadingIcon && <i className={`${leadingIcon} text-muted`} />}
           {value}
         </span>
-        <i className="ph ph-caret-down text-[#B7B2A7]" />
+        <i className="ph ph-caret-down text-muted-3" />
       </button>
     </div>
   );
@@ -123,7 +124,7 @@ function SelectRow({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+        className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
       >
         {options.map((o) => (
           <option key={o} value={o}>{o}</option>
@@ -141,7 +142,7 @@ function InputRow({ label, value, onChange, placeholder }: { label: string; valu
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+        className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
       />
     </div>
   );
@@ -187,20 +188,20 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
             value={e.key}
             onChange={(ev) => setEnv(i, 'key', ev.target.value)}
             placeholder="KEY"
-            className="w-2/5 rounded-lg border border-border bg-surface px-2.5 py-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-2/5 rounded-lg border border-border bg-surface px-2.5 py-2 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <input
             value={e.value}
             onChange={(ev) => setEnv(i, 'value', ev.target.value)}
             placeholder="value"
-            className="flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button onClick={() => removeEnv(i)} className="px-1.5 text-muted hover:text-ink" title="ลบ">
             <i className="ph ph-x" />
           </button>
         </div>
       ))}
-      <button onClick={addEnv} className="mb-3 flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline">
+      <button onClick={addEnv} className="mb-3 flex items-center gap-1 text-[13.5px] font-medium text-primary hover:underline">
         <i className="ph ph-plus" /> เพิ่ม env var
       </button>
 
@@ -211,7 +212,7 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
           { id: 'postgres', label: 'PostgreSQL → DATABASE_URL' },
           { id: 'redis', label: 'Redis → REDIS_URL' },
         ].map((a) => (
-          <label key={a.id} className="flex cursor-pointer items-center gap-1.5 text-[12px]">
+          <label key={a.id} className="flex cursor-pointer items-center gap-1.5 text-[14px]">
             <input type="checkbox" checked={config.addons.includes(a.id)} onChange={() => toggleAddon(a.id)} />
             {a.label}
           </label>
@@ -226,7 +227,7 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
 
       {/* SPA (เฉพาะ static) */}
       {runtime === 'static' && (
-        <label className="flex cursor-pointer items-center gap-1.5 text-[12px]">
+        <label className="flex cursor-pointer items-center gap-1.5 text-[14px]">
           <input type="checkbox" checked={config.spa} onChange={(e) => setConfig({ ...config, spa: e.target.checked })} />
           SPA — route ที่ไม่ตรงไฟล์ให้ fallback ไป index.html (กัน deep link 404)
         </label>
@@ -398,11 +399,11 @@ function GithubTab() {
 
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
-      {!status && <p className="text-[12.5px] text-muted">กำลังตรวจสอบการเชื่อมต่อ GitHub…</p>}
+      {!status && <p className="text-[14.5px] text-muted">กำลังตรวจสอบการเชื่อมต่อ GitHub…</p>}
 
       {status && !status.connected && (
         <div className="flex flex-col gap-4">
-          <p className="text-[12.5px] text-ink-soft">
+          <p className="text-[14.5px] text-ink-soft">
             เชื่อมบัญชี GitHub ก่อน เพื่อเลือก repo จากรายการและให้ระบบตั้ง webhook ให้อัตโนมัติ
           </p>
           <button
@@ -438,14 +439,14 @@ function GithubTab() {
           <div className="mb-[18px] flex items-center gap-2.5 rounded-[9px] border border-[rgba(115,169,140,.35)] bg-[rgba(115,169,140,.06)] px-3 py-[11px]">
             <i className="ph-fill ph-github-logo text-[19px]" />
             <div className="flex-1">
-              <div className="text-[12.5px] font-semibold">
+              <div className="text-[14.5px] font-semibold">
                 {status.username} <span className="font-normal text-allow-text">· connected</span>
               </div>
-              <div className="text-[10.5px] text-muted">
+              <div className="text-[12.5px] text-muted">
                 token เข้ารหัส AES-256-GCM · ใช้แค่ list repo / webhook / clone
               </div>
             </div>
-            <button onClick={disconnect} className="rounded-md border border-border bg-surface px-[11px] py-1.5 text-[11.5px] text-muted">
+            <button onClick={disconnect} className="rounded-md border border-border bg-surface px-[11px] py-1.5 text-[13.5px] text-muted">
               Disconnect
             </button>
           </div>
@@ -458,17 +459,24 @@ function GithubTab() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="ค้นหา repo…"
-                  className="w-full rounded-lg border border-border bg-page-alt py-2 pl-8 pr-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full rounded-lg border border-border bg-page-alt py-2 pl-8 pr-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
-              <div className="max-h-64 divide-y divide-[#F0EDE6] overflow-y-auto rounded-lg border border-border">
-                {!filteredRepos && <p className="p-3 text-[12.5px] text-muted">กำลังโหลดรายการ repo…</p>}
-                {filteredRepos?.length === 0 && <p className="p-3 text-[12.5px] text-muted">ไม่พบ repo</p>}
+              <div className="max-h-64 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                {!filteredRepos &&
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-[9px]">
+                      <Skeleton className="h-4 w-4 rounded" />
+                      <Skeleton className="h-3.5 w-44" />
+                      <Skeleton className="ml-auto h-3 w-12" />
+                    </div>
+                  ))}
+                {filteredRepos?.length === 0 && <p className="p-3 text-[14.5px] text-muted">ไม่พบ repo</p>}
                 {filteredRepos?.map((r) => (
                   <button key={r.fullName} onClick={() => pickRepo(r)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-page-alt">
                     <i className={r.private ? 'ph-fill ph-lock-simple text-warn-text' : 'ph-fill ph-github-logo text-muted'} />
-                    <span className="truncate text-[12.5px]">{r.fullName}</span>
-                    <span className="ml-auto shrink-0 text-[10.5px] text-muted-3">{r.defaultBranch}</span>
+                    <span className="truncate text-[14.5px]">{r.fullName}</span>
+                    <span className="ml-auto shrink-0 text-[12.5px] text-muted-3">{r.defaultBranch}</span>
                   </button>
                 ))}
               </div>
@@ -479,8 +487,8 @@ function GithubTab() {
             <>
               <div className="mb-3.5 flex items-center gap-2 rounded-lg border border-border bg-page-alt px-3 py-2">
                 <i className={selectedRepo.private ? 'ph-fill ph-lock-simple text-warn-text' : 'ph-fill ph-github-logo text-muted'} />
-                <span className="truncate text-[12.5px] font-semibold">{selectedRepo.fullName}</span>
-                <button onClick={() => setSelectedRepo(null)} className="ml-auto text-[10.5px] text-muted hover:text-ink">
+                <span className="truncate text-[14.5px] font-semibold">{selectedRepo.fullName}</span>
+                <button onClick={() => setSelectedRepo(null)} className="ml-auto text-[12.5px] text-muted hover:text-ink">
                   เปลี่ยน repo
                 </button>
               </div>
@@ -496,9 +504,9 @@ function GithubTab() {
 
               <AppConfigFields config={config} setConfig={setConfig} runtime={runtime} />
 
-              <div className="mb-[18px] flex items-start gap-2.5 rounded-[9px] border border-[#EFEDE6] bg-page-alt px-3 py-3">
+              <div className="mb-[18px] flex items-start gap-2.5 rounded-[9px] border border-border bg-page-alt px-3 py-3">
                 <i className="ph ph-info mt-0.5 text-primary" />
-                <div className="text-[11px] text-muted">
+                <div className="text-[13px] text-muted">
                   ระบบจะตั้ง webhook ให้อัตโนมัติ · ตรวจ HMAC signature ทุก event — push ครั้งถัดไปเข้า branch นี้จะ auto-deploy
                 </div>
               </div>
@@ -515,7 +523,7 @@ function GithubTab() {
 
           <button
             onClick={() => setShowAdvanced((v) => !v)}
-            className="mt-4 flex items-center gap-1.5 text-[11.5px] font-medium text-muted hover:text-ink"
+            className="mt-4 flex items-center gap-1.5 text-[13.5px] font-medium text-muted hover:text-ink"
           >
             <i className={`ph ${showAdvanced ? 'ph-caret-down' : 'ph-caret-right'}`} />
             Advanced: register by URL (repo ที่ไม่ผ่าน picker ด้านบน)
@@ -533,14 +541,14 @@ function GithubTab() {
                     <SelectRow label="Runtime" value={advRuntime} onChange={setAdvRuntime} options={RUNTIMES} />
                   </div>
                   {advError && (
-                    <div className="mb-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12px] text-danger-text">
+                    <div className="mb-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14px] text-danger-text">
                       {advError}
                     </div>
                   )}
                   <button
                     onClick={submitAdvanced}
                     disabled={advLoading}
-                    className="w-full rounded-lg border border-primary bg-surface py-2 text-[12.5px] font-semibold text-primary disabled:opacity-50"
+                    className="w-full rounded-lg border border-primary bg-surface py-2 text-[14.5px] font-semibold text-primary disabled:opacity-50"
                   >
                     {advLoading ? 'กำลังลงทะเบียน…' : 'Register App'}
                   </button>
@@ -548,16 +556,16 @@ function GithubTab() {
               ) : (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2 text-allow-text">
-                    <i className="ph-fill ph-check-circle" /> <span className="text-[12.5px] font-semibold">ลงทะเบียนสำเร็จ</span>
+                    <i className="ph-fill ph-check-circle" /> <span className="text-[14.5px] font-semibold">ลงทะเบียนสำเร็จ</span>
                   </div>
                   <CopyField label="Webhook URL" value={advResult.webhookUrl} />
                   <CopyField label="Webhook Secret" value={advResult.webhookSecret} />
-                  <div className="rounded-lg border border-border bg-surface px-3 py-2 text-[11px] text-muted">
+                  <div className="rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-muted">
                     <div>ตั้งค่าใน GitHub: Settings → Webhooks → Add webhook</div>
                     <div>Content type: {advResult.contentType}</div>
                     <div>Events: {advResult.events.join(', ')}</div>
                   </div>
-                  <div className="rounded-lg border border-warn-dot/40 bg-[rgba(224,185,118,.1)] px-3 py-2 text-[11px] text-warn-text">
+                  <div className="rounded-lg border border-warn-dot/40 bg-[rgba(224,185,118,.1)] px-3 py-2 text-[13px] text-warn-text">
                     เก็บ secret นี้ไว้ให้ดี ระบบจะไม่แสดงซ้ำอีกครั้ง
                   </div>
                 </div>
@@ -568,7 +576,7 @@ function GithubTab() {
       )}
 
       {error && (
-        <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[12.5px] text-danger-text">
+        <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
           {error}
         </div>
       )}
@@ -690,7 +698,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
       {redeployAppId && (
-        <div className="mb-3.5 text-[12.5px] font-semibold">
+        <div className="mb-3.5 text-[14.5px] font-semibold">
           Redeploy: {redeployDetail?.projectName || redeployAppId}
         </div>
       )}
@@ -724,8 +732,8 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             }`}
           >
             <i className={`ph ph-cloud-arrow-up text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
-            <div className="text-[13px] font-semibold">ลากไฟล์ .zip มาวางที่นี่</div>
-            <div className="text-[11px] text-muted">หรือคลิกเพื่อเลือกไฟล์ · สูงสุด 50 MB</div>
+            <div className="text-[15px] font-semibold">ลากไฟล์ .zip มาวางที่นี่</div>
+            <div className="text-[13px] text-muted">หรือคลิกเพื่อเลือกไฟล์ · สูงสุด 50 MB</div>
             <input type="file" accept=".zip" className="hidden" onChange={handleZipPick} />
           </label>
           <label
@@ -741,8 +749,8 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             }`}
           >
             <i className={`ph ph-folder-simple-plus text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
-            <div className="text-[13px] font-semibold">เลือกโฟลเดอร์ หรือลากมาวาง</div>
-            <div className="text-[11px] text-muted">บีบอัดเป็น .zip ให้อัตโนมัติ</div>
+            <div className="text-[15px] font-semibold">เลือกโฟลเดอร์ หรือลากมาวาง</div>
+            <div className="text-[13px] text-muted">บีบอัดเป็น .zip ให้อัตโนมัติ</div>
             <input
               type="file"
               // @ts-expect-error non-standard attrs, only relevant for folder picking in Chromium/Firefox
@@ -754,7 +762,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             />
           </label>
         </div>
-        {pendingLabel && <p className="mt-2 truncate text-[11px] text-muted">{pendingLabel}</p>}
+        {pendingLabel && <p className="mt-2 truncate text-[13px] text-muted">{pendingLabel}</p>}
       </div>
 
       <button
@@ -773,13 +781,13 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
               : 'border-danger-text/30 bg-[rgba(214,109,82,.06)]'
           }`}
         >
-          <p className={`text-[12.5px] font-bold ${result.decision === 'QUARANTINE' ? 'text-warn-text' : 'text-danger-text'}`}>
+          <p className={`text-[14.5px] font-bold ${result.decision === 'QUARANTINE' ? 'text-warn-text' : 'text-danger-text'}`}>
             {result.decision}
           </p>
-          {(result.reason || result.message) && <p className="text-[12px] text-ink-soft">{result.reason || result.message}</p>}
+          {(result.reason || result.message) && <p className="text-[14px] text-ink-soft">{result.reason || result.message}</p>}
           {result.findings && result.findings.length > 0 && <FindingsList findings={result.findings} />}
           {result.id && (
-            <Link href={`/apps/${result.id}`} className="mt-1 text-[12px] font-medium text-primary">
+            <Link href={`/apps/${result.id}`} className="mt-1 text-[14px] font-medium text-primary">
               ดู pipeline →
             </Link>
           )}
@@ -798,19 +806,19 @@ function PipelinePreview() {
   return (
     <>
       <div className="rounded-xl border border-border bg-surface p-5">
-        <div className="mb-3.5 text-[10.5px] font-bold tracking-[.8px] text-muted-3">สิ่งที่จะเกิดขึ้น</div>
+        <div className="mb-3.5 text-[12.5px] font-bold tracking-[.8px] text-muted-3">สิ่งที่จะเกิดขึ้น</div>
         <div className="flex flex-col">
           {steps.map((s) => (
             <div key={s.n} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[#EFF4FB] text-[11px] font-bold text-primary">
+                <div className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[#EFF4FB] text-[13px] font-bold text-primary dark:bg-[rgba(74,144,226,.18)]">
                   {s.n}
                 </div>
-                <div className="w-0.5 flex-1 bg-[#EFEDE6]" />
+                <div className="w-0.5 flex-1 bg-border" />
               </div>
               <div className="pb-3.5">
-                <div className="text-[12.5px] font-semibold">{s.title}</div>
-                <div className="text-[11px] text-muted">{s.caption}</div>
+                <div className="text-[14.5px] font-semibold">{s.title}</div>
+                <div className="text-[13px] text-muted">{s.caption}</div>
               </div>
             </div>
           ))}
@@ -819,8 +827,8 @@ function PipelinePreview() {
               <i className="ph-fill ph-check text-xs" />
             </div>
             <div>
-              <div className="text-[12.5px] font-semibold">Live URL</div>
-              <div className="font-mono text-[11px] text-muted">/live/&lt;appId&gt;/*</div>
+              <div className="text-[14.5px] font-semibold">Live URL</div>
+              <div className="font-mono text-[13px] text-muted">/live/&lt;appId&gt;/*</div>
             </div>
           </div>
         </div>
@@ -828,7 +836,7 @@ function PipelinePreview() {
 
       <div className="mt-3.5 flex items-start gap-2.5 rounded-[10px] border border-[rgba(74,144,226,.2)] bg-[rgba(74,144,226,.05)] px-[15px] py-[13px]">
         <i className="ph ph-info mt-px text-base text-primary" />
-        <div className="text-[11.5px] leading-relaxed text-ink-soft">
+        <div className="text-[13.5px] leading-relaxed text-ink-soft">
           ถ้า risk engine ตัดสิน QUARANTINE คุณจะได้ review findings ก่อน — deploy จะไม่ขึ้น live จนกว่าจะ override
         </div>
       </div>
