@@ -81,6 +81,25 @@ export interface GitAppDetail extends GitAppSummary {
   releases?: ReleaseSummary[];
 }
 
+// env var หนึ่งตัวในหน้า Variables — backend ไม่เคยส่งค่าจริงกลับ (เป็นความลับ) มีแค่ชื่อ+เวลาแก้
+export interface EnvVarSummary {
+  key: string;
+  updatedAt?: string;
+}
+
+// ผลจาก GET/POST/PUT/DELETE /apps/:id/env — needsRedeploy=true หลัง mutation (env ผูกตอน deploy)
+export interface EnvListResponse {
+  vars: EnvVarSummary[];
+  needsRedeploy?: boolean;
+  imported?: number;
+}
+
+// snapshot log (GET /apps/:id/logs) — pending=true คือยังไม่มี container (ยังไม่เคย deploy สำเร็จ)
+export interface LogSnapshot {
+  pending: boolean;
+  lines: string[];
+}
+
 export interface DeployOutcome {
   id?: string;
   // manual deploy ตอบ { id, status: 'deploying' } ทันที (pipeline วิ่ง background) —

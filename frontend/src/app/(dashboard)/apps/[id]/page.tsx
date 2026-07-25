@@ -4,10 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
 import DeploySuccessArt from '@/components/shell/DeploySuccessArt';
+import LogsTab from '@/components/shell/LogsTab';
+import VariablesTab from '@/components/shell/VariablesTab';
 import { api } from '@/lib/api';
 import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
 
 const POLL_MS = 1500;
+
+type TabKey = 'overview' | 'logs' | 'variables';
+const TABS: { key: TabKey; label: string; icon: string }[] = [
+  { key: 'overview', label: 'Overview', icon: 'ph-git-branch' },
+  { key: 'logs', label: 'Logs', icon: 'ph-terminal-window' },
+  { key: 'variables', label: 'Variables', icon: 'ph-key' },
+];
 
 function StepCircle({ stage }: { stage: PipelineStage }) {
   if (stage.status === 'success') {
@@ -45,7 +54,40 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
   // กด rollback ต้องเริ่ม poll ใหม่ให้เห็น stage วิ่ง)
   const [pollEpoch, setPollEpoch] = useState(0);
   const [rollingBack, setRollingBack] = useState(false);
+  const [tab, setTab] = useState<TabKey>('overview');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // seed แท็บจาก ?tab= (deep-link) ครั้งแรกฝั่ง client
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'logs' || t === 'variables') setTab(t);
+  }, []);
+
+  const changeTab = (t: TabKey) => {
+    setTab(t);
+    const u = new URL(window.location.href);
+    if (t === 'overview') u.searchParams.delete('tab');
+    else u.searchParams.set('tab', t);
+    window.history.replaceState(null, '', u.toString());
+  };
+
+  // Redeploy หลังแก้ env — git app สั่ง deploy ใหม่ได้เลย, manual app ต้องอัปโหลด zip ใหม่เอง
+  const handleRedeploy = async () => {
+    if (!detail) return;
+    if ((detail.sourceType ?? 'git') !== 'git') {
+      setError('แอปนี้ deploy แบบอัปโหลด .zip — แก้ env แล้วต้องอัปโหลดไฟล์ใหม่ที่หน้า Deploy เพื่อให้ค่ามีผล');
+      changeTab('overview');
+      return;
+    }
+    setError('');
+    try {
+      await api.deployGitApp(params.id);
+      changeTab('overview');
+      setPollEpoch((e) => e + 1); // เริ่ม poll ใหม่ให้เห็น stage วิ่ง
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +159,21 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             <span className="font-semibold text-ink">{name}</span>
             <span className="font-mono text-[13px] text-muted-3">({params.id})</span>
           </div>
-          <div className="mb-5 text-[19px] font-bold">Gatekeeper Pipeline</div>
+          {/* tab bar — แยก Overview / Logs / Variables ให้ชัด ไม่รวมปุ่มเดียว */}
+          <div className="mb-5 flex gap-1 border-b border-border-alt">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => changeTab(t.key)}
+                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-[14px] font-semibold ${
+                  tab === t.key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+                }`}
+              >
+                <i className={`ph ${t.icon} text-[16px]`} />
+                {t.label}
+              </button>
+            ))}
+          </div>
 
           {error && (
             <div className="mb-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
@@ -125,7 +181,13 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             </div>
           )}
 
-          {!detail && !error && <p className="text-[14.5px] text-muted">กำลังโหลดสถานะ pipeline…</p>}
+          {tab === 'logs' && <LogsTab appId={params.id} />}
+          {tab === 'variables' && <VariablesTab appId={params.id} onRequestRedeploy={handleRedeploy} />}
+
+          {tab === 'overview' && (
+            <>
+              <div className="mb-5 text-[19px] font-bold">Gatekeeper Pipeline</div>
+              {!detail && !error && <p className="text-[14.5px] text-muted">กำลังโหลดสถานะ pipeline…</p>}
 
           {stages && (
             <div className="flex flex-col">
@@ -233,6 +295,8 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                 ))}
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       </div>

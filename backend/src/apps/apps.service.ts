@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { Account, GitApp } from '../common/types';
+import { Account, EnvVar, GitApp } from '../common/types';
 import { GitAppStore } from './git-app.store';
 import { RegisterGitAppDto } from './register-git-app.dto';
 import { RegisterGithubAppDto } from './register-github-app.dto';
@@ -22,12 +22,45 @@ import { extractZipSafely } from './zip-extract.util';
 import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
 import { AuditService } from '../audit/audit.service';
 import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
+import { DockerRuntimeService } from '../deploy/docker-runtime.service';
 import { GitAutomatorService } from '../webhook/git-automator.service';
 import { GithubApiService } from '../github/github-api.service';
 import { GithubTokenStore } from '../github/github-token.store';
 import { QuotaService } from '../entitlement/quota.service';
 
 const DEFAULT_BRANCH = 'main';
+
+// ชื่อ env var ต้องเป็นรูปแบบ POSIX (ขึ้นต้นตัวอักษร/_ ตามด้วย A-Z a-z 0-9 _) — กันชื่อแปลกๆ
+// ที่ inject เข้า container แล้วพัง หรือ key ที่มี '=' / ช่องว่างทำ env string เพี้ยน
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const ENV_KEY_MAXLEN = 256;
+const ENV_VALUE_MAXLEN = 8192;
+
+/**
+ * parse ข้อความ .env ที่ผู้ใช้วางมา (import ทีเดียวหลายตัว) — รองรับ comment (#), บรรทัดว่าง,
+ * `export KEY=...`, และค่าที่ครอบด้วย single/double quote (ถอด quote ให้) บรรทัดที่ไม่มี '='
+ * หรือ key ว่างถูกข้าม ไม่ throw เพื่อให้ import แบบ best-effort จากไฟล์จริงที่มักมี comment ปน
+ */
+function parseDotenv(raw: string): { key: string; value: string }[] {
+  const out: { key: string; value: string }[] = [];
+  for (const lineRaw of raw.split(/\r?\n/)) {
+    const line = lineRaw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const body = line.replace(/^export\s+/, '');
+    const eq = body.indexOf('=');
+    if (eq <= 0) continue;
+    const key = body.slice(0, eq).trim();
+    let value = body.slice(eq + 1).trim();
+    if (
+      value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key) out.push({ key, value });
+  }
+  return out;
+}
 
 // URL สาธารณะของ webhook endpoint (ผ่าน nginx, มี /api prefix) — ตั้งผ่าน env ได้
 // ค่า default อิงจากโดเมนจริงที่ตั้งไว้ใน deployments/host/gatekeeper-host.conf
@@ -50,6 +83,7 @@ export class AppsService {
     private githubApi: GithubApiService,
     private githubTokens: GithubTokenStore,
     private quota: QuotaService,
+    private dockerRuntime: DockerRuntimeService,
   ) {}
 
   registerGitApp(dto: RegisterGitAppDto, account: Account) {
@@ -490,6 +524,113 @@ export class AppsService {
     });
 
     return { ok: true };
+  }
+
+  // ===== Environment variables / secrets manager =====
+  // ค่า env เป็นความลับ (เข้ารหัสใน store) — API คืนแค่ key + updatedAt ไม่เคย echo ค่าจริง
+  // ทุก mutation แค่แก้ store; ค่าใหม่มีผลตอน "deploy รอบถัดไป" เท่านั้น (env ผูกตอนสร้าง
+  // container) จึงตอบ needsRedeploy:true ให้ UI ขึ้นแบนเนอร์เตือน
+
+  /** รายการ env var (มาสก์ค่า) เรียงตามชื่อ key */
+  listEnv(id: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    return { vars: this.maskedEnv(app) };
+  }
+
+  /** เพิ่ม/แก้ค่า env ทีละตัว (upsert) — ตัวอื่นค่าเดิมคงอยู่ครบ */
+  setEnvVar(id: string, key: string, value: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    const k = this.assertValidEnvKey(key);
+    this.assertValidEnvValue(value);
+    const list = (app.envVars || []).filter((e) => e.key);
+    const entry: EnvVar = { key: k, value, updatedAt: new Date().toISOString() };
+    const idx = list.findIndex((e) => e.key === k);
+    if (idx >= 0) list[idx] = entry;
+    else list.push(entry);
+    app.envVars = list;
+    this.persistEnvChange(app, account, `env:set:${k}`);
+    return { vars: this.maskedEnv(app), needsRedeploy: true };
+  }
+
+  /** ลบ env var ทีละตัว */
+  deleteEnvVar(id: string, key: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    const k = key.trim();
+    const before = (app.envVars || []).length;
+    app.envVars = (app.envVars || []).filter((e) => e.key !== k);
+    if (app.envVars.length === before) throw new NotFoundException(`env_not_found:${k}`);
+    this.persistEnvChange(app, account, `env:delete:${k}`);
+    return { vars: this.maskedEnv(app), needsRedeploy: true };
+  }
+
+  /** import จากข้อความ .env ที่วางมา — upsert ทับของเดิม (merge) คืนจำนวนที่รับเข้า */
+  importEnv(id: string, raw: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    const parsed = parseDotenv(raw || '');
+    if (!parsed.length) throw new BadRequestException('ไม่พบตัวแปรใน .env ที่วางมา (บรรทัดต้องเป็น KEY=value)');
+    const now = new Date().toISOString();
+    const map = new Map<string, EnvVar>((app.envVars || []).filter((e) => e.key).map((e) => [e.key, e]));
+    for (const { key, value } of parsed) {
+      const k = this.assertValidEnvKey(key);
+      this.assertValidEnvValue(value);
+      map.set(k, { key: k, value, updatedAt: now });
+    }
+    app.envVars = [...map.values()];
+    this.persistEnvChange(app, account, `env:import:${parsed.length}`);
+    return { vars: this.maskedEnv(app), needsRedeploy: true, imported: parsed.length };
+  }
+
+  /** view ที่ปลอดภัยส่งออก API — key + เวลาแก้ล่าสุด ไม่มีค่าจริง เรียงตาม key */
+  private maskedEnv(app: GitApp) {
+    return (app.envVars || [])
+      .filter((e) => e.key)
+      .map((e) => ({ key: e.key, updatedAt: e.updatedAt }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  }
+
+  private assertValidEnvKey(key: string): string {
+    const k = (key || '').trim();
+    if (!k) throw new BadRequestException('env key ห้ามว่าง');
+    if (k.length > ENV_KEY_MAXLEN) throw new BadRequestException(`env key ยาวเกิน ${ENV_KEY_MAXLEN} ตัวอักษร`);
+    if (!ENV_KEY_RE.test(k)) {
+      throw new BadRequestException(
+        `env key ไม่ถูกต้อง: "${key}" — ต้องขึ้นต้นด้วยตัวอักษรหรือ _ แล้วตามด้วย A-Z a-z 0-9 _ เท่านั้น`,
+      );
+    }
+    return k;
+  }
+
+  private assertValidEnvValue(value: string): void {
+    if (typeof value !== 'string') throw new BadRequestException('env value ต้องเป็น string');
+    if (value.length > ENV_VALUE_MAXLEN) throw new BadRequestException(`env value ยาวเกิน ${ENV_VALUE_MAXLEN} ตัวอักษร`);
+  }
+
+  private persistEnvChange(app: GitApp, account: Account, stage: string): void {
+    app.updatedAt = new Date().toISOString();
+    this.store.save(app);
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:env',
+      decision: 'INFO',
+      reason: `${stage} on ${app.repoFullName ?? app.projectName ?? app.id}`,
+    });
+  }
+
+  // ===== Live logs (delegate ไป DockerRuntime หลังเช็ค ownership) =====
+
+  /** snapshot log ล่าสุด — คืน { lines } หรือ { pending:true } ถ้ายังไม่มี container */
+  async getLogs(id: string, tail: number, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    const lines = await this.dockerRuntime.getContainerLogs(app, tail);
+    if (lines === null) return { pending: true, lines: [] as string[] };
+    return { pending: false, lines };
+  }
+
+  /** เปิด live tail stream — คืน LogStream หรือ null ถ้ายังไม่มี container (owner-scoped) */
+  async openLogStream(id: string, tail: number, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    return this.dockerRuntime.openLogStream(app, tail);
   }
 
   private getOwnedOrThrow(id: string, accountId: string): GitApp {

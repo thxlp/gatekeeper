@@ -7,11 +7,15 @@ import {
   Param,
   Patch,
   Post,
+  Put,
+  Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard, getAccount } from '../auth/auth.guard';
 import { CookieChallengeGuard } from '../challenge/challenge.guard';
@@ -21,6 +25,13 @@ import { RegisterGithubAppDto } from './register-github-app.dto';
 import { UpdateGitAppDto } from './update-git-app.dto';
 import { ManualDeployDto } from './manual-deploy.dto';
 import { RollbackDto } from './rollback.dto';
+import { ImportEnvDto, LogQueryDto, SetEnvVarDto } from './env-var.dto';
+
+// tail จาก query (string) → จำนวนบรรทัด (default 200) ให้เซอร์วิส clamp เพดานต่ออีกที
+function parseTail(raw: string | undefined, fallback = 200): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
 
 const MAX_ARCHIVE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB — เกินนี้ multer ปฏิเสธก่อน controller เห็นด้วยซ้ำ
 
@@ -89,5 +100,65 @@ export class AppsController {
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: any) {
     return this.svc.removeGitApp(id, getAccount(req));
+  }
+
+  // ===== Environment variables / secrets manager =====
+  // คืนแค่ key (+updatedAt) ไม่เคยส่งค่าจริงกลับ — ค่าเข้ารหัสเก็บใน store, มีผลตอน deploy ถัดไป
+
+  @Get(':id/env')
+  listEnv(@Param('id') id: string, @Req() req: any) {
+    return this.svc.listEnv(id, getAccount(req));
+  }
+
+  // เพิ่ม/แก้ทีละตัว (upsert) — ตัวอื่นค่าเดิมคงอยู่ (เพราะค่าไม่เคย echo กลับ update รวมไม่ได้)
+  @Post(':id/env')
+  setEnv(@Param('id') id: string, @Body() dto: SetEnvVarDto, @Req() req: any) {
+    return this.svc.setEnvVar(id, dto.key, dto.value, getAccount(req));
+  }
+
+  // import จากข้อความ .env ที่วางมา (merge ทับของเดิม)
+  @Put(':id/env')
+  importEnv(@Param('id') id: string, @Body() dto: ImportEnvDto, @Req() req: any) {
+    return this.svc.importEnv(id, dto.raw, getAccount(req));
+  }
+
+  @Delete(':id/env/:key')
+  deleteEnv(@Param('id') id: string, @Param('key') key: string, @Req() req: any) {
+    return this.svc.deleteEnvVar(id, key, getAccount(req));
+  }
+
+  // ===== Live logs =====
+
+  // snapshot log ล่าสุด (ไม่ follow) — { pending:true } ถ้ายังไม่มี container
+  @Get(':id/logs')
+  getLogs(@Param('id') id: string, @Query() q: LogQueryDto, @Req() req: any) {
+    return this.svc.getLogs(id, parseTail(q.tail), getAccount(req));
+  }
+
+  // live tail — chunked text/plain ที่เปิดค้าง (follow) ปิด stream ต้นทางเมื่อ client ตัด
+  @Get(':id/logs/stream')
+  async logStream(
+    @Param('id') id: string,
+    @Query() q: LogQueryDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    // ownership check เกิดใน openLogStream (ก่อนแตะ res) — throw จะถูก exception filter จัดการปกติ
+    const stream = await this.svc.openLogStream(id, parseTail(q.tail), getAccount(req as any));
+    if (!stream) {
+      res.status(200).type('text/plain; charset=utf-8').send('');
+      return;
+    }
+    res.status(200);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no'); // กัน nginx buffer live stream ไว้จนไม่ไหล
+    res.flushHeaders?.();
+
+    stream.text.pipe(res);
+    stream.text.on('end', () => res.end());
+    stream.text.on('error', () => res.end());
+    // client ปิด tab / กด pause → ปิด stream กับ docker daemon กัน connection ค้าง
+    req.on('close', () => stream.close());
   }
 }

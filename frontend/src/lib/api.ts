@@ -1,12 +1,14 @@
 import {
   AccountMe,
   DeployOutcome,
+  EnvListResponse,
   GitAppDetail,
   GitAppRegistration,
   GitAppSummary,
   GithubRegisterResult,
   GithubRepo,
   GithubStatus,
+  LogSnapshot,
   NotificationFeed,
   UsageSummary,
 } from '@/types';
@@ -176,6 +178,37 @@ export const api = {
 
   deleteGitApp: (id: string) =>
     request<{ ok: boolean }>(API_BASE, `/apps/${id}`, { method: 'DELETE' }),
+
+  // ===== Environment variables / secrets manager (แท็บ Variables) =====
+  // ค่า env เป็นความลับ — API คืนแค่ key ไม่เคยส่งค่าจริงกลับ ทุก mutation ตอบ needsRedeploy
+  env: {
+    list: (id: string) => request<EnvListResponse>(API_BASE, `/apps/${id}/env`),
+    // เพิ่ม/แก้ทีละตัว (upsert)
+    set: (id: string, key: string, value: string) =>
+      request<EnvListResponse>(API_BASE, `/apps/${id}/env`, {
+        method: 'POST',
+        body: JSON.stringify({ key, value }),
+      }),
+    remove: (id: string, key: string) =>
+      request<EnvListResponse>(API_BASE, `/apps/${id}/env/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+    // import จากข้อความ .env ที่วางมา (merge ทับของเดิม)
+    importRaw: (id: string, raw: string) =>
+      request<EnvListResponse>(API_BASE, `/apps/${id}/env`, { method: 'PUT', body: JSON.stringify({ raw }) }),
+  },
+
+  // ===== Live logs (แท็บ Logs) =====
+  logs: {
+    // snapshot ล่าสุด (ไม่ follow) — ใช้ตอนเปิดแท็บครั้งแรก / ตอน pause
+    snapshot: (id: string, tail = 500) =>
+      request<LogSnapshot>(API_BASE, `/apps/${id}/logs?tail=${tail}`),
+    // live tail — คืน Response ดิบให้ caller อ่าน body เป็น stream เอง (fetch + ReadableStream)
+    // ไม่ผ่าน request() เพราะนั่น .json() ทั้งก้อน แต่ endpoint นี้เป็น chunked text ที่เปิดค้าง
+    stream: (id: string, tail: number, signal: AbortSignal) =>
+      fetch(`${API_BASE}/apps/${id}/logs/stream?tail=${tail}`, {
+        credentials: 'same-origin',
+        signal,
+      }),
+  },
 
   // ผลการใช้งานของ account ตัวเอง (CPU/RAM สดต่อ app + สถิติ deploy) — หน้า Settings
   usage: () => request<UsageSummary>(API_BASE, '/usage'),

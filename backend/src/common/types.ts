@@ -60,6 +60,8 @@ export type AppSourceType = 'git' | 'manual';
 export interface EnvVar {
   key: string;
   value: string;
+  // เวลาที่ตั้ง/แก้ค่าล่าสุด (ISO) — โชว์ในหน้า Variables; entry เก่าใน store อาจไม่มี field นี้
+  updatedAt?: string;
 }
 
 // backing service ที่ระบบ provision ให้ต่อ app (container พี่น้องบน apps-network เดียวกัน)

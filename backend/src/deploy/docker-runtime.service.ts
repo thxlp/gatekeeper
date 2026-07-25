@@ -7,7 +7,34 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { PassThrough } from 'stream';
 import { AddonConnection, AppAddon, GitApp } from '../common/types';
+
+/**
+ * แกะ multiplexed stream ของ `docker logs` (ไม่ได้เปิด TTY → docker frame แต่ละบรรทัดด้วย
+ * header 8 ไบต์: [type, 0,0,0, len32-BE]) ให้เป็นข้อความล้วน รวม stdout+stderr เข้าด้วยกัน
+ * ถ้าเจอไบต์ที่ไม่ใช่ header ที่รู้จัก (เช่น container เปิด TTY) คืนทั้งก้อนดิบแทน parse ผิด
+ */
+function demuxDockerLog(buf: Buffer): string {
+  let out = '';
+  let i = 0;
+  while (i + 8 <= buf.length) {
+    const type = buf[i];
+    if (type !== 1 && type !== 2) return buf.toString('utf8');
+    const len = buf.readUInt32BE(i + 4);
+    if (i + 8 + len > buf.length) break; // frame ขาด — หยุดตรงนี้
+    out += buf.toString('utf8', i + 8, i + 8 + len);
+    i += 8 + len;
+  }
+  return out;
+}
+
+// stream ของ docker logs (follow) ที่แกะ frame แล้ว — พก stream ต้นทางไว้ให้ caller ปิดตอน
+// client ตัดการเชื่อมต่อ (กัน connection ค้างเปิดกับ docker daemon)
+export interface LogStream {
+  text: NodeJS.ReadableStream;
+  close: () => void;
+}
 
 export interface BuildResult {
   ok: boolean;
@@ -163,6 +190,15 @@ const CONTAINER_CAP_ADD = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'
 // 256 เหลือเฟือสำหรับ web app ปกติ (nginx/node/python ใช้จริงหลักสิบ) — ปรับผ่าน env ได้
 const CONTAINER_PIDS_LIMIT = Number(process.env.APP_PIDS_LIMIT || 256);
 
+// log retention ระดับ Docker: json-file driver หมุนไฟล์เอง — คุมไม่ให้ log ของแอปเดียวกิน
+// disk ของ host ไม่จำกัด (default ของ docker คือ json-file ไม่ตั้งเพดาน = โตเรื่อยๆ) ค่าเริ่ม
+// 10m × 3 ไฟล์ = ~30MB/แอป, พอให้ live tail + snapshot ย้อนหลังได้จริง มีผลกับ container ที่
+// deploy รอบใหม่ (ของเดิมคง config เดิมจน redeploy) — ปรับผ่าน env ได้
+const LOG_MAX_SIZE = process.env.APP_LOG_MAX_SIZE || '10m';
+const LOG_MAX_FILE = process.env.APP_LOG_MAX_FILE || '3';
+// เพดาน tail ที่ยอมให้ดึงต่อครั้ง — กันขอ log ทั้งก้อนจน backend/proxy อืด
+const LOG_MAX_TAIL = Number(process.env.APP_LOG_MAX_TAIL || 2000);
+
 // tmpfs ที่ mount ให้ container static (nginx) ตอนบังคับ rootfs เป็น read-only — สามที่นี้คือ
 // จุดเดียวที่ nginx official image ต้องเขียนตอนรัน (tmpfs ถูก charge เข้า memory limit ของ
 // container เอง จึงใส่ size กันโค้ดลูกค้าเขียน tmpfs แทน disk จนดัน limit)
@@ -273,6 +309,68 @@ export class DockerRuntimeService {
     } catch {
       return null; // container ไม่มี/inspect พัง — caller ตอบ 502 เอง
     }
+  }
+
+  /**
+   * snapshot log ล่าสุดของ container แอป (ไม่ follow) — คืน array ของบรรทัด (ตัดบรรทัดว่างท้าย)
+   * คืน null เมื่อ container ยังไม่มี (ยังไม่เคย deploy สำเร็จ) เพื่อให้ caller แยกเคสจาก "log ว่าง"
+   */
+  async getContainerLogs(app: Pick<GitApp, 'id'>, tail: number): Promise<string[] | null> {
+    const container = this.docker.getContainer(`gatekeeper-app-${app.id}`);
+    try {
+      await container.inspect();
+    } catch {
+      return null; // ยังไม่มี container
+    }
+    const safeTail = Math.min(LOG_MAX_TAIL, Math.max(1, tail));
+    const buf = (await container.logs({
+      follow: false,
+      stdout: true,
+      stderr: true,
+      tail: safeTail,
+      timestamps: true,
+    })) as unknown as Buffer;
+    return demuxDockerLog(buf).split('\n').filter((l, i, a) => l.length > 0 || i < a.length - 1);
+  }
+
+  /**
+   * เปิด stream log แบบ follow (live tail) — คืน text stream ที่แกะ frame แล้ว + ฟังก์ชัน close
+   * ที่ caller ต้องเรียกตอน client ตัด (req 'close') เพื่อปิด stream ต้นทางกับ docker daemon
+   * คืน null เมื่อ container ยังไม่มี
+   */
+  async openLogStream(app: Pick<GitApp, 'id'>, tail: number): Promise<LogStream | null> {
+    const container = this.docker.getContainer(`gatekeeper-app-${app.id}`);
+    try {
+      await container.inspect();
+    } catch {
+      return null;
+    }
+    const safeTail = Math.min(LOG_MAX_TAIL, Math.max(1, tail));
+    // follow:true → dockerode คืน stream (แต่ type ประกาศเป็น Buffer) จึง cast เป็น stream ตรงนี้
+    const src = (await container.logs({
+      follow: true,
+      stdout: true,
+      stderr: true,
+      tail: safeTail,
+      timestamps: true,
+    })) as unknown as NodeJS.ReadableStream;
+    const text = new PassThrough();
+    // รวม stdout+stderr เป็น stream ข้อความเดียว (demuxStream แกะ header 8 ไบต์ให้เอง)
+    this.docker.modem.demuxStream(src, text, text);
+    const onEnd = () => text.end();
+    src.on('end', onEnd);
+    src.on('error', onEnd);
+    return {
+      text,
+      close: () => {
+        try {
+          (src as any).destroy?.();
+        } catch {
+          /* ปิดซ้ำ/ปิดแล้ว — ไม่เป็นไร */
+        }
+        text.end();
+      },
+    };
   }
 
   /**
@@ -545,6 +643,8 @@ export class DockerRuntimeService {
           CapDrop: ['ALL'],
           CapAdd: CONTAINER_CAP_ADD,
           PidsLimit: CONTAINER_PIDS_LIMIT,
+          // หมุน log อัตโนมัติ — ดู LOG_MAX_SIZE/LOG_MAX_FILE (retention ของ Live logs)
+          LogConfig: { Type: 'json-file', Config: { 'max-size': LOG_MAX_SIZE, 'max-file': LOG_MAX_FILE } },
           // read-only rootfs เฉพาะ runtime static — image nginx ที่เรา generate เองรู้แน่ว่า
           // เขียนแค่ cache/run/tmp (tmpfs ด้านบน) ส่วน node/python/docker รันโค้ดลูกค้าที่มัก
           // เขียนลง working dir ของตัวเอง บังคับ read-only จะพังงานจริงเป็นวงกว้าง จึงปล่อย rw
