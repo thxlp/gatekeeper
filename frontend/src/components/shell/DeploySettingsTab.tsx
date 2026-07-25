@@ -4,21 +4,33 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { GitAppDetail } from '@/types';
 
-function CopyRow({ label, value }: { label: string; value: string }) {
+function CopyRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const [shown, setShown] = useState(!sensitive); // ค่าลับ = ซ่อนไว้ก่อน ต้องกดลูกตาถึงเห็น
   return (
     <div>
       <div className="mb-1 text-[12.5px] font-semibold text-muted">{label}</div>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13px] text-ink">
-          {value}
+          {shown ? value : '•'.repeat(28)}
         </code>
+        {sensitive && (
+          <button
+            onClick={() => setShown((s) => !s)}
+            title={shown ? 'ซ่อน' : 'แสดง'}
+            aria-label={shown ? 'ซ่อนค่า' : 'แสดงค่า'}
+            className="flex-none rounded-lg border border-border-alt px-2.5 py-2 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
+          >
+            <i className={`ph ${shown ? 'ph-eye-slash' : 'ph-eye'}`} />
+          </button>
+        )}
         <button
           onClick={async () => {
             await navigator.clipboard.writeText(value);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
+          title="คัดลอก"
           className="flex-none rounded-lg border border-border-alt px-2.5 py-2 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
         >
           <i className={`ph ${copied ? 'ph-check' : 'ph-copy'}`} />
@@ -139,9 +151,10 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
           ))}
         </ol>
         <div className="flex flex-col gap-3">
-          {webhookUrl && <CopyRow label="Payload / Webhook URL" value={webhookUrl} />}
+          {/* Bitbucket ฝัง ?token=<secret> ใน URL → ถือเป็นความลับ ซ่อนเหมือน secret */}
+          {webhookUrl && <CopyRow label="Payload / Webhook URL" value={webhookUrl} sensitive={provider === 'bitbucket'} />}
           {provider !== 'bitbucket' && detail.webhookSecret && (
-            <CopyRow label={provider === 'gitlab' ? 'Secret token' : 'Secret'} value={detail.webhookSecret} />
+            <CopyRow label={provider === 'gitlab' ? 'Secret token' : 'Secret'} value={detail.webhookSecret} sensitive />
           )}
         </div>
         {!detail.webhookSecret && (
