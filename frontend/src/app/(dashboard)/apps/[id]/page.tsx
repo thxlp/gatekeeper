@@ -197,6 +197,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             <DomainsTab
               appId={params.id}
               liveOriginHost={detail?.liveUrl ? new URL(detail.liveUrl).host : 'live.studiodup.com'}
+              appName={detail?.projectName || detail?.repoFullName}
             />
           )}
 

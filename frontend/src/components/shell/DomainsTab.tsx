@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { guessDomain } from '@/lib/domain-suggest';
 import { CustomDomain } from '@/types';
 
 const POLL_MS = 4000;
@@ -26,7 +27,16 @@ function DomainStatus({ status }: { status: CustomDomain['status'] }) {
   );
 }
 
-export default function DomainsTab({ appId, liveOriginHost }: { appId: string; liveOriginHost: string }) {
+export default function DomainsTab({
+  appId,
+  liveOriginHost,
+  appName,
+}: {
+  appId: string;
+  liveOriginHost: string;
+  /** ชื่อโปรเจกต์/repo — ใช้เดา subdomain ที่ตรงกับแอป เช่น myshop.customer.com */
+  appName?: string;
+}) {
   const [domains, setDomains] = useState<CustomDomain[] | null>(null);
   const [error, setError] = useState('');
   const [input, setInput] = useState('');
@@ -59,12 +69,27 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyPending]);
 
-  const add = async () => {
-    if (!input.trim()) return;
+  // เดาโดเมนจากสิ่งที่พิมพ์: normalize URL ที่แปะมา + เตือน apex/โดเมนระบบ + แนะนำ subdomain
+  const guess = useMemo(
+    () =>
+      guessDomain(input, {
+        appName,
+        existing: (domains || []).map((d) => d.domain),
+        liveOriginHost,
+      }),
+    [input, appName, domains, liveOriginHost],
+  );
+
+  const duplicate = (domains || []).some((d) => d.domain === guess.normalized);
+  const canAdd = guess.valid && !duplicate && !guess.warning.includes('โดเมนของระบบ');
+
+  const add = async (domain?: string) => {
+    const target = domain ?? guess.normalized;
+    if (!target) return;
     setBusy(true);
     setError('');
     try {
-      setDomains(await api.domains.add(appId, input.trim()));
+      setDomains(await api.domains.add(appId, target));
       setInput('');
     } catch (e: any) {
       setError(e.message);
@@ -113,18 +138,61 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && add()}
+            onKeyDown={(e) => e.key === 'Enter' && canAdd && add()}
             placeholder="app.yourdomain.com"
             className="min-w-[220px] flex-1 rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[14px] text-ink outline-none focus:border-primary"
           />
           <button
-            onClick={add}
-            disabled={busy || !input.trim()}
+            onClick={() => add()}
+            disabled={busy || !canAdd}
             className="rounded-lg bg-primary px-4 py-2 text-[14px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
           >
             <i className="ph ph-plus mr-1" /> เพิ่ม
           </button>
         </div>
+
+        {/* ถ้าแปะ URL มาทั้งดุ้น บอกให้เห็นว่าจะเพิ่มโดเมนไหนจริงๆ */}
+        {guess.normalized && guess.normalized !== input.trim().toLowerCase() && (
+          <div className="mt-2 text-[12.5px] text-muted">
+            จะเพิ่มเป็น <code className="font-mono font-semibold text-ink">{guess.normalized}</code>
+          </div>
+        )}
+
+        {(guess.warning || duplicate) && (
+          <div
+            className={`mt-2 flex items-start gap-1.5 rounded-lg px-3 py-2 text-[12.5px] ${
+              canAdd ? 'bg-[rgba(214,158,82,.1)] text-ink-soft' : 'bg-[rgba(214,109,82,.06)] text-danger-text'
+            }`}
+          >
+            <i
+              className={`ph-fill mt-[1px] shrink-0 ${
+                canAdd ? 'ph-warning-circle text-[#A97B2F] dark:text-[#D9A653]' : 'ph-x-circle'
+              }`}
+            />
+            <span>{duplicate ? 'โดเมนนี้เพิ่มไว้แล้ว' : guess.warning}</span>
+          </div>
+        )}
+
+        {guess.suggestions.length > 0 && (
+          <div className="mt-2.5">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-soft">
+              <i className="ph ph-lightbulb text-primary" /> แนะนำ — กดเพื่อใช้โดเมนนี้
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {guess.suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setInput(s)}
+                  disabled={busy}
+                  className="rounded-lg border border-border-alt bg-page px-2.5 py-1.5 font-mono text-[13px] text-ink-soft hover:border-primary hover:text-primary disabled:opacity-50"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-3 rounded-lg bg-page px-3 py-2 text-[12.5px] text-muted">
           <div className="mb-1 font-semibold text-ink-soft">ขั้นตอน</div>
           <div>
