@@ -29,8 +29,12 @@ function DeployPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redeployAppId = searchParams.get('appId') || undefined;
+  // แท็บอ่านจาก URL ล้วน (?tab=manual มาจากปุ่ม "Manual Deploy" บนหน้าหลัก) — ไม่เก็บเป็น state
+  // เพื่อให้ refresh/back/กดไอคอน Deploys ที่ rail ได้แท็บตรงกับ URL เสมอ
+  const tab: 'github' | 'manual' = redeployAppId || searchParams.get('tab') === 'manual' ? 'manual' : 'github';
+  const setTab = (t: 'github' | 'manual') =>
+    router.replace(t === 'manual' ? '/deploy?tab=manual' : '/deploy', { scroll: false });
 
-  const [tab, setTab] = useState<'github' | 'manual'>(redeployAppId ? 'manual' : 'github');
   const [redeployDetail, setRedeployDetail] = useState<GitAppDetail | null>(null);
 
   useEffect(() => {

@@ -28,7 +28,7 @@ export default function TopBar({
           <div className="ml-auto flex items-center gap-2.5">
             <NotificationsBell />
             <Link
-              href="/deploy"
+              href="/deploy?tab=manual"
               className="hidden items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[15px] font-medium text-ink-soft hover:bg-page-alt sm:flex"
             >
               <i className="ph ph-upload-simple" /> Manual Deploy
