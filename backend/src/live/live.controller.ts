@@ -13,7 +13,32 @@ import { DockerRuntimeService, resolveServePort, tenantNetworkFor } from '../dep
  * (rollback-safe) container เวอร์ชันก่อนหน้ายังรันอยู่จริงแม้ pipelineStatus ปัจจุบันจะเป็น
  * 'failed' ก็ตาม — เช็คแค่ app.enabled แล้วปล่อยให้ต่อ container ไม่ติดจริง (ยังไม่เคย deploy
  * สำเร็จเลยสักครั้ง) กลายเป็น proxy error -> 502 แทน ถูกต้องกว่าเชื่อ flag ที่อาจ stale
+ *
+ * ⚠️ Origin isolation: route นี้ต้องเสิร์ฟจาก origin ของ live เท่านั้น (live.studiodup.com)
+ * ห้ามหลุดไปโผล่บน origin ของ dashboard เด็ดขาด เพราะ JS ของแอปลูกค้า (โค้ดที่ไม่ควรไว้ใจ)
+ * จะยิง /api/* ด้วย session cookie ของคนที่เปิดลิงก์ได้ทันทีแบบ same-origin = account takeover
+ * (httpOnly ช่วยไม่ได้ — ไม่ต้องอ่าน cookie ก็ใช้มันได้) หลังย้ายไป live.studiodup.com แล้ว
+ * ยังหลุดมาจริงบน production ถึง 2 ทาง (พบ+ปิด 2026-07-31 ทั้งคู่ตอบ 200 พร้อม HTML ของ tenant):
+ *   1) https://studiodup.com/api/live/<id> — `location /api/` ของ nginx proxy ทุก route ของ Nest
+ *      รวมถึงตัวนี้ด้วย (และ /api/Live/<id> ก็ได้ เพราะ router ของ Express case-insensitive)
+ *   2) https://studiodup.com/live/<id> — `location /` ส่งเข้า Next.js ซึ่งมี rewrite /live/:path*
+ *      ชี้กลับมาที่ backend ค้างอยู่ใน next.config.js (เขียนคอมเมนต์ว่า dev-only แต่ prod ก็ทำงาน)
+ * ตอนนี้กัน 3 ชั้น: nginx return 404 ให้ ~* ^/(api/)?(live|__domain) บน vhost ของ dashboard,
+ * next.config.js ตัด rewrites ทิ้งเมื่อ NODE_ENV=production, และ guard ข้างล่างนี้เช็ค Host เอง
+ * เผื่อชั้นบนถูกแก้ผิดอีกในอนาคต — ห้ามถอดชั้นใดชั้นหนึ่งออกโดยไม่เข้าใจอีกสองชั้น
  */
+
+// Host ที่ยอมให้เสิร์ฟ /live/<id> ได้ — ตรงกับ vhost ของ live origin เท่านั้น (เทียบแบบตัด
+// port ออกและ lowercase) ตอน dev (NODE_ENV != production) ยอม localhost/127.0.0.1 ด้วย
+// เพื่อให้ยิงตรงเข้า backend :8089 ทดสอบได้ — prod ตั้ง NODE_ENV=production ใน systemd unit อยู่แล้ว
+function isAllowedLiveHost(rawHost: string | undefined): boolean {
+  const host = String(rawHost || '').split(':')[0].toLowerCase();
+  if (!host) return false;
+  if (host === (process.env.LIVE_ORIGIN_HOST || 'live.studiodup.com').toLowerCase()) return true;
+  if (process.env.NODE_ENV !== 'production' && (host === 'localhost' || host === '127.0.0.1')) return true;
+  return false;
+}
+
 @Controller('live')
 export class LiveController {
   private proxy = httpProxy.createProxyServer({});
@@ -34,6 +59,13 @@ export class LiveController {
   @All(':appId')
   @All(':appId/*')
   async handle(@Req() req: Request, @Res() res: Response) {
+    // เช็คก่อนแตะ store: ขอมาผิด origin = ทำเหมือนไม่มี route นี้อยู่เลย (ไม่ยืนยันว่า id
+    // มีจริงไหมด้วย) — ดูเหตุผลเต็มในคอมเมนต์หัวไฟล์
+    if (!isAllowedLiveHost(req.headers.host)) {
+      res.status(404).type('text/plain').send('not_found');
+      return;
+    }
+
     const appId = (req.params as any).appId as string;
     const app = this.gitAppStore.findById(appId);
     if (!app || !app.enabled) {
