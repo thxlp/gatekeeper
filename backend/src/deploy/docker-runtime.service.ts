@@ -685,7 +685,28 @@ export class DockerRuntimeService {
     }
 
     // static (default)
-    const dockerfileLines = ['FROM nginx:alpine', 'COPY . /usr/share/nginx/html'];
+    // ต้องมีหน้าแรกให้ nginx เสิร์ฟจริง ไม่งั้นจะเจออาการที่หลอกที่สุดอันหนึ่ง: `COPY` แค่
+    // "วางทับ" ไม่ได้ล้างของเดิมใน base image → index.html หน้า "Welcome to nginx!" ที่ติดมา
+    // กับ nginx:alpine รอดมา แล้วถูกเสิร์ฟแทนเว็บของผู้ใช้ ทุก stage ขึ้น success ครบ ดูเหมือน
+    // deploy ผ่านทั้งที่เว็บไม่เคยขึ้นเลย (พบจริง 2026-08-08: ผู้ใช้ตั้งหน้าแรกชื่อ Home.html)
+    // → fail ตรงนี้พร้อมบอกวิธีแก้ ล้อกับ python_runtime_no_entry ข้างบน
+    const indexFile = ['index.html', 'index.htm'].find((f) =>
+      fs.existsSync(path.join(stagingDir, f)),
+    );
+    if (!indexFile) {
+      return {
+        ok: false,
+        reason:
+          'static_runtime_no_index — ต้องมี index.html ที่รากของโปรเจกต์ (เปลี่ยนชื่อหน้าแรกเป็น index.html หรือแนบ Dockerfile เอง)',
+      };
+    }
+    // ล้าง default page ของ base image ทิ้งก่อนเสมอ — กันหน้าปลอมโผล่แทนเว็บจริงถ้าไฟล์ผู้ใช้
+    // ชื่อไม่ตรง และกัน 50x.html ของ nginx ปนไปกับไฟล์ของผู้ใช้ด้วย
+    const dockerfileLines = [
+      'FROM nginx:alpine',
+      'RUN rm -rf /usr/share/nginx/html/*',
+      'COPY . /usr/share/nginx/html',
+    ];
     if (app.spa) {
       // SPA history-fallback: route ที่ไม่ตรงไฟล์จริงให้ตกไป /index.html (client-side routing ไม่ 404)
       fs.writeFileSync(

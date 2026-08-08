@@ -30,6 +30,19 @@
       - paste token จริง → ขึ้น "เชื่อมต่อในชื่อ <username>"
 - [ ] **deploy private repo ของ GitLab/Bitbucket** — ปลายทางจริงของฟีเจอร์ข้างบน
       เชื่อมบัญชีแล้ววาง URL repo ส่วนตัว ต้อง clone + deploy ผ่าน
+- [ ] **เปิดเว็บที่ deploy แล้วต้องเห็นเว็บจริง** ⚠ ของใหม่ branch `fix/live-subpath-and-static-index`
+      เดิมพัง 2 ชั้น: (1) ทุก sub-path ตอบ 404 ของ Nest — css/js/รูป/หน้าย่อยตายหมด
+      เปิดได้แค่ URL ราก (2) static ที่ไม่มี `index.html` โดนหน้า "Welcome to nginx!"
+      ของ base image เสิร์ฟแทน ทั้งที่ทุก stage ขึ้น success
+      - deploy static ที่มี `index.html` + `style.css` + รูป → เปิดแล้วต้องเห็นเว็บจริง
+        **มีสไตล์ครบ** (เปิด DevTools → Network ต้องไม่มี 404)
+      - กดลิงก์จากแดชบอร์ด (URL ไม่มี `/` ปิดท้าย) → ต้องเด้ง 308 เติม `/` ให้เอง
+        แล้ว path สัมพัทธ์ทำงานถูก
+      - หน้าย่อยลึกๆ เช่น `/assets/x/y.js` ต้องโหลดได้
+      - deploy static ที่ **ไม่มี** `index.html` → ต้อง fail พร้อมข้อความ `static_runtime_no_index`
+        ไม่ใช่ขึ้น success แล้วโชว์หน้า nginx
+      *แอป 2 ตัวที่ deploy ไว้แล้ว (`ทดสอบ`, `ทดสอบ2`) ต้อง deploy ใหม่ถึงจะหาย และต้อง
+      เปลี่ยนชื่อ `Home.html` → `index.html` ก่อน ไม่งั้นจะติด `static_runtime_no_index`*
 - [ ] **สลับภาษา TH/EN** — ยังปกติหลังแก้ไฟล์ locale เพิ่ม
 - [ ] **หน้าบันทึกการใช้งาน `/audit`** (เพิ่งรื้อทั้งหน้า + เปลี่ยนรูปแบบ response ของ API)
       - โหลดครั้งแรกต้องขึ้น 100 แถวล่าสุด เรียงใหม่สุดอยู่บน

@@ -56,8 +56,12 @@ export class LiveController {
     });
   }
 
-  @All(':appId')
-  @All(':appId/*')
+  // ⚠️ ต้องเป็น array ใน @All ตัวเดียว — ห้ามซ้อน @All สองอันบนเมธอดเดียวเด็ดขาด
+  // Nest เก็บ PATH_METADATA ได้ค่าเดียว ตัวหลังทับตัวแรกเงียบๆ (ไม่ error ไม่ warn) ของเดิม
+  // เขียน @All(':appId') + @All(':appId/*') เลยเหลือ route แรกอย่างเดียว = ทุก sub-path
+  // (css/js/รูป/หน้าย่อย) ตอบ 404 ของ Nest ทั้งหมด และโค้ดตัด subPath ข้างล่างเป็น dead code
+  // มาตลอด — แอปที่ deploy แล้วเปิดได้แค่ URL ราก (พบ 2026-08-08)
+  @All([':appId', ':appId/*'])
   async handle(@Req() req: Request, @Res() res: Response) {
     // เช็คก่อนแตะ store: ขอมาผิด origin = ทำเหมือนไม่มี route นี้อยู่เลย (ไม่ยืนยันว่า id
     // มีจริงไหมด้วย) — ดูเหตุผลเต็มในคอมเมนต์หัวไฟล์
@@ -70,6 +74,19 @@ export class LiveController {
     const app = this.gitAppStore.findById(appId);
     if (!app || !app.enabled) {
       res.status(404).type('text/plain').send('app_not_found');
+      return;
+    }
+
+    // เบราว์เซอร์ที่ยืนอยู่ที่ /live/<id> (ไม่มี slash ปิดท้าย) จะ resolve href="style.css"
+    // เป็น /live/style.css คือหลุดออกนอกแอปไปเลย — และ liveUrl ที่เก็บใน store ก็ไม่มี slash
+    // ปิดท้าย ทุกคนที่กดลิงก์จากแดชบอร์ดจึงเจอเคสนี้หมด → เด้งไปตัวมี slash ก่อนเสมอ
+    // ใช้ 308 ไม่ใช่ 301/302 เพราะต้องคง method+body เดิม (301/302 แปลง POST เป็น GET)
+    const rawUrl = req.originalUrl || req.url;
+    const qIdx = rawUrl.indexOf('?');
+    const pathOnly = qIdx === -1 ? rawUrl : rawUrl.slice(0, qIdx);
+    const query = qIdx === -1 ? '' : rawUrl.slice(qIdx);
+    if (pathOnly === `/live/${appId}`) {
+      res.redirect(308, `/live/${appId}/${query}`);
       return;
     }
 
@@ -90,8 +107,7 @@ export class LiveController {
     }
 
     const prefix = `/live/${appId}`;
-    const originalUrl = req.originalUrl || req.url;
-    const subPath = originalUrl.startsWith(prefix) ? originalUrl.slice(prefix.length) : '/';
+    const subPath = rawUrl.startsWith(prefix) ? rawUrl.slice(prefix.length) : '/';
     req.url = subPath.length ? subPath : '/';
 
     this.proxy.web(req, res, { target: `http://${ip}:${port}` });
