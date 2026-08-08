@@ -1,7 +1,11 @@
 'use client';
 import { useState } from 'react';
+import { useToast } from '@/components/ui/Toast';
+import { useLang } from '@/lib/i18n';
 
 export default function CopyField({ label, value }: { label: string; value: string }) {
+  const { t } = useLang();
+  const toast = useToast();
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -10,7 +14,8 @@ export default function CopyField({ label, value }: { label: string; value: stri
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // clipboard อาจถูกบล็อกโดย browser permission — เงียบไว้ ผู้ใช้เลือกข้อความเองได้
+      // clipboard ถูกบล็อกด้วย permission ของเบราว์เซอร์ — เดิมเงียบสนิท ผู้ใช้กดแล้วนึกว่าค้าง
+      toast.error(t('toast.copyFailed'));
     }
   };
 
@@ -21,11 +26,11 @@ export default function CopyField({ label, value }: { label: string; value: stri
         <code className="flex-1 select-all truncate font-mono text-xs text-ink-soft">{value}</code>
         <button
           onClick={copy}
-          title="Copy"
+          title={t('common.copy')}
           className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-muted transition-colors hover:text-primary"
         >
           {copied ? (
-            <span className="text-allow-text">คัดลอกแล้ว</span>
+            <span className="text-allow-text">{t('common.copied')}</span>
           ) : (
             <i className="ph ph-copy" />
           )}

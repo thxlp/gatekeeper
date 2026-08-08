@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { GitAppDetail } from '@/types';
+import { useLang, type MsgKey, type TFunc } from '@/lib/i18n';
 
 function CopyRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
+  const { t } = useLang();
   const [copied, setCopied] = useState(false);
   const [shown, setShown] = useState(!sensitive); // ค่าลับ = ซ่อนไว้ก่อน ต้องกดลูกตาถึงเห็น
   return (
@@ -17,8 +19,8 @@ function CopyRow({ label, value, sensitive = false }: { label: string; value: st
         {sensitive && (
           <button
             onClick={() => setShown((s) => !s)}
-            title={shown ? 'ซ่อน' : 'แสดง'}
-            aria-label={shown ? 'ซ่อนค่า' : 'แสดงค่า'}
+            title={shown ? t('common.hide') : t('common.show')}
+            aria-label={shown ? t('deploySettings.hideValue') : t('deploySettings.showValue')}
             className="flex-none rounded-lg border border-border-alt px-2.5 py-2 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
           >
             <i className={`ph ${shown ? 'ph-eye-slash' : 'ph-eye'}`} />
@@ -30,7 +32,7 @@ function CopyRow({ label, value, sensitive = false }: { label: string; value: st
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
-          title="คัดลอก"
+          title={t('common.copy')}
           className="flex-none rounded-lg border border-border-alt px-2.5 py-2 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
         >
           <i className={`ph ${copied ? 'ph-check' : 'ph-copy'}`} />
@@ -42,23 +44,18 @@ function CopyRow({ label, value, sensitive = false }: { label: string; value: st
 
 const PROVIDER_LABEL: Record<string, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
 
-function instructions(provider: string): string[] {
-  if (provider === 'gitlab')
-    return ['GitLab repo → Settings → Webhooks', 'วาง URL + Secret token ด้านล่าง', 'ติ๊ก Trigger = "Push events" แล้ว Add webhook'];
-  if (provider === 'bitbucket')
-    return [
-      'Bitbucket repo → Repository settings → Webhooks → Add webhook',
-      'วาง URL ด้านล่าง (มี ?token=... ต่อท้ายให้แล้ว — Bitbucket ไม่เซ็น payload จึงยืนยันด้วย token ใน URL)',
-      'ติ๊ก Trigger = "Repository push"',
-    ];
-  return [
-    'GitHub repo → Settings → Webhooks → Add webhook',
-    'วาง Payload URL + Secret ด้านล่าง, Content type = application/json',
-    'เลือก "Just the push event" แล้ว Add webhook',
-  ];
+function instructions(provider: string, t: TFunc): string[] {
+  const keys: MsgKey[] =
+    provider === 'gitlab'
+      ? ['deploySettings.gitlabStep1', 'deploySettings.gitlabStep2', 'deploySettings.gitlabStep3']
+      : provider === 'bitbucket'
+        ? ['deploySettings.bitbucketStep1', 'deploySettings.bitbucketStep2', 'deploySettings.bitbucketStep3']
+        : ['deploySettings.githubStep1', 'deploySettings.githubStep2', 'deploySettings.githubStep3'];
+  return keys.map((k) => t(k));
 }
 
 export default function DeploySettingsTab({ appId, detail }: { appId: string; detail: GitAppDetail }) {
+  const { t, lang } = useLang();
   const [autoDeploy, setAutoDeploy] = useState(detail.autoDeploy !== false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -89,7 +86,7 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
   if (!isGit) {
     return (
       <div className="rounded-xl border border-border-alt bg-surface px-4 py-8 text-center text-[14px] text-muted">
-        แอปนี้ deploy แบบอัปโหลด .zip — ไม่มี auto-deploy จาก git push
+        {t('deploySettings.notGit')}
       </div>
     );
   }
@@ -106,9 +103,9 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
       <div className="rounded-xl border border-border-alt bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[15px] font-bold">Auto-deploy on push</div>
+            <div className="text-[15px] font-bold">{t('deploySettings.autoDeploy')}</div>
             <div className="text-[13px] text-muted">
-              deploy อัตโนมัติเมื่อ push เข้า branch <code className="font-mono">{detail.branch || 'main'}</code>
+              {t('deploySettings.autoDeployDesc')} <code className="font-mono">{detail.branch || 'main'}</code>
             </div>
           </div>
           <button
@@ -130,21 +127,23 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
         <div className="mt-2 flex items-center gap-2 text-[12.5px] text-muted-3">
           <i className="ph ph-clock-counter-clockwise" />
           {detail.lastAutoDeployAt
-            ? `auto-deploy ล่าสุด: ${new Date(detail.lastAutoDeployAt).toLocaleString('th-TH')}`
-            : 'ยังไม่เคย auto-deploy จาก push'}
+            ? t('deploySettings.lastAutoDeploy', {
+                when: new Date(detail.lastAutoDeployAt).toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB'),
+              })
+            : t('deploySettings.neverAutoDeploy')}
         </div>
       </div>
 
       {/* webhook setup */}
       <div className="rounded-xl border border-border-alt bg-surface p-4">
         <div className="mb-1 flex items-center gap-2">
-          <span className="text-[15px] font-bold">Webhook setup</span>
+          <span className="text-[15px] font-bold">{t('deploySettings.webhookSetup')}</span>
           <span className="rounded-md border border-border-alt px-1.5 py-px text-[12px] font-semibold text-muted">
             {PROVIDER_LABEL[provider] || provider}
           </span>
         </div>
         <ol className="mb-3 ml-4 list-decimal text-[13px] text-muted">
-          {instructions(provider).map((s, i) => (
+          {instructions(provider, t).map((s, i) => (
             <li key={i} className="mb-0.5">
               {s}
             </li>
@@ -159,7 +158,7 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
         </div>
         {!detail.webhookSecret && (
           <div className="mt-2 text-[12.5px] text-muted-3">
-            แอปนี้เชื่อมผ่าน GitHub (auto webhook) อยู่แล้ว — ระบบตั้ง webhook ให้ในรีโปโดยอัตโนมัติ
+            {t('deploySettings.githubManaged')}
           </div>
         )}
       </div>

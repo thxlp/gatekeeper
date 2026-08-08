@@ -3,8 +3,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { Field, PrimaryButton } from '@/components/shell/AuthShell';
+import { useLang } from '@/lib/i18n';
 
 export default function ForgotPasswordPage() {
+  const { t } = useLang();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,7 +15,7 @@ export default function ForgotPasswordPage() {
   const submit = async () => {
     setError('');
     if (!email.trim()) {
-      setError('กรุณากรอก email');
+      setError(t('auth.errEmailRequired'));
       return;
     }
     setLoading(true);
@@ -24,7 +26,7 @@ export default function ForgotPasswordPage() {
       if (err) throw err;
       setSent(true);
     } catch (e: any) {
-      setError(e.message || 'เกิดข้อผิดพลาด');
+      setError(e.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -34,16 +36,16 @@ export default function ForgotPasswordPage() {
     return (
       <AuthShell>
         <div className="mb-2 flex items-center gap-2 text-xl font-semibold text-allow-text">
-          <i className="ph-fill ph-envelope-simple-open" /> ส่งลิงก์แล้ว
+          <i className="ph-fill ph-envelope-simple-open" /> {t('auth.forgotSentTitle')}
         </div>
         <p className="mb-6 text-[14.5px] leading-relaxed text-muted-2">
-          ถ้ามีบัญชีที่ใช้อีเมล {email.trim()} เราได้ส่งลิงก์รีเซ็ตรหัสผ่านไปให้แล้ว
+          {t('auth.forgotSentBody', { email: email.trim() })}
         </p>
         <Link
           href="/login"
           className="flex w-full items-center justify-center gap-1.5 rounded-md border border-input-border bg-surface py-2.5 text-sm font-medium text-ink-alt hover:bg-page-alt"
         >
-          <i className="ph ph-arrow-left" /> กลับไปเข้าสู่ระบบ
+          <i className="ph ph-arrow-left" /> {t('auth.backToLogin')}
         </Link>
       </AuthShell>
     );
@@ -52,12 +54,10 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell>
       <div className="mb-2 flex items-center text-xl font-semibold">
-        <i className="ph ph-key mr-2 text-primary" /> ลืมรหัสผ่าน
+        <i className="ph ph-key mr-2 text-primary" /> {t('auth.forgotTitle')}
       </div>
-      <div className="mb-6 text-[14.5px] leading-relaxed text-muted-2">
-        กรอกอีเมลที่ใช้สมัคร เราจะส่งลิงก์รีเซ็ตรหัสผ่านไปให้
-      </div>
-      <Field label="Email" type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
+      <div className="mb-6 text-[14.5px] leading-relaxed text-muted-2">{t('auth.forgotSubtitle')}</div>
+      <Field label={t('auth.email')} type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
 
       {error && (
         <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
@@ -66,11 +66,11 @@ export default function ForgotPasswordPage() {
       )}
 
       <PrimaryButton onClick={submit} disabled={loading}>
-        {loading ? 'กำลังส่ง…' : 'ส่งลิงก์รีเซ็ต'} <i className="ph ph-paper-plane-tilt" />
+        {loading ? t('auth.forgotSending') : t('auth.forgotSubmit')} <i className="ph ph-paper-plane-tilt" />
       </PrimaryButton>
       <div className="mt-5 flex justify-center text-[15px]">
         <Link href="/login" className="flex items-center gap-1.5 font-medium text-primary">
-          <i className="ph ph-arrow-left" /> กลับไปเข้าสู่ระบบ
+          <i className="ph ph-arrow-left" /> {t('auth.backToLogin')}
         </Link>
       </div>
     </AuthShell>

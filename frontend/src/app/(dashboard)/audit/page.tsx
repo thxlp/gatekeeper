@@ -6,6 +6,7 @@ import { Pill, Skeleton } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
 import { AuditEntry } from '@/types';
 import { auditDetail, decisionKind, stageBadge } from '@/lib/audit';
+import { useLang, localeTag, type TFunc } from '@/lib/i18n';
 
 const COLS = '130px 160px 1fr 130px';
 
@@ -16,7 +17,7 @@ const pillClassByKind: Record<'primary' | 'allow' | 'danger', string> = {
 };
 
 // โครง shimmer ตอนโหลด log — ทรงตรงกับตาราง desktop + การ์ด mobile
-function AuditSkeleton() {
+function AuditSkeleton({ t }: { t: TFunc }) {
   const rows = Array.from({ length: 7 });
   return (
     <>
@@ -25,10 +26,10 @@ function AuditSkeleton() {
           className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
           style={{ gridTemplateColumns: COLS }}
         >
-          <div>Time</div>
-          <div>Stage</div>
-          <div>Detail</div>
-          <div>Decision</div>
+          <div>{t('audit.colTime')}</div>
+          <div>{t('audit.colStage')}</div>
+          <div>{t('audit.colDetail')}</div>
+          <div>{t('audit.colDecision')}</div>
         </div>
         {rows.map((_, i) => (
           <div
@@ -61,6 +62,7 @@ function AuditSkeleton() {
 }
 
 export default function AuditPage() {
+  const { t, lang } = useLang();
   const [rows, setRows] = useState<AuditEntry[] | null>(null);
   const [error, setError] = useState('');
 
@@ -74,8 +76,8 @@ export default function AuditPage() {
         variant="title"
         title={
           <span className="flex items-center gap-2.5">
-            Audit Log
-            <span className="hidden text-xs font-normal text-muted-3 sm:inline">ทุกการตัดสินถูกบันทึก · immutable</span>
+            {t('audit.title')}
+            <span className="hidden text-xs font-normal text-muted-3 sm:inline">{t('audit.subtitle')}</span>
           </span>
         }
       />
@@ -86,8 +88,8 @@ export default function AuditPage() {
             {error}
           </div>
         )}
-        {!rows && !error && <AuditSkeleton />}
-        {rows && rows.length === 0 && <p className="text-[14.5px] text-muted">ยังไม่มี audit event</p>}
+        {!rows && !error && <AuditSkeleton t={t} />}
+        {rows && rows.length === 0 && <p className="text-[14.5px] text-muted">{t('audit.empty')}</p>}
 
         {rows && rows.length > 0 && (
           <>
@@ -96,7 +98,7 @@ export default function AuditPage() {
                 className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
                 style={{ gridTemplateColumns: COLS }}
               >
-                <div>Time</div><div>Stage</div><div>Detail</div><div>Decision</div>
+                <div>{t('audit.colTime')}</div><div>{t('audit.colStage')}</div><div>{t('audit.colDetail')}</div><div>{t('audit.colDecision')}</div>
               </div>
               {rows.map((row, i) => {
                 const badge = stageBadge(row.stage);
@@ -109,7 +111,7 @@ export default function AuditPage() {
                     }`}
                     style={{ gridTemplateColumns: COLS }}
                   >
-                    <div className="font-mono text-[13px] text-muted">{new Date(row.ts).toLocaleString('th-TH')}</div>
+                    <div className="font-mono text-[13px] text-muted">{new Date(row.ts).toLocaleString(localeTag(lang))}</div>
                     <div>
                       <span className={`rounded-[5px] px-2 py-0.5 font-mono text-[12px] font-bold ${pillClassByKind[badge.kind]}`}>{badge.label}</span>
                     </div>
@@ -131,7 +133,7 @@ export default function AuditPage() {
                       <Pill kind={kind}>{row.decision}</Pill>
                     </div>
                     <div className="text-[14.5px]">{auditDetail(row)}</div>
-                    <div className="mt-1 font-mono text-[12.5px] text-muted-3">{new Date(row.ts).toLocaleString('th-TH')}</div>
+                    <div className="mt-1 font-mono text-[12.5px] text-muted-3">{new Date(row.ts).toLocaleString(localeTag(lang))}</div>
                   </div>
                 );
               })}

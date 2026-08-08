@@ -3,6 +3,7 @@
 import IconRail from '@/components/shell/IconRail';
 import MobileTabBar from '@/components/shell/MobileTabBar';
 import { useApiKey } from '@/lib/use-api-key';
+import { useLang } from '@/lib/i18n';
 
 // Shared authenticated shell: left icon rail (desktop) + bottom tab bar
 // (mobile). Individual pages render their own top bar + content, since the
@@ -13,11 +14,12 @@ import { useApiKey } from '@/lib/use-api-key';
 // valid session, and resolves instantly from localStorage once one exists.
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { authChecked } = useApiKey();
+  const { t } = useLang();
 
   if (!authChecked) {
     return (
       <div className="flex h-screen items-center justify-center bg-page text-sm text-muted">
-        กำลังตรวจสอบสถานะการเข้าสู่ระบบ…
+        {t('shell.checkingAuth')}
       </div>
     );
   }

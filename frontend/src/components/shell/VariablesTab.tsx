@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { EnvVarSummary } from '@/types';
+import { useLang } from '@/lib/i18n';
 
 export default function VariablesTab({
   appId,
@@ -11,6 +14,9 @@ export default function VariablesTab({
   appId: string;
   onRequestRedeploy: () => void;
 }) {
+  const { t } = useLang();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [vars, setVars] = useState<EnvVarSummary[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,9 +60,11 @@ export default function VariablesTab({
   };
 
   const addVar = async () => {
-    if (!newKey.trim()) return;
-    const ok = await run(() => api.env.set(appId, newKey.trim(), newValue));
+    const key = newKey.trim();
+    if (!key) return;
+    const ok = await run(() => api.env.set(appId, key, newValue));
     if (ok) {
+      toast.success(t('toast.varSaved', { key }));
       setNewKey('');
       setNewValue('');
     }
@@ -65,20 +73,28 @@ export default function VariablesTab({
   const saveEdit = async (key: string) => {
     const ok = await run(() => api.env.set(appId, key, editValue));
     if (ok) {
+      toast.success(t('toast.varSaved', { key }));
       setEditKey(null);
       setEditValue('');
     }
   };
 
   const removeVar = async (key: string) => {
-    if (!confirm(`ลบตัวแปร ${key}?`)) return;
-    await run(() => api.env.remove(appId, key));
+    const confirmed = await confirm({
+      title: t('confirm.deleteVarTitle'),
+      body: t('vars.deleteConfirm', { key }),
+      confirmLabel: t('common.delete'),
+      danger: true,
+    });
+    if (!confirmed) return;
+    if (await run(() => api.env.remove(appId, key))) toast.success(t('toast.varDeleted', { key }));
   };
 
   const doImport = async () => {
     if (!importRaw.trim()) return;
     const ok = await run(() => api.env.importRaw(appId, importRaw));
     if (ok) {
+      toast.success(t('toast.varsImported'));
       setImportRaw('');
       setImportOpen(false);
     }
@@ -90,28 +106,26 @@ export default function VariablesTab({
       {needsRedeploy && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[rgba(214,158,82,.35)] bg-[rgba(214,158,82,.1)] px-4 py-3">
           <i className="ph-fill ph-warning-circle text-[18px] text-[#A97B2F] dark:text-[#D9A653]" />
-          <div className="min-w-0 flex-1 text-[13.5px] text-ink-soft">
-            ตัวแปรถูกบันทึกแล้ว แต่จะ<span className="font-semibold">มีผลเมื่อ deploy รอบถัดไป</span> — ค่า env ถูกฝังตอนสร้าง container
-          </div>
+          <div className="min-w-0 flex-1 text-[13.5px] text-ink-soft">{t('vars.needsRedeploy')}</div>
           <button
             onClick={onRequestRedeploy}
             className="rounded-lg bg-primary px-3.5 py-1.5 text-[13.5px] font-semibold text-white hover:bg-primary-hover"
           >
-            <i className="ph ph-rocket-launch mr-1" /> Redeploy ตอนนี้
+            <i className="ph ph-rocket-launch mr-1" /> {t('vars.redeployNow')}
           </button>
         </div>
       )}
 
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <div className="text-[15px] font-bold">Environment Variables</div>
-          <div className="text-[13px] text-muted">ค่าถูกเข้ารหัสเก็บไว้ · ระบบไม่แสดงค่าจริงอีกหลังบันทึก</div>
+          <div className="text-[15px] font-bold">{t('vars.title')}</div>
+          <div className="text-[13px] text-muted">{t('vars.subtitle')}</div>
         </div>
         <button
           onClick={() => setImportOpen((v) => !v)}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
         >
-          <i className="ph ph-upload-simple" /> Import .env
+          <i className="ph ph-upload-simple" /> {t('vars.import')}
         </button>
       </div>
 
@@ -127,7 +141,7 @@ export default function VariablesTab({
           <textarea
             value={importRaw}
             onChange={(e) => setImportRaw(e.target.value)}
-            placeholder={'วางเนื้อหา .env ที่นี่\nDATABASE_URL=postgres://...\nAPI_KEY=sk_live_...'}
+            placeholder={t('vars.importPlaceholder')}
             rows={5}
             className="w-full resize-y rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13px] text-ink outline-none focus:border-primary"
           />
@@ -137,7 +151,7 @@ export default function VariablesTab({
               disabled={busy || !importRaw.trim()}
               className="rounded-lg bg-primary px-3.5 py-1.5 text-[13.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
             >
-              Import (merge)
+              {t('vars.importMerge')}
             </button>
             <button
               onClick={() => {
@@ -146,9 +160,9 @@ export default function VariablesTab({
               }}
               className="rounded-lg border border-border-alt px-3.5 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
             >
-              ยกเลิก
+              {t('common.cancel')}
             </button>
-            <span className="text-[12.5px] text-muted-3">ทับค่าเดิมที่ชื่อชนกัน · ตัวอื่นคงไว้</span>
+            <span className="text-[12.5px] text-muted-3">{t('vars.importHint')}</span>
           </div>
         </div>
       )}
@@ -156,11 +170,11 @@ export default function VariablesTab({
       {/* ตารางตัวแปร */}
       <div className="overflow-hidden rounded-xl border border-border-alt bg-surface">
         {vars === null ? (
-          <div className="px-4 py-6 text-[13.5px] text-muted">กำลังโหลด…</div>
+          <div className="px-4 py-6 text-[13.5px] text-muted">{t('common.loading')}</div>
         ) : vars.length === 0 ? (
           <div className="px-4 py-8 text-center text-[13.5px] text-muted">
             <i className="ph ph-key mb-1 block text-2xl text-muted-3" />
-            ยังไม่มีตัวแปร — เพิ่มด้านล่างหรือ Import .env
+            {t('vars.empty')}
           </div>
         ) : (
           <div className="divide-y divide-border-alt">
@@ -175,7 +189,7 @@ export default function VariablesTab({
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && saveEdit(v.key)}
-                      placeholder="ค่าใหม่ (พิมพ์ทับ — ค่าเดิมไม่แสดง)"
+                      placeholder={t('vars.newValuePlaceholder')}
                       className="mt-1 w-full rounded-md border border-primary bg-page px-2 py-1 font-mono text-[13px] text-ink outline-none"
                     />
                   ) : (
@@ -189,7 +203,7 @@ export default function VariablesTab({
                       disabled={busy}
                       className="rounded-md bg-primary px-2.5 py-1 text-[13px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                     >
-                      บันทึก
+                      {t('common.save')}
                     </button>
                     <button
                       onClick={() => {
@@ -198,13 +212,13 @@ export default function VariablesTab({
                       }}
                       className="rounded-md border border-border-alt px-2.5 py-1 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
                     >
-                      ยกเลิก
+                      {t('common.cancel')}
                     </button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
                     <button
-                      title="แก้ค่า"
+                      title={t('vars.editValue')}
                       onClick={() => {
                         setEditKey(v.key);
                         setEditValue('');
@@ -214,7 +228,7 @@ export default function VariablesTab({
                       <i className="ph ph-pencil-simple text-[15px]" />
                     </button>
                     <button
-                      title="ลบ"
+                      title={t('common.delete')}
                       onClick={() => removeVar(v.key)}
                       className="rounded-md p-1.5 text-muted hover:bg-page hover:text-danger-text"
                     >
@@ -230,7 +244,7 @@ export default function VariablesTab({
 
       {/* เพิ่มตัวแปรใหม่ */}
       <div className="mt-4 rounded-xl border border-border-alt bg-surface p-3">
-        <div className="mb-2 text-[13.5px] font-semibold text-ink-soft">เพิ่มตัวแปร</div>
+        <div className="mb-2 text-[13.5px] font-semibold text-ink-soft">{t('vars.addTitle')}</div>
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={newKey}
@@ -251,12 +265,10 @@ export default function VariablesTab({
             disabled={busy || !newKey.trim()}
             className="rounded-lg bg-primary px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
           >
-            <i className="ph ph-plus mr-1" /> เพิ่ม
+            <i className="ph ph-plus mr-1" /> {t('common.add')}
           </button>
         </div>
-        <div className="mt-2 text-[12.5px] text-muted-3">
-          ชื่อ: ขึ้นต้นตัวอักษรหรือ _ แล้วตามด้วย A-Z a-z 0-9 _ เท่านั้น
-        </div>
+        <div className="mt-2 text-[12.5px] text-muted-3">{t('vars.nameRule')}</div>
       </div>
     </div>
   );

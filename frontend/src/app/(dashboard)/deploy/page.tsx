@@ -7,10 +7,13 @@ import TopBar from '@/components/shell/TopBar';
 import CopyField from '@/components/ui/CopyField';
 import FindingsList from '@/components/ui/FindingsList';
 import { Skeleton } from '@/components/ui/primitives';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { filesToZipEntries, isZipBlob, readDropped, zipEntriesToBlob } from '@/lib/zip';
 import { DeployOutcome, GitAppDetail, GitAppRegistration, GithubRepo, GithubStatus } from '@/types';
+import { useLang } from '@/lib/i18n';
 
 // node/static/python รองรับผ่าน generated Dockerfile, docker = ใช้ Dockerfile ของ repo เอง
 // (backend/src/deploy/docker-runtime.service.ts) — port เว้นว่างได้ ระบบเดาจาก EXPOSE/runtime
@@ -26,6 +29,7 @@ export default function DeployPage() {
 }
 
 function DeployPageInner() {
+  const { t } = useLang();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redeployAppId = searchParams.get('appId') || undefined;
@@ -39,7 +43,7 @@ function DeployPageInner() {
 
   return (
     <>
-      <TopBar variant="title" title="New Deploy" backHref="/" />
+      <TopBar variant="title" title={t('deploy.title')} backHref="/" />
 
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6 lg:flex-row">
         <div className="w-full flex-none lg:w-[640px]">
@@ -51,7 +55,7 @@ function DeployPageInner() {
                   tab === 'github' ? 'bg-surface font-semibold shadow-card-soft' : 'font-medium text-muted'
                 }`}
               >
-                <i className="ph-fill ph-github-logo" /> GitHub Repo
+                <i className="ph-fill ph-github-logo" /> {t('deploy.tabGithub')}
               </button>
               <button
                 onClick={() => setTab('manual')}
@@ -59,7 +63,7 @@ function DeployPageInner() {
                   tab === 'manual' ? 'bg-surface font-semibold shadow-card-soft' : 'font-medium text-muted'
                 }`}
               >
-                <i className="ph ph-package" /> Manual Upload
+                <i className="ph ph-package" /> {t('deploy.tabManual')}
               </button>
             </div>
           )}
@@ -171,6 +175,7 @@ function configToBody(c: AppConfigState) {
 }
 
 function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigState; setConfig: (c: AppConfigState) => void; runtime: string }) {
+  const { t } = useLang();
   const setEnv = (i: number, field: 'key' | 'value', val: string) =>
     setConfig({ ...config, envVars: config.envVars.map((e, idx) => (idx === i ? { ...e, [field]: val } : e)) });
   const addEnv = () => setConfig({ ...config, envVars: [...config.envVars, { key: '', value: '' }] });
@@ -181,7 +186,7 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
   return (
     <div className="mb-4 rounded-lg border border-border bg-page-alt p-3.5">
       {/* Env vars */}
-      <div className="mb-1.5 text-xs font-semibold">Environment variables</div>
+      <div className="mb-1.5 text-xs font-semibold">{t('deploy.envVars')}</div>
       {config.envVars.map((e, i) => (
         <div key={i} className="mb-2 flex items-center gap-2">
           <input
@@ -196,17 +201,17 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
             placeholder="value"
             className="flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
-          <button onClick={() => removeEnv(i)} className="px-1.5 text-muted hover:text-ink" title="ลบ">
+          <button onClick={() => removeEnv(i)} className="px-1.5 text-muted hover:text-ink" title={t('common.delete')}>
             <i className="ph ph-x" />
           </button>
         </div>
       ))}
       <button onClick={addEnv} className="mb-3 flex items-center gap-1 text-[13.5px] font-medium text-primary hover:underline">
-        <i className="ph ph-plus" /> เพิ่ม env var
+        <i className="ph ph-plus" /> {t('deploy.addEnvVar')}
       </button>
 
       {/* Addons */}
-      <div className="mb-1.5 text-xs font-semibold">Managed services (inject connection URL อัตโนมัติ)</div>
+      <div className="mb-1.5 text-xs font-semibold">{t('deploy.managedServices')}</div>
       <div className="mb-3 flex gap-4">
         {[
           { id: 'postgres', label: 'PostgreSQL → DATABASE_URL' },
@@ -221,15 +226,15 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
 
       {/* Resources */}
       <div className="mb-3 grid grid-cols-2 gap-3">
-        <InputRow label="Memory MB (64–1024)" value={config.memoryMb} onChange={(v) => setConfig({ ...config, memoryMb: v })} placeholder="256" />
-        <InputRow label="CPU milli (100–2000)" value={config.cpuMilli} onChange={(v) => setConfig({ ...config, cpuMilli: v })} placeholder="500 = 0.5 vCPU" />
+        <InputRow label={t('deploy.memoryMb')} value={config.memoryMb} onChange={(v) => setConfig({ ...config, memoryMb: v })} placeholder="256" />
+        <InputRow label={t('deploy.cpuMilli')} value={config.cpuMilli} onChange={(v) => setConfig({ ...config, cpuMilli: v })} placeholder="500 = 0.5 vCPU" />
       </div>
 
       {/* SPA (เฉพาะ static) */}
       {runtime === 'static' && (
         <label className="flex cursor-pointer items-center gap-1.5 text-[14px]">
           <input type="checkbox" checked={config.spa} onChange={(e) => setConfig({ ...config, spa: e.target.checked })} />
-          SPA — route ที่ไม่ตรงไฟล์ให้ fallback ไป index.html (กัน deep link 404)
+          {t('deploy.spaHint')}
         </label>
       )}
     </div>
@@ -237,6 +242,9 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
 }
 
 function GithubTab() {
+  const { t } = useLang();
+  const toast = useToast();
+  const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<GithubStatus | null>(null);
@@ -283,16 +291,15 @@ function GithubTab() {
           // Supabase ให้ provider_token มาเฉพาะ session สดๆ หลัง OAuth เท่านั้น — ถ้าไม่มีแปลว่า
           // redirect ไม่ได้มาจาก OAuth ตรงๆ (เช่น Supabase เด้งกลับ Site URL เพราะ redirectTo
           // ไม่อยู่ใน allowlist) หรือ session ถูก refresh ไปก่อนแล้ว
-          setError(
-            'OAuth สำเร็จแต่ไม่ได้รับ GitHub token กลับมา — มักเกิดจาก Redirect URL ใน Supabase Dashboard ไม่ครอบคลุมโดเมนนี้ (ต้องมี https://studiodup.com/** ใน allowlist) หรือลองเชื่อมด้วย Personal Access Token ด้านล่างแทน',
-          );
+          setError(t('deploy.oauthNoToken'));
           return;
         }
         const s = await api.github.connect(providerToken);
         setStatus(s);
+        toast.success(t('toast.githubConnected'));
         loadRepos();
       } catch (e: any) {
-        setError(`เชื่อม GitHub ไม่สำเร็จ: ${e?.message || 'connect_failed'}`);
+        setError(t('deploy.connectFailed', { reason: e?.message || 'connect_failed' }));
       } finally {
         setConnecting(false);
         router.replace('/deploy', { scroll: false });
@@ -326,6 +333,7 @@ function GithubTab() {
       const s = await api.github.connect(pat.trim());
       setStatus(s);
       setPat('');
+      toast.success(t('toast.githubConnected'));
       loadRepos();
     } catch (e: any) {
       setError(e.message);
@@ -335,11 +343,18 @@ function GithubTab() {
   };
 
   const disconnect = async () => {
-    if (!confirm('ยกเลิกการเชื่อมต่อ GitHub?')) return;
+    const ok = await confirm({
+      title: t('confirm.disconnectGithubTitle'),
+      body: t('confirm.disconnectGithubBody'),
+      confirmLabel: t('deploy.disconnect'),
+      danger: true,
+    });
+    if (!ok) return;
     await api.github.disconnect().catch(() => undefined);
     setStatus({ connected: false });
     setRepos(null);
     setSelectedRepo(null);
+    toast.success(t('toast.githubDisconnected'));
   };
 
   const pickRepo = async (repo: GithubRepo) => {
@@ -378,12 +393,13 @@ function GithubTab() {
   const submitAdvanced = async () => {
     setAdvError('');
     const url = advRepoUrl.trim();
-    if (!url) { setAdvError('กรุณากรอก Repository URL'); return; }
-    if (!GITHUB_REPO_RE.test(url)) { setAdvError('รูปแบบต้องเป็น https://github.com/<owner>/<repo>'); return; }
+    if (!url) { setAdvError(t('deploy.errRepoUrlRequired')); return; }
+    if (!GITHUB_REPO_RE.test(url)) { setAdvError(t('deploy.errRepoUrlFormat')); return; }
     setAdvLoading(true);
     try {
       const res = await api.registerGitApp({ repoUrl: url, branch: advBranch.trim() || 'main', runtime: advRuntime });
       setAdvResult(res);
+      toast.success(t('toast.appRegistered'));
     } catch (e: any) {
       setAdvError(e.message);
     } finally {
@@ -399,21 +415,19 @@ function GithubTab() {
 
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
-      {!status && <p className="text-[14.5px] text-muted">กำลังตรวจสอบการเชื่อมต่อ GitHub…</p>}
+      {!status && <p className="text-[14.5px] text-muted">{t('deploy.checkingGithub')}</p>}
 
       {status && !status.connected && (
         <div className="flex flex-col gap-4">
-          <p className="text-[14.5px] text-ink-soft">
-            เชื่อมบัญชี GitHub ก่อน เพื่อเลือก repo จากรายการและให้ระบบตั้ง webhook ให้อัตโนมัติ
-          </p>
+          <p className="text-[14.5px] text-ink-soft">{t('deploy.connectIntro')}</p>
           <button
             onClick={connectOAuth}
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface py-2.5 text-sm font-medium hover:bg-page-alt"
           >
-            <i className="ph-fill ph-github-logo" /> Connect with GitHub (OAuth)
+            <i className="ph-fill ph-github-logo" /> {t('deploy.connectOAuth')}
           </button>
           <div className="flex items-center gap-3 text-xs text-muted">
-            <div className="flex-1 border-b border-border" /> หรือใช้ Personal Access Token <div className="flex-1 border-b border-border" />
+            <div className="flex-1 border-b border-border" /> {t('deploy.orUsePat')} <div className="flex-1 border-b border-border" />
           </div>
           <div className="flex gap-2">
             <input
@@ -428,7 +442,7 @@ function GithubTab() {
               disabled={connecting || !pat.trim()}
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-white disabled:opacity-40"
             >
-              <i className="ph ph-key" /> {connecting ? '…' : 'Connect'}
+              <i className="ph ph-key" /> {connecting ? '…' : t('deploy.connect')}
             </button>
           </div>
         </div>
@@ -440,14 +454,12 @@ function GithubTab() {
             <i className="ph-fill ph-github-logo text-[19px]" />
             <div className="flex-1">
               <div className="text-[14.5px] font-semibold">
-                {status.username} <span className="font-normal text-allow-text">· connected</span>
+                {status.username} <span className="font-normal text-allow-text">{t('deploy.connectedSuffix')}</span>
               </div>
-              <div className="text-[12.5px] text-muted">
-                token เข้ารหัส AES-256-GCM · ใช้แค่ list repo / webhook / clone
-              </div>
+              <div className="text-[12.5px] text-muted">{t('deploy.tokenNote')}</div>
             </div>
             <button onClick={disconnect} className="rounded-md border border-border bg-surface px-[11px] py-1.5 text-[13.5px] text-muted">
-              Disconnect
+              {t('deploy.disconnect')}
             </button>
           </div>
 
@@ -458,7 +470,7 @@ function GithubTab() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="ค้นหา repo…"
+                  placeholder={t('deploy.searchRepo')}
                   className="w-full rounded-lg border border-border bg-page-alt py-2 pl-8 pr-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
@@ -471,7 +483,7 @@ function GithubTab() {
                       <Skeleton className="ml-auto h-3 w-12" />
                     </div>
                   ))}
-                {filteredRepos?.length === 0 && <p className="p-3 text-[14.5px] text-muted">ไม่พบ repo</p>}
+                {filteredRepos?.length === 0 && <p className="p-3 text-[14.5px] text-muted">{t('deploy.noRepo')}</p>}
                 {filteredRepos?.map((r) => (
                   <button key={r.fullName} onClick={() => pickRepo(r)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-page-alt">
                     <i className={r.private ? 'ph-fill ph-lock-simple text-warn-text' : 'ph-fill ph-github-logo text-muted'} />
@@ -489,26 +501,34 @@ function GithubTab() {
                 <i className={selectedRepo.private ? 'ph-fill ph-lock-simple text-warn-text' : 'ph-fill ph-github-logo text-muted'} />
                 <span className="truncate text-[14.5px] font-semibold">{selectedRepo.fullName}</span>
                 <button onClick={() => setSelectedRepo(null)} className="ml-auto text-[12.5px] text-muted hover:text-ink">
-                  เปลี่ยน repo
+                  {t('deploy.changeRepo')}
                 </button>
               </div>
 
               <div className="mb-3.5 grid grid-cols-2 gap-3.5">
-                <SelectRow label="Branch" value={branch} onChange={setBranch} options={branches || [branch]} />
-                <SelectRow label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} />
+                <SelectRow label={t('deploy.branch')} value={branch} onChange={setBranch} options={branches || [branch]} />
+                <SelectRow label={t('deploy.runtime')} value={runtime} onChange={setRuntime} options={RUNTIMES} />
               </div>
               <div className="mb-4 grid grid-cols-2 gap-3.5">
-                <InputRow label="Project name (ไม่บังคับ)" value={projectName} onChange={setProjectName} placeholder={selectedRepo.name} />
-                <InputRow label="Port (ไม่บังคับ)" value={port} onChange={setPort} placeholder={runtime === 'docker' ? 'จาก EXPOSE' : 'อัตโนมัติ'} />
+                <InputRow
+                  label={t('deploy.projectNameOptional', { optional: t('common.optional') })}
+                  value={projectName}
+                  onChange={setProjectName}
+                  placeholder={selectedRepo.name}
+                />
+                <InputRow
+                  label={t('deploy.portOptional', { optional: t('common.optional') })}
+                  value={port}
+                  onChange={setPort}
+                  placeholder={runtime === 'docker' ? t('deploy.portFromExpose') : t('deploy.portAuto')}
+                />
               </div>
 
               <AppConfigFields config={config} setConfig={setConfig} runtime={runtime} />
 
               <div className="mb-[18px] flex items-start gap-2.5 rounded-[9px] border border-border bg-page-alt px-3 py-3">
                 <i className="ph ph-info mt-0.5 text-primary" />
-                <div className="text-[13px] text-muted">
-                  ระบบจะตั้ง webhook ให้อัตโนมัติ · ตรวจ HMAC signature ทุก event — push ครั้งถัดไปเข้า branch นี้จะ auto-deploy
-                </div>
+                <div className="text-[13px] text-muted">{t('deploy.webhookAutoNote')}</div>
               </div>
 
               <button
@@ -516,7 +536,7 @@ function GithubTab() {
                 disabled={submitting}
                 className="flex w-full items-center justify-center gap-2 rounded-[9px] bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
               >
-                {submitting ? 'กำลังตั้งค่า webhook…' : 'Deploy'} <i className="ph ph-arrow-right" />
+                {submitting ? t('deploy.settingWebhook') : t('deploy.submit')} <i className="ph ph-arrow-right" />
               </button>
             </>
           )}
@@ -526,7 +546,7 @@ function GithubTab() {
             className="mt-4 flex items-center gap-1.5 text-[13.5px] font-medium text-muted hover:text-ink"
           >
             <i className={`ph ${showAdvanced ? 'ph-caret-down' : 'ph-caret-right'}`} />
-            Advanced: register by URL (repo ที่ไม่ผ่าน picker ด้านบน)
+            {t('deploy.advancedToggle')}
           </button>
 
           {showAdvanced && (
@@ -534,11 +554,11 @@ function GithubTab() {
               {!advResult ? (
                 <>
                   <div className="mb-3">
-                    <InputRow label="Repository URL" value={advRepoUrl} onChange={setAdvRepoUrl} placeholder="https://github.com/owner/repo" />
+                    <InputRow label={t('deploy.repoUrl')} value={advRepoUrl} onChange={setAdvRepoUrl} placeholder="https://github.com/owner/repo" />
                   </div>
                   <div className="mb-3 grid grid-cols-2 gap-3">
-                    <InputRow label="Branch" value={advBranch} onChange={setAdvBranch} placeholder="main" />
-                    <SelectRow label="Runtime" value={advRuntime} onChange={setAdvRuntime} options={RUNTIMES} />
+                    <InputRow label={t('deploy.branch')} value={advBranch} onChange={setAdvBranch} placeholder="main" />
+                    <SelectRow label={t('deploy.runtime')} value={advRuntime} onChange={setAdvRuntime} options={RUNTIMES} />
                   </div>
                   {advError && (
                     <div className="mb-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14px] text-danger-text">
@@ -550,23 +570,23 @@ function GithubTab() {
                     disabled={advLoading}
                     className="w-full rounded-lg border border-primary bg-surface py-2 text-[14.5px] font-semibold text-primary disabled:opacity-50"
                   >
-                    {advLoading ? 'กำลังลงทะเบียน…' : 'Register App'}
+                    {advLoading ? t('deploy.registering') : t('deploy.registerApp')}
                   </button>
                 </>
               ) : (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2 text-allow-text">
-                    <i className="ph-fill ph-check-circle" /> <span className="text-[14.5px] font-semibold">ลงทะเบียนสำเร็จ</span>
+                    <i className="ph-fill ph-check-circle" /> <span className="text-[14.5px] font-semibold">{t('deploy.registerSuccess')}</span>
                   </div>
                   <CopyField label="Webhook URL" value={advResult.webhookUrl} />
-                  <CopyField label="Webhook Secret" value={advResult.webhookSecret} />
+                  <CopyField label={t('deploy.webhookSecretLabel')} value={advResult.webhookSecret} />
                   <div className="rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-muted">
-                    <div>ตั้งค่าใน GitHub: Settings → Webhooks → Add webhook</div>
+                    <div>{t('deploy.setupInGithub')}</div>
                     <div>Content type: {advResult.contentType}</div>
                     <div>Events: {advResult.events.join(', ')}</div>
                   </div>
                   <div className="rounded-lg border border-warn-dot/40 bg-[rgba(224,185,118,.1)] px-3 py-2 text-[13px] text-warn-text">
-                    เก็บ secret นี้ไว้ให้ดี ระบบจะไม่แสดงซ้ำอีกครั้ง
+                    {t('deploy.keepSecret')}
                   </div>
                 </div>
               )}
@@ -585,6 +605,7 @@ function GithubTab() {
 }
 
 function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; redeployDetail: GitAppDetail | null }) {
+  const { t } = useLang();
   const router = useRouter();
   const [projectName, setProjectName] = useState('');
   const [runtime, setRuntime] = useState('node');
@@ -603,9 +624,9 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
       const entries = await filesToZipEntries(fileList);
       const blob = await zipEntriesToBlob(entries);
       setPendingArchive(blob);
-      setPendingLabel(`${Object.keys(entries).length} ไฟล์ (แตกจาก folder)`);
+      setPendingLabel(t('deploy.filesFromFolder', { count: Object.keys(entries).length }));
     } catch (err: any) {
-      setResult({ decision: 'BLOCK', requestId: '', reason: `อ่าน/บีบอัดโฟลเดอร์ไม่สำเร็จ: ${err?.message || err}` });
+      setResult({ decision: 'BLOCK', requestId: '', reason: t('deploy.errZipFolder', { reason: err?.message || err }) });
     }
   };
 
@@ -630,14 +651,14 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
       }
       const count = Object.keys(entries).length;
       if (count === 0) {
-        setResult({ decision: 'BLOCK', requestId: '', reason: 'ไม่พบไฟล์ในสิ่งที่ลากมาวาง — ลากไฟล์ .zip หรือโฟลเดอร์โปรเจคมาวาง' });
+        setResult({ decision: 'BLOCK', requestId: '', reason: t('deploy.errNothingDropped') });
         return;
       }
       const blob = await zipEntriesToBlob(entries);
       setPendingArchive(blob);
-      setPendingLabel(`${count} ไฟล์ (แตกจาก drop)`);
+      setPendingLabel(t('deploy.filesFromDrop', { count }));
     } catch (err: any) {
-      setResult({ decision: 'BLOCK', requestId: '', reason: `อ่าน/บีบอัดไฟล์ที่ลากมาไม่สำเร็จ: ${err?.message || err}` });
+      setResult({ decision: 'BLOCK', requestId: '', reason: t('deploy.errZipDrop', { reason: err?.message || err }) });
     }
   };
 
@@ -660,7 +681,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
       setResult({
         decision: 'BLOCK',
         requestId: '',
-        reason: `ไฟล์ที่เลือกไม่ใช่ .zip ที่สมบูรณ์ (${pendingArchive.size} bytes) — ลองเลือกไฟล์/โฟลเดอร์ใหม่อีกครั้ง`,
+        reason: t('deploy.errNotZip', { bytes: pendingArchive.size }),
       });
       return;
     }
@@ -699,25 +720,30 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
     <div className="rounded-xl border border-border bg-surface p-5">
       {redeployAppId && (
         <div className="mb-3.5 text-[14.5px] font-semibold">
-          Redeploy: {redeployDetail?.projectName || redeployAppId}
+          {t('deploy.redeployHeading', { name: redeployDetail?.projectName || redeployAppId || '' })}
         </div>
       )}
 
       {!redeployAppId && (
         <>
           <div className="mb-4 grid grid-cols-2 gap-3.5">
-            <InputRow label="Project name" value={projectName} onChange={setProjectName} placeholder="my-awesome-app" />
-            <SelectRow label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} />
+            <InputRow label={t('deploy.projectName')} value={projectName} onChange={setProjectName} placeholder="my-awesome-app" />
+            <SelectRow label={t('deploy.runtime')} value={runtime} onChange={setRuntime} options={RUNTIMES} />
           </div>
           <div className="mb-4">
-            <InputRow label="Port (ไม่บังคับ)" value={port} onChange={setPort} placeholder={runtime === 'docker' ? 'จาก EXPOSE ใน Dockerfile' : 'อัตโนมัติตาม runtime'} />
+            <InputRow
+              label={t('deploy.portOptional', { optional: t('common.optional') })}
+              value={port}
+              onChange={setPort}
+              placeholder={runtime === 'docker' ? t('deploy.portFromExposeLong') : t('deploy.portAutoLong')}
+            />
           </div>
           <AppConfigFields config={config} setConfig={setConfig} runtime={runtime} />
         </>
       )}
 
       <div className="mb-3.5">
-        <div className="mb-1.5 text-xs font-semibold">Source</div>
+        <div className="mb-1.5 text-xs font-semibold">{t('deploy.source')}</div>
         <div className="grid grid-cols-2 gap-3">
           <label
             onDrop={handleDrop}
@@ -732,8 +758,8 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             }`}
           >
             <i className={`ph ph-cloud-arrow-up text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
-            <div className="text-[15px] font-semibold">ลากไฟล์ .zip มาวางที่นี่</div>
-            <div className="text-[13px] text-muted">หรือคลิกเพื่อเลือกไฟล์ · สูงสุด 50 MB</div>
+            <div className="text-[15px] font-semibold">{t('deploy.dropZip')}</div>
+            <div className="text-[13px] text-muted">{t('deploy.dropZipHint')}</div>
             <input type="file" accept=".zip" className="hidden" onChange={handleZipPick} />
           </label>
           <label
@@ -749,8 +775,8 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             }`}
           >
             <i className={`ph ph-folder-simple-plus text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
-            <div className="text-[15px] font-semibold">เลือกโฟลเดอร์ หรือลากมาวาง</div>
-            <div className="text-[13px] text-muted">บีบอัดเป็น .zip ให้อัตโนมัติ</div>
+            <div className="text-[15px] font-semibold">{t('deploy.pickFolder')}</div>
+            <div className="text-[13px] text-muted">{t('deploy.pickFolderHint')}</div>
             <input
               type="file"
               // @ts-expect-error non-standard attrs, only relevant for folder picking in Chromium/Firefox
@@ -770,7 +796,8 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
         disabled={loading || !pendingArchive}
         className="flex w-full items-center justify-center gap-2 rounded-[9px] bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
       >
-        {loading ? 'กำลัง deploy…' : redeployAppId ? 'Redeploy' : 'Deploy'} <i className="ph ph-arrow-right" />
+        {loading ? t('deploy.deploying') : redeployAppId ? t('deploy.redeploy') : t('deploy.submit')}{' '}
+        <i className="ph ph-arrow-right" />
       </button>
 
       {result && (
@@ -788,7 +815,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
           {result.findings && result.findings.length > 0 && <FindingsList findings={result.findings} />}
           {result.id && (
             <Link href={`/apps/${result.id}`} className="mt-1 text-[14px] font-medium text-primary">
-              ดู pipeline →
+              {t('deploy.viewPipeline')}
             </Link>
           )}
         </div>
@@ -798,15 +825,16 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
 }
 
 function PipelinePreview() {
+  const { t } = useLang();
   const steps = [
-    { n: 1, title: 'Clone source', caption: 'ดึงโค้ดจาก branch ที่เลือก' },
-    { n: 2, title: 'Code scan', caption: 'pattern rules + dependency audit' },
-    { n: 3, title: 'Docker build & run', caption: 'สร้าง container gatekeeper-app-<id>' },
+    { n: 1, title: t('deploy.step1'), caption: t('deploy.step1Caption') },
+    { n: 2, title: t('deploy.step2'), caption: t('deploy.step2Caption') },
+    { n: 3, title: t('deploy.step3'), caption: t('deploy.step3Caption') },
   ];
   return (
     <>
       <div className="rounded-xl border border-border bg-surface p-5">
-        <div className="mb-3.5 text-[12.5px] font-bold tracking-[.8px] text-muted-3">สิ่งที่จะเกิดขึ้น</div>
+        <div className="mb-3.5 text-[12.5px] font-bold tracking-[.8px] text-muted-3">{t('deploy.previewTitle')}</div>
         <div className="flex flex-col">
           {steps.map((s) => (
             <div key={s.n} className="flex gap-3">
@@ -827,7 +855,7 @@ function PipelinePreview() {
               <i className="ph-fill ph-check text-xs" />
             </div>
             <div>
-              <div className="text-[14.5px] font-semibold">Live URL</div>
+              <div className="text-[14.5px] font-semibold">{t('deploy.stepLive')}</div>
               <div className="font-mono text-[13px] text-muted">/live/&lt;appId&gt;/*</div>
             </div>
           </div>
@@ -836,9 +864,7 @@ function PipelinePreview() {
 
       <div className="mt-3.5 flex items-start gap-2.5 rounded-[10px] border border-[rgba(74,144,226,.2)] bg-[rgba(74,144,226,.05)] px-[15px] py-[13px]">
         <i className="ph ph-info mt-px text-base text-primary" />
-        <div className="text-[13.5px] leading-relaxed text-ink-soft">
-          ถ้า risk engine ตัดสิน QUARANTINE คุณจะได้ review findings ก่อน — deploy จะไม่ขึ้น live จนกว่าจะ override
-        </div>
+        <div className="text-[13.5px] leading-relaxed text-ink-soft">{t('deploy.quarantineNote')}</div>
       </div>
     </>
   );

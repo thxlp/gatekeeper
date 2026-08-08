@@ -15,6 +15,7 @@ import {
   NotificationFeed,
   UsageSummary,
 } from '@/types';
+import { ApiError } from './errors';
 
 const API_BASE = '/api';
 
@@ -41,10 +42,23 @@ async function request<T>(base: string, path: string, init: RequestInit = {}): P
   // ไม่ใส่ Authorization header จาก browser แล้ว — api key เดินทางผ่าน httpOnly cookie
   // (เซ็ตตอน /auth/session) แนบไปเองอัตโนมัติเพราะเป็น same-origin request ผ่าน nginx อยู่แล้ว
   // ใส่ credentials ชัดเจนกันพลาดข้ามเบราว์เซอร์รุ่นเก่า
-  const res = await fetch(`${base}${path}`, { ...init, headers, credentials: 'same-origin' });
-  const data = await res.json();
+  // เน็ตหลุด / server ไม่ตอบ → fetch โยน TypeError('Failed to fetch') ซึ่งไปโผล่หน้าจอดิบๆ
+  // แปลงเป็น code ของเราเองให้ผู้ใช้อ่านรู้เรื่อง (ดู lib/errors.ts)
+  let res: Response;
+  try {
+    res = await fetch(`${base}${path}`, { ...init, headers, credentials: 'same-origin' });
+  } catch {
+    throw new ApiError('network_error');
+  }
+
+  // body อาจไม่ใช่ JSON ได้ (เช่น nginx ตอบ 502 เป็น HTML) — กัน SyntaxError ที่ทำให้ผู้ใช้
+  // เห็นข้อความประหลาดแทนสาเหตุจริง
+  const data = await res.json().catch(() => ({} as any));
   if (!res.ok) {
-    const message = data.message || data.error || `HTTP ${res.status}`;
+    // ValidationPipe ของ Nest ตอบ message เป็น "อาเรย์ของข้อความ" ตอน DTO ไม่ผ่าน —
+    // ต้องรวบเป็น string ก่อน ไม่งั้น ApiError ได้ค่าที่ไม่มี .trim() ไปโผล่ตอน render
+    const raw = Array.isArray(data.message) ? data.message.join(' · ') : data.message;
+    const message = raw || data.error || `http_${res.status}`;
     // key หมดอายุ (idle เกิน 15 นาที) หรือถูกลบไปแล้ว (หลุดโควตา) — ล้าง flag แล้วพาไป login
     // ทันที ไม่ปล่อยให้ทุกหน้าค้างอยู่กับ session ที่ใช้ไม่ได้ (invalid_supabase_session ของ
     // /auth/session ไม่เข้าเงื่อนไขนี้ — หน้า login จัดการ error ของตัวเองอยู่แล้ว) cookie จริง
@@ -55,7 +69,7 @@ async function request<T>(base: string, path: string, init: RequestInit = {}): P
       localStorage.removeItem('gk_last_activity');
       window.location.href = `/login?reason=${message === 'session_expired' ? 'idle' : 'expired'}`;
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   return data as T;
 }

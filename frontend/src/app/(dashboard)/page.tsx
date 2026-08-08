@@ -1,12 +1,15 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
 import { Pill, Skeleton } from '@/components/ui/primitives';
 import CopyField from '@/components/ui/CopyField';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { GitAppSummary } from '@/types';
+import { useLang, localeTag, type MsgKey, type TFunc } from '@/lib/i18n';
 
 const LIST_POLL_MS = 4000;
 const COLS = '2.2fr 1fr 1fr 1.2fr 1.3fr 90px';
@@ -47,9 +50,11 @@ export default function DashboardPage() {
 }
 
 function DashboardPageInner() {
+  const { t, lang } = useLang();
   const [apps, setApps] = useState<GitAppSummary[] | null>(null);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -87,26 +92,43 @@ function DashboardPageInner() {
     document.title = latest.projectName || latest.repoFullName || latest.id;
   }, [apps]);
 
+  // ค้นหาแบบ client-side: รายการทั้งหมดอยู่ในมืออยู่แล้ว (endpoint เดียวคืนทุกแอปของ user)
+  // จึงไม่ต้องยิง API ซ้ำ — คำค้นเทียบกับทุกอย่างที่ผู้ใช้เห็นบนแถว ไม่ใช่แค่ชื่อ
+  const visible = useMemo(() => {
+    if (!apps) return null;
+    const q = query.trim().toLowerCase();
+    if (!q) return apps;
+    return apps.filter((a) =>
+      [a.projectName, a.repoFullName, a.id, a.branch, a.runtime, a.liveUrl]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q)),
+    );
+  }, [apps, query]);
+
+  const searching = query.trim().length > 0;
+
   const live = apps?.filter((a) => a.pipelineStatus === 'success').length ?? 0;
   const deploying = apps?.filter((a) => a.pipelineStatus === 'deploying').length ?? 0;
   const failed = apps?.filter((a) => a.pipelineStatus === 'failed').length ?? 0;
 
-  const statCards = [
-    { icon: 'ph-fill ph-check-circle', tint: 'bg-[rgba(115,169,140,.14)] text-allow-text', value: live, label: 'live' },
-    { icon: 'ph ph-spinner', tint: 'bg-[rgba(74,144,226,.1)] text-primary', value: deploying, label: 'deploying' },
-    { icon: 'ph-fill ph-x-circle', tint: 'bg-[rgba(214,109,82,.12)] text-danger-text', value: failed, label: 'failed' },
-    { icon: 'ph ph-squares-four', tint: 'bg-[rgba(150,144,140,.15)] text-muted', value: apps?.length ?? 0, label: 'total' },
+  const statCards: { icon: string; tint: string; value: number; label: MsgKey }[] = [
+    { icon: 'ph-fill ph-check-circle', tint: 'bg-[rgba(115,169,140,.14)] text-allow-text', value: live, label: 'projects.statLive' },
+    { icon: 'ph ph-spinner', tint: 'bg-[rgba(74,144,226,.1)] text-primary', value: deploying, label: 'projects.statDeploying' },
+    { icon: 'ph-fill ph-x-circle', tint: 'bg-[rgba(214,109,82,.12)] text-danger-text', value: failed, label: 'projects.statFailed' },
+    { icon: 'ph ph-squares-four', tint: 'bg-[rgba(150,144,140,.15)] text-muted', value: apps?.length ?? 0, label: 'projects.statTotal' },
   ];
 
   return (
     <>
-      <TopBar variant="actions" />
+      <TopBar variant="actions" search={query} onSearchChange={setQuery} />
 
       <div className="flex items-end justify-between px-6 pt-5">
         <div>
-          <div className="text-[21px] font-bold tracking-[-.3px]">Projects</div>
+          <h1 className="text-[21px] font-bold tracking-[-.3px]">{t('projects.title')}</h1>
           <div className="mt-[3px] text-[14.5px] text-muted">
-            ทุก deploy วิ่งผ่าน security pipeline ก่อนขึ้น live
+            {searching && visible
+              ? t('projects.searchCount', { n: visible.length, total: apps?.length ?? 0 })
+              : t('projects.subtitle')}
           </div>
         </div>
       </div>
@@ -119,7 +141,7 @@ function DashboardPageInner() {
             </div>
             <div>
               <div className="text-[17px] font-bold leading-none">{s.value}</div>
-              <div className="mt-1 text-[13px] text-muted">{s.label}</div>
+              <div className="mt-1 text-[13px] text-muted">{t(s.label)}</div>
             </div>
           </div>
         ))}
@@ -132,27 +154,42 @@ function DashboardPageInner() {
           </div>
         )}
 
-        {!apps && !error && <ProjectsSkeleton />}
+        {!apps && !error && <ProjectsSkeleton t={t} />}
 
         {apps && apps.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
             <i className="ph ph-rocket-launch text-4xl text-muted" />
             <div>
-              <p className="text-sm font-semibold">ยังไม่มีโปรเจกต์</p>
-              <p className="mt-1 text-xs text-muted">
-                deploy จาก GitHub repo หรืออัปโหลด zip — ทุก deploy วิ่งผ่าน security pipeline
-              </p>
+              <p className="text-sm font-semibold">{t('projects.emptyTitle')}</p>
+              <p className="mt-1 text-xs text-muted">{t('projects.emptyBody')}</p>
             </div>
             <Link
               href="/deploy"
               className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[15px] font-semibold text-white hover:bg-primary-hover"
             >
-              <i className="ph ph-plus" /> New Project
+              <i className="ph ph-plus" /> {t('projects.newProject')}
             </Link>
           </div>
         )}
 
-        {apps && apps.length > 0 && (
+        {/* มีโปรเจกต์อยู่ แต่คำค้นไม่ตรงสักอัน — คนละสถานะกับ "ยังไม่มีโปรเจกต์" ข้างบน */}
+        {apps && apps.length > 0 && visible && visible.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+            <i className="ph ph-magnifying-glass text-4xl text-muted-3" />
+            <div>
+              <p className="text-sm font-semibold">{t('projects.searchEmptyTitle', { query: query.trim() })}</p>
+              <p className="mt-1 text-[13.5px] text-muted">{t('projects.searchEmptyBody')}</p>
+            </div>
+            <button
+              onClick={() => setQuery('')}
+              className="rounded-lg border border-border bg-surface px-3.5 py-1.5 text-[14px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
+            >
+              {t('projects.searchClearAll')}
+            </button>
+          </div>
+        )}
+
+        {visible && visible.length > 0 && (
           <>
             {/* table (desktop) */}
             <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
@@ -160,15 +197,15 @@ function DashboardPageInner() {
                 className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
                 style={{ gridTemplateColumns: COLS }}
               >
-                <div>App</div>
-                <div>Source</div>
-                <div>Runtime</div>
-                <div>Status</div>
-                <div>Last updated</div>
-                <div className="text-right">Actions</div>
+                <div>{t('projects.colApp')}</div>
+                <div>{t('projects.colSource')}</div>
+                <div>{t('projects.colRuntime')}</div>
+                <div>{t('projects.colStatus')}</div>
+                <div>{t('projects.colUpdated')}</div>
+                <div className="text-right">{t('projects.colActions')}</div>
               </div>
 
-              {apps.map((app, i) => {
+              {visible.map((app, i) => {
                 const meta = STATUS_META[app.pipelineStatus || 'idle'] || STATUS_META.idle;
                 const isGit = app.sourceType === 'git';
                 const name = app.projectName || app.repoFullName || app.id;
@@ -179,7 +216,7 @@ function DashboardPageInner() {
                   <div key={app.id}>
                     <div
                       className={`grid items-center px-[18px] py-[13px] text-[14.5px] ${
-                        i < apps.length - 1 && !editing ? 'border-b border-border' : ''
+                        i < visible.length - 1 && !editing ? 'border-b border-border' : ''
                       } ${rowTintByKind[meta.kind]}`}
                       style={{ gridTemplateColumns: COLS }}
                     >
@@ -199,7 +236,7 @@ function DashboardPageInner() {
                           </>
                         ) : (
                           <>
-                            <i className="ph ph-package" /> manual
+                            <i className="ph ph-package" /> {t('projects.sourceManual')}
                           </>
                         )}
                       </div>
@@ -210,17 +247,18 @@ function DashboardPageInner() {
                         </Pill>
                       </div>
                       <div className="text-[13.5px] text-muted">
-                        {app.updatedAt ? new Date(app.updatedAt).toLocaleString('th-TH') : '—'}
+                        {app.updatedAt ? new Date(app.updatedAt).toLocaleString(localeTag(lang)) : '—'}
                       </div>
                       <RowActions
                         app={app}
+                        t={t}
                         onChanged={refresh}
                         onEdit={isGit ? () => setEditingId(editing ? null : app.id) : undefined}
                       />
                     </div>
                     {editing && (
-                      <div className={`px-[18px] pb-4 ${i < apps.length - 1 ? 'border-b border-border' : ''}`}>
-                        <EditRow app={app} onCancel={() => setEditingId(null)} onSaved={() => { setEditingId(null); refresh(); }} />
+                      <div className={`px-[18px] pb-4 ${i < visible.length - 1 ? 'border-b border-border' : ''}`}>
+                        <EditRow app={app} t={t} onCancel={() => setEditingId(null)} onSaved={() => { setEditingId(null); refresh(); }} />
                       </div>
                     )}
                   </div>
@@ -230,7 +268,7 @@ function DashboardPageInner() {
 
             {/* card list (mobile) */}
             <div className="flex flex-col gap-2.5 sm:hidden">
-              {apps.map((app) => {
+              {visible.map((app) => {
                 const meta = STATUS_META[app.pipelineStatus || 'idle'] || STATUS_META.idle;
                 const name = app.projectName || app.repoFullName || app.id;
                 return (
@@ -262,7 +300,7 @@ function DashboardPageInner() {
 }
 
 // โครง shimmer ตอนโหลดรายการ — ทรงตรงกับตาราง desktop + การ์ด mobile (กัน layout shift)
-function ProjectsSkeleton() {
+function ProjectsSkeleton({ t }: { t: TFunc }) {
   const rows = Array.from({ length: 4 });
   return (
     <>
@@ -271,12 +309,12 @@ function ProjectsSkeleton() {
           className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
           style={{ gridTemplateColumns: COLS }}
         >
-          <div>App</div>
-          <div>Source</div>
-          <div>Runtime</div>
-          <div>Status</div>
-          <div>Last updated</div>
-          <div className="text-right">Actions</div>
+          <div>{t('projects.colApp')}</div>
+          <div>{t('projects.colSource')}</div>
+          <div>{t('projects.colRuntime')}</div>
+          <div>{t('projects.colStatus')}</div>
+          <div>{t('projects.colUpdated')}</div>
+          <div className="text-right">{t('projects.colActions')}</div>
         </div>
         {rows.map((_, i) => (
           <div
@@ -320,35 +358,55 @@ function ProjectsSkeleton() {
 
 function RowActions({
   app,
+  t,
   onChanged,
   onEdit,
 }: {
   app: GitAppSummary;
+  t: TFunc;
   onChanged: () => void;
   onEdit?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
   const isGit = app.sourceType === 'git';
   const deploying = app.pipelineStatus === 'deploying';
-  const iconBtn = 'rounded-md border px-2 py-1.5 cursor-pointer transition-colors border-border bg-surface text-muted disabled:opacity-40';
+  const label = app.projectName || app.repoFullName || app.id;
+  const iconBtn =
+    'rounded-md border px-2 py-1.5 cursor-pointer transition-colors border-border bg-surface text-muted disabled:opacity-40 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary';
 
   const deployNow = async () => {
     setBusy(true);
     try {
       await api.deployGitApp(app.id);
+      toast.success(t('toast.deployStarted', { name: label }));
       onChanged();
+    } catch (e: any) {
+      // เดิม try/finally ไม่มี catch — ดีพลอยพลาดแล้วเงียบสนิท (unhandled rejection)
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async () => {
-    const label = app.projectName || app.repoFullName || app.id;
-    if (!confirm(`ลบ ${label} ออกจากระบบ?${isGit ? ' webhook auto-deploy จะถูกยกเลิกด้วย' : ''}`)) return;
+    const ok = await confirm({
+      title: t('confirm.deleteProjectTitle'),
+      body: t(isGit ? 'projects.deleteConfirmGit' : 'projects.deleteConfirm', { name: label }),
+      note: t('confirm.deleteProjectNote'),
+      confirmLabel: t('common.delete'),
+      danger: true,
+      typeToConfirm: label, // ลบแล้วกู้ไม่ได้ — บังคับพิมพ์ชื่อยืนยัน
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.deleteGitApp(app.id);
+      toast.success(t('toast.projectDeleted', { name: label }));
       onChanged();
+    } catch (e: any) {
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
@@ -357,20 +415,20 @@ function RowActions({
   return (
     <div className="flex justify-end gap-1">
       {isGit ? (
-        <button className={iconBtn} aria-label="Redeploy" onClick={deployNow} disabled={busy || deploying}>
+        <button className={iconBtn} aria-label={t('projects.redeploy')} onClick={deployNow} disabled={busy || deploying}>
           <i className={`ph ph-arrows-clockwise ${deploying ? 'gk-spin' : ''}`} />
         </button>
       ) : (
-        <Link href={`/deploy?appId=${app.id}`} className={iconBtn} aria-label="Redeploy">
+        <Link href={`/deploy?appId=${app.id}`} className={iconBtn} aria-label={t('projects.redeploy')}>
           <i className="ph ph-arrows-clockwise" />
         </Link>
       )}
       {onEdit && (
-        <button className={iconBtn} aria-label="Edit" onClick={onEdit}>
+        <button className={iconBtn} aria-label={t('common.edit')} onClick={onEdit}>
           <i className="ph ph-pencil-simple" />
         </button>
       )}
-      <button className={iconBtn} aria-label="Delete" onClick={remove} disabled={busy}>
+      <button className={iconBtn} aria-label={t('common.delete')} onClick={remove} disabled={busy}>
         <i className="ph ph-trash" />
       </button>
     </div>
@@ -379,10 +437,12 @@ function RowActions({
 
 function EditRow({
   app,
+  t,
   onCancel,
   onSaved,
 }: {
   app: GitAppSummary;
+  t: TFunc;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -391,12 +451,14 @@ function EditRow({
   const [enabled, setEnabled] = useState(app.enabled);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const save = async () => {
     setError('');
     setLoading(true);
     try {
       await api.updateGitApp(app.id, { branch: branch.trim() || 'main', runtime, enabled });
+      toast.success(t('toast.appUpdated'));
       onSaved();
     } catch (e: any) {
       setError(e.message);
@@ -409,7 +471,7 @@ function EditRow({
     <div className="rounded-[10px] border border-primary/40 bg-page-alt p-4">
       <div className="mb-3 grid grid-cols-3 gap-3">
         <div>
-          <div className="mb-1 text-xs font-semibold">Branch</div>
+          <div className="mb-1 text-xs font-semibold">{t('projects.branch')}</div>
           <input
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
@@ -417,7 +479,7 @@ function EditRow({
           />
         </div>
         <div>
-          <div className="mb-1 text-xs font-semibold">Runtime</div>
+          <div className="mb-1 text-xs font-semibold">{t('projects.runtime')}</div>
           <select
             value={runtime}
             onChange={(e) => setRuntime(e.target.value)}
@@ -430,7 +492,7 @@ function EditRow({
         </div>
         <label className="flex items-center gap-2 pt-5 text-[14.5px] text-ink-soft">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          เปิดใช้งาน (auto-deploy)
+          {t('projects.enabled')}
         </label>
       </div>
 
@@ -444,14 +506,14 @@ function EditRow({
 
       <div className="flex gap-2">
         <button onClick={onCancel} className="flex-1 rounded-lg border border-border bg-surface py-2 text-[14.5px] font-medium text-ink-soft">
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           onClick={save}
           disabled={loading}
           className="flex-1 rounded-lg bg-primary py-2 text-[14.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
         >
-          {loading ? 'กำลังบันทึก…' : 'Save'}
+          {loading ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </div>

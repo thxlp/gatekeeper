@@ -1,5 +1,8 @@
+'use client';
+
 import { Finding } from '@/types';
 import { Pill } from './primitives';
+import { useLang } from '@/lib/i18n';
 
 const sevKind: Record<Finding['severity'], 'allow' | 'warn' | 'danger'> = {
   LOW: 'allow',
@@ -9,7 +12,8 @@ const sevKind: Record<Finding['severity'], 'allow' | 'warn' | 'danger'> = {
 };
 
 export default function FindingsList({ findings }: { findings: Finding[] }) {
-  if (!findings?.length) return <p className="text-sm text-muted">ไม่พบ finding</p>;
+  const { t } = useLang();
+  if (!findings?.length) return <p className="text-sm text-muted">{t('findings.none')}</p>;
   return (
     <ul className="flex flex-col gap-2">
       {findings.map((f, i) => (

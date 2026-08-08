@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { GitAppSummary, ManagedDbSummary } from '@/types';
+import { useLang } from '@/lib/i18n';
 
 const POLL_MS = 2500;
 
@@ -41,6 +44,9 @@ function StatusBadge({ db }: { db: ManagedDbSummary }) {
 }
 
 export default function DatabasesPage() {
+  const { t } = useLang();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [dbs, setDbs] = useState<ManagedDbSummary[] | null>(null);
   const [apps, setApps] = useState<GitAppSummary[]>([]);
   const [error, setError] = useState('');
@@ -90,11 +96,13 @@ export default function DatabasesPage() {
   };
 
   const create = async () => {
-    if (!name.trim()) return;
+    const dbName = name.trim();
+    if (!dbName) return;
     setCreating(true);
     setError('');
     try {
-      await api.databases.create({ name: name.trim(), engine });
+      await api.databases.create({ name: dbName, engine });
+      toast.success(t('toast.dbCreated', { name: dbName }));
       setName('');
       await load();
     } catch (e: any) {
@@ -110,6 +118,7 @@ export default function DatabasesPage() {
       const c = await api.databases.connection(id);
       await navigator.clipboard.writeText(c.url);
       setCopiedId(id);
+      toast.success(t('toast.connectionCopied'));
       setTimeout(() => setCopiedId((v) => (v === id ? null : v)), 1800);
     } catch (e: any) {
       setError(e.message);
@@ -123,6 +132,7 @@ export default function DatabasesPage() {
     try {
       const updated = await api.databases.attach(id, appId);
       setDbs((prev) => (prev || []).map((d) => (d.id === id ? updated : d)));
+      toast.success(t('toast.dbAttached', { name: appName(appId) }));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -136,6 +146,7 @@ export default function DatabasesPage() {
     try {
       const updated = await api.databases.detach(id, appId);
       setDbs((prev) => (prev || []).map((d) => (d.id === id ? updated : d)));
+      toast.success(t('toast.dbDetached', { name: appName(appId) }));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -144,11 +155,19 @@ export default function DatabasesPage() {
   };
 
   const remove = async (db: ManagedDbSummary) => {
-    if (!confirm(`ลบ database "${db.name}"?\n\nข้อมูลทั้งหมดจะหายถาวร (ลบ container + volume) — กู้คืนไม่ได้`)) return;
+    const ok = await confirm({
+      title: t('db.deleteTitle'),
+      body: t('db.deleteConfirm', { name: db.name }),
+      confirmLabel: t('common.delete'),
+      danger: true,
+      typeToConfirm: db.name, // ลบ volume ทิ้งด้วย = ข้อมูลหายถาวร
+    });
+    if (!ok) return;
     setBusyId(db.id);
     setError('');
     try {
       await api.databases.remove(db.id);
+      toast.success(t('toast.dbDeleted', { name: db.name }));
       setDbs((prev) => (prev || []).filter((d) => d.id !== db.id));
     } catch (e: any) {
       setError(e.message);
@@ -163,10 +182,8 @@ export default function DatabasesPage() {
         variant="title"
         title={
           <span className="flex items-center gap-2.5">
-            Databases
-            <span className="hidden text-xs font-normal text-muted-3 sm:inline">
-              managed database ต่อบัญชี · เชื่อมได้ทุกแอปของคุณ
-            </span>
+            {t('db.title')}
+            <span className="hidden text-xs font-normal text-muted-3 sm:inline">{t('db.subtitle')}</span>
           </span>
         }
       />
@@ -181,7 +198,7 @@ export default function DatabasesPage() {
 
           {/* สร้าง database ใหม่ */}
           <div className="mb-6 rounded-xl border border-border-alt bg-surface p-4">
-            <div className="mb-3 text-[15px] font-bold">สร้าง database</div>
+            <div className="mb-3 text-[15px] font-bold">{t('db.createTitle')}</div>
             <div className="mb-3 flex flex-wrap gap-2">
               {ENGINES.map((e) => (
                 <button
@@ -203,7 +220,7 @@ export default function DatabasesPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && create()}
-                placeholder="ชื่อ database (เช่น prod-db)"
+                placeholder={t('db.namePlaceholder')}
                 className="min-w-[220px] flex-1 rounded-lg border border-border-alt bg-page px-3 py-2 text-[14px] text-ink outline-none focus:border-primary"
               />
               <button
@@ -211,17 +228,17 @@ export default function DatabasesPage() {
                 disabled={creating || !name.trim()}
                 className="rounded-lg bg-primary px-4 py-2 text-[14px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
               >
-                <i className="ph ph-plus mr-1" /> สร้าง
+                <i className="ph ph-plus mr-1" /> {t('db.create')}
               </button>
             </div>
           </div>
 
           {/* รายการ database */}
-          {!dbs && !error && <p className="text-[14.5px] text-muted">กำลังโหลด…</p>}
+          {!dbs && !error && <p className="text-[14.5px] text-muted">{t('common.loading')}</p>}
           {dbs && dbs.length === 0 && (
             <div className="rounded-xl border border-border-alt bg-surface px-4 py-10 text-center text-[14px] text-muted">
               <i className="ph ph-database mb-1 block text-3xl text-muted-3" />
-              ยังไม่มี database — สร้างด้านบนได้เลย
+              {t('db.empty')}
             </div>
           )}
 
@@ -253,16 +270,16 @@ export default function DatabasesPage() {
                       <button
                         onClick={() => copyConnection(db.id)}
                         disabled={db.status !== 'running'}
-                        title="คัดลอก connection string"
+                        title={t('db.copyConnection')}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-40"
                       >
                         <i className={`ph ${copiedId === db.id ? 'ph-check' : 'ph-copy'}`} />
-                        {copiedId === db.id ? 'คัดลอกแล้ว' : 'Connection'}
+                        {copiedId === db.id ? t('common.copied') : t('db.connection')}
                       </button>
                       <button
                         onClick={() => remove(db)}
                         disabled={busyId === db.id}
-                        title="ลบ database"
+                        title={t('db.deleteTitle')}
                         className="rounded-lg p-1.5 text-muted hover:bg-page hover:text-danger-text disabled:opacity-40"
                       >
                         <i className="ph ph-trash text-[16px]" />
@@ -273,8 +290,8 @@ export default function DatabasesPage() {
                   {/* attach กับแอป — inject DATABASE_URL/REDIS_URL ให้อัตโนมัติ (มีผล deploy ถัดไป) */}
                   <div className="mt-3 border-t border-border-alt pt-3">
                     <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-muted">
-                      <i className="ph ph-plugs-connected" /> เชื่อมกับแอป
-                      <span className="font-normal text-muted-3">(inject {db.connection.envKey})</span>
+                      <i className="ph ph-plugs-connected" /> {t('db.attachTitle')}
+                      <span className="font-normal text-muted-3">{t('db.attachInject', { envKey: db.connection.envKey })}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {db.attachedAppIds.map((appId) => (
@@ -287,7 +304,7 @@ export default function DatabasesPage() {
                             onClick={() => detach(db.id, appId)}
                             disabled={busyId === db.id}
                             className="rounded p-0.5 text-muted hover:text-danger-text disabled:opacity-40"
-                            title="detach"
+                            title={t('db.detach')}
                           >
                             <i className="ph ph-x text-[13px]" />
                           </button>
@@ -300,7 +317,7 @@ export default function DatabasesPage() {
                           disabled={busyId === db.id || db.status !== 'running'}
                           className="rounded-lg border border-dashed border-border-alt bg-surface px-2.5 py-1 text-[13px] text-muted hover:border-primary hover:text-primary disabled:opacity-40"
                         >
-                          <option value="">+ attach แอป…</option>
+                          <option value="">{t('db.attachPlaceholder')}</option>
                           {attachable.map((a) => (
                             <option key={a.id} value={a.id}>
                               {a.projectName || a.repoFullName || a.id}
@@ -309,13 +326,13 @@ export default function DatabasesPage() {
                         </select>
                       )}
                       {db.attachedAppIds.length === 0 && attachable.length === 0 && (
-                        <span className="text-[13px] text-muted-3">ยังไม่มีแอปให้เชื่อม — deploy แอปก่อน</span>
+                        <span className="text-[13px] text-muted-3">{t('db.noAppsToAttach')}</span>
                       )}
                     </div>
                     {db.attachedAppIds.length > 0 && (
                       <div className="mt-2 text-[12px] text-muted-3">
                         <i className="ph ph-info mr-1" />
-                        แอปที่ attach ต้อง deploy ใหม่ค่าถึงจะมีผล (ค่า env ผูกตอนสร้าง container)
+                        {t('db.attachNeedsRedeploy')}
                       </div>
                     )}
                   </div>
@@ -326,7 +343,7 @@ export default function DatabasesPage() {
 
           <div className="mt-5 text-[12.5px] text-muted-3">
             <i className="ph ph-lock-simple mr-1" />
-            connection เป็น internal เท่านั้น (host คือชื่อ container) — ต่อได้จากแอปของคุณในเครือข่ายเดียวกัน ไม่เปิดออกอินเทอร์เน็ต
+            {t('db.internalOnly')}
           </div>
         </div>
       </div>

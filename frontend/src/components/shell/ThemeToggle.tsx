@@ -1,6 +1,7 @@
 'use client';
 
 import { useTheme } from '@/lib/use-theme';
+import { useLang, type MsgKey } from '@/lib/i18n';
 
 // Compact icon button for the icon rail — always sets an explicit
 // light/dark preference (ignores "system"), for a quick one-click switch.
@@ -17,12 +18,13 @@ export function ThemeToggleButton({
   labelClassName?: string;
 }) {
   const { resolved, setTheme } = useTheme();
+  const { t } = useLang();
   const goingDark = resolved === 'light';
   return (
     <button
       onClick={() => setTheme(goingDark ? 'dark' : 'light')}
-      aria-label={goingDark ? 'สลับเป็นธีมมืด' : 'สลับเป็นธีมสว่าง'}
-      title={goingDark ? 'ธีมมืด' : 'ธีมสว่าง'}
+      aria-label={goingDark ? t('theme.toDark') : t('theme.toLight')}
+      title={goingDark ? t('theme.dark') : t('theme.light')}
       className={className}
     >
       <span className="flex w-[34px] flex-none items-center justify-center">
@@ -33,15 +35,16 @@ export function ThemeToggleButton({
   );
 }
 
-const OPTIONS: { value: 'light' | 'dark' | 'system'; label: string; icon: string }[] = [
-  { value: 'light', label: 'สว่าง', icon: 'ph-sun' },
-  { value: 'dark', label: 'มืด', icon: 'ph-moon' },
-  { value: 'system', label: 'ตามระบบ', icon: 'ph-circle-half' },
+const OPTIONS: { value: 'light' | 'dark' | 'system'; label: MsgKey; icon: string }[] = [
+  { value: 'light', label: 'theme.optLight', icon: 'ph-sun' },
+  { value: 'dark', label: 'theme.optDark', icon: 'ph-moon' },
+  { value: 'system', label: 'theme.optSystem', icon: 'ph-circle-half' },
 ];
 
 // Full 3-way segmented control for Settings → Preferences.
 export function ThemeSegmentedControl() {
   const { theme, setTheme } = useTheme();
+  const { t } = useLang();
   return (
     <div className="flex gap-1 rounded-lg border border-border bg-page-alt p-1">
       {OPTIONS.map((opt) => (
@@ -52,7 +55,7 @@ export function ThemeSegmentedControl() {
             theme === opt.value ? 'bg-surface text-ink shadow-card-soft' : 'text-muted hover:text-ink'
           }`}
         >
-          <i className={`ph ${opt.icon}`} /> {opt.label}
+          <i className={`ph ${opt.icon}`} /> {t(opt.label)}
         </button>
       ))}
     </div>

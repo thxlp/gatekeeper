@@ -5,13 +5,15 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import StarterFilesModal from './StarterFilesModal';
 import { ThemeToggleButton } from './ThemeToggle';
+import { LanguageToggleButton } from './LanguageToggle';
+import { useLang, type MsgKey } from '@/lib/i18n';
 
 interface RailItem {
   href: string;
   icon: string;
   activeIcon: string;
   match: (path: string) => boolean;
-  label: string;
+  label: MsgKey;
 }
 
 const items: RailItem[] = [
@@ -20,28 +22,28 @@ const items: RailItem[] = [
     icon: 'ph ph-squares-four',
     activeIcon: 'ph-fill ph-squares-four',
     match: (p) => p === '/' || p.startsWith('/apps'),
-    label: 'Projects',
+    label: 'nav.projects',
   },
   {
     href: '/deploy',
     icon: 'ph ph-rocket-launch',
     activeIcon: 'ph-fill ph-rocket-launch',
     match: (p) => p.startsWith('/deploy'),
-    label: 'Deploys',
+    label: 'nav.deploys',
   },
   {
     href: '/databases',
     icon: 'ph ph-database',
     activeIcon: 'ph-fill ph-database',
     match: (p) => p.startsWith('/databases'),
-    label: 'Databases',
+    label: 'nav.databases',
   },
   {
     href: '/audit',
     icon: 'ph ph-scroll',
     activeIcon: 'ph-fill ph-scroll',
     match: (p) => p.startsWith('/audit'),
-    label: 'Audit Log',
+    label: 'nav.auditLog',
   },
 ];
 
@@ -56,6 +58,7 @@ const ICON_SLOT = 'flex w-[34px] flex-none items-center justify-center';
 
 export default function IconRail() {
   const pathname = usePathname();
+  const { t } = useLang();
   const [startersOpen, setStartersOpen] = useState(false);
   const settingsActive = pathname.startsWith('/settings');
   const accountActive = pathname.startsWith('/account');
@@ -73,7 +76,7 @@ export default function IconRail() {
 
       <nav className="group absolute inset-y-0 left-0 z-30 hidden w-[58px] bg-rail py-3.5 transition-[width] duration-150 ease-out hover:w-[208px] hover:shadow-2xl sm:block">
         <div className="flex h-full flex-col overflow-hidden">
-          <Link href="/" aria-label="Gatekeeper home" className="mb-3 flex h-[38px] w-full flex-none items-center gap-3 pl-[10px] text-white">
+          <Link href="/" aria-label={t('nav.home')} className="mb-3 flex h-[38px] w-full flex-none items-center gap-3 pl-[10px] text-white">
             <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] bg-primary">
               <i className="ph-fill ph-lock-key text-lg" />
             </span>
@@ -84,32 +87,33 @@ export default function IconRail() {
             {items.map((it) => {
               const active = it.match(pathname);
               return (
-                <Link key={it.href} href={it.href} aria-label={it.label} className={rowClass(active)}>
+                <Link key={it.href} href={it.href} aria-label={t(it.label)} className={rowClass(active)}>
                   <span className={ICON_SLOT}>
                     <i className={`${active ? it.activeIcon : it.icon} text-lg`} />
                   </span>
-                  <span className={LABEL_CLASS}>{it.label}</span>
+                  <span className={LABEL_CLASS}>{t(it.label)}</span>
                 </Link>
               );
             })}
 
-            <button onClick={() => setStartersOpen(true)} aria-label="ไฟล์เริ่มงาน" className={rowClass(startersOpen)}>
+            <button onClick={() => setStartersOpen(true)} aria-label={t('nav.starterFiles')} className={rowClass(startersOpen)}>
               <span className={ICON_SLOT}>
                 <i className={`${startersOpen ? 'ph-fill' : 'ph'} ph-download-simple text-lg`} />
               </span>
-              <span className={LABEL_CLASS}>ไฟล์เริ่มงาน</span>
+              <span className={LABEL_CLASS}>{t('nav.starterFiles')}</span>
             </button>
           </div>
 
           <div className="mt-auto flex flex-col gap-1.5">
-            <ThemeToggleButton className={rowClass(false)} label="Theme" labelClassName={LABEL_CLASS} />
-            <Link href="/settings" aria-label="Settings" className={rowClass(settingsActive)}>
+            <LanguageToggleButton className={rowClass(false)} label={t('nav.language')} labelClassName={LABEL_CLASS} />
+            <ThemeToggleButton className={rowClass(false)} label={t('nav.theme')} labelClassName={LABEL_CLASS} />
+            <Link href="/settings" aria-label={t('nav.settings')} className={rowClass(settingsActive)}>
               <span className={ICON_SLOT}>
                 <i className={`${settingsActive ? 'ph-fill ph-gear' : 'ph ph-gear'} text-lg`} />
               </span>
-              <span className={LABEL_CLASS}>Settings</span>
+              <span className={LABEL_CLASS}>{t('nav.settings')}</span>
             </Link>
-            <Link href="/account" aria-label="Account" className={rowClass(accountActive)}>
+            <Link href="/account" aria-label={t('nav.account')} className={rowClass(accountActive)}>
               <span
                 className={`flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary text-[13px] font-bold text-white ${
                   accountActive ? 'outline outline-2 outline-offset-2 outline-white' : ''
@@ -117,7 +121,7 @@ export default function IconRail() {
               >
                 <i className="ph-fill ph-user text-sm" />
               </span>
-              <span className={LABEL_CLASS}>Account</span>
+              <span className={LABEL_CLASS}>{t('nav.account')}</span>
             </Link>
           </div>
         </div>

@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { useLang } from '@/lib/i18n';
 
 // เก็บ log ในหน่วยความจำไม่เกินจำนวนนี้ (ตัดหัวทิ้ง) — กัน DOM/หน่วยความจำบวมตอน tail นานๆ
 const MAX_LINES = 3000;
 const TAIL_OPTIONS = [200, 500, 1000, 2000];
 
 export default function LogsTab({ appId }: { appId: string }) {
+  const { t } = useLang();
   const [lines, setLines] = useState<string[]>([]);
   const [live, setLive] = useState(true);
   const [tail, setTail] = useState(500);
@@ -42,7 +44,7 @@ export default function LogsTab({ appId }: { appId: string }) {
         return; // ถูก abort ตอน cleanup
       }
       if (!res.ok) {
-        setStreamErr(`โหลด log ไม่ได้ (HTTP ${res.status})`);
+        setStreamErr(t('logs.loadFailed', { status: res.status }));
         return;
       }
       const reader = res.body?.getReader();
@@ -78,7 +80,7 @@ export default function LogsTab({ appId }: { appId: string }) {
       ctrl.abort();
       if (reconnect) clearTimeout(reconnect);
     };
-  }, [appId, tail, live, epoch, appendLines]);
+  }, [appId, tail, live, epoch, appendLines, t]);
 
   // autoscroll ลงล่างสุดเมื่อมีบรรทัดใหม่ (ถ้าเปิด)
   useEffect(() => {
@@ -108,7 +110,7 @@ export default function LogsTab({ appId }: { appId: string }) {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-allow-dot/70" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-allow-dot" />
             </span>
-            Live
+            {t('logs.live')}
           </span>
         )}
         {/* ปุ่มหลัก: สลับ live/pause */}
@@ -121,11 +123,11 @@ export default function LogsTab({ appId }: { appId: string }) {
         >
           {live ? (
             <>
-              <i className="ph-fill ph-pause" /> Pause
+              <i className="ph-fill ph-pause" /> {t('logs.pause')}
             </>
           ) : (
             <>
-              <i className="ph-fill ph-play" /> Resume
+              <i className="ph-fill ph-play" /> {t('logs.resume')}
             </>
           )}
         </button>
@@ -138,14 +140,14 @@ export default function LogsTab({ appId }: { appId: string }) {
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
           >
-            <i className="ph ph-arrow-clockwise" /> Refresh
+            <i className="ph ph-arrow-clockwise" /> {t('logs.refresh')}
           </button>
         )}
 
         <div className="mx-1 h-5 w-px bg-border-alt" />
 
         <label className="flex items-center gap-1.5 text-[13px] text-muted">
-          Tail
+          {t('logs.tail')}
           <select
             value={tail}
             onChange={(e) => {
@@ -154,9 +156,9 @@ export default function LogsTab({ appId }: { appId: string }) {
             }}
             className="rounded-md border border-border-alt bg-surface px-2 py-1 text-[13px] text-ink"
           >
-            {TAIL_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {TAIL_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
               </option>
             ))}
           </select>
@@ -164,7 +166,7 @@ export default function LogsTab({ appId }: { appId: string }) {
 
         <label className="flex items-center gap-1.5 text-[13px] text-muted">
           <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} />
-          Auto-scroll
+          {t('logs.autoScroll')}
         </label>
 
         <div className="ml-auto flex items-center gap-2">
@@ -172,14 +174,14 @@ export default function LogsTab({ appId }: { appId: string }) {
             onClick={() => setLines([])}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
           >
-            <i className="ph ph-eraser" /> Clear
+            <i className="ph ph-eraser" /> {t('logs.clear')}
           </button>
           <button
             onClick={download}
             disabled={lines.length === 0}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <i className="ph ph-download-simple" /> Download
+            <i className="ph ph-download-simple" /> {t('logs.download')}
           </button>
         </div>
       </div>
@@ -198,11 +200,11 @@ export default function LogsTab({ appId }: { appId: string }) {
         {pending ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-[#8a857a]">
             <i className="ph ph-cloud-slash text-3xl" />
-            <div className="text-[13.5px]">ยังไม่มี log — แอปนี้ยังไม่เคย deploy สำเร็จ</div>
+            <div className="text-[13.5px]">{t('logs.pending')}</div>
           </div>
         ) : lines.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[13px] text-[#8a857a]">
-            {live ? 'กำลังรอ log…' : 'ไม่มี log'}
+            {live ? t('logs.waiting') : t('logs.empty')}
           </div>
         ) : (
           <pre className="whitespace-pre-wrap break-words">{lines.join('\n')}</pre>
@@ -210,7 +212,7 @@ export default function LogsTab({ appId }: { appId: string }) {
       </div>
 
       <div className="mt-2 text-[12.5px] text-muted-3">
-        เก็บ log ล่าสุด ~{MAX_LINES.toLocaleString()} บรรทัดบนจอ · ฝั่งเซิร์ฟเวอร์หมุนไฟล์ไว้ที่ 10MB × 3 ต่อแอป
+        {t('logs.footnote', { max: MAX_LINES.toLocaleString() })}
       </div>
     </div>
   );

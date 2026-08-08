@@ -5,23 +5,25 @@ import Link from 'next/link';
 import { api, AuthResult } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
+import { useLang, type MsgKey } from '@/lib/i18n';
 
-// ข้อความแจ้งเหตุที่ถูกพากลับมาหน้านี้ (จาก AuthProvider idle timer / api.ts ดัก 401)
-const REASON_NOTICES: Record<string, string> = {
-  idle: 'ออกจากระบบอัตโนมัติ เนื่องจากไม่มีการใช้งานเกิน 15 นาที — เข้าสู่ระบบใหม่อีกครั้ง',
-  expired: 'เซสชันหมดอายุแล้ว — เข้าสู่ระบบใหม่อีกครั้ง',
-  mfa: 'บัญชีนี้เปิด Two-Factor Authentication — กรอกรหัสที่ส่งไปที่อีเมลเพื่อเข้าสู่ระบบ',
+// เหตุที่ถูกพากลับมาหน้านี้ (จาก AuthProvider idle timer / api.ts ดัก 401) → คีย์ข้อความ
+const REASON_NOTICES: Record<string, MsgKey> = {
+  idle: 'auth.noticeIdle',
+  expired: 'auth.noticeExpired',
+  mfa: 'auth.noticeMfa',
 };
 
 const RESEND_COOLDOWN_S = 60;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLang();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<MsgKey | ''>('');
   // 2FA: 'otp' = ผ่าน Supabase (first factor) แล้ว รอรหัสจากอีเมล — เก็บ access token ไว้ใช้
   // เรียก verify/resend (ยังไม่มี gk_session cookie จนกว่ารหัสจะถูก)
   const [stage, setStage] = useState<'credentials' | 'otp'>('credentials');
@@ -82,7 +84,7 @@ export default function LoginPage() {
   const submit = async () => {
     setError('');
     if (!email.trim() || !password) {
-      setError('กรุณากรอก email และ password');
+      setError(t('auth.errRequired'));
       return;
     }
     setLoading(true);
@@ -94,7 +96,7 @@ export default function LoginPage() {
       if (err) throw err;
       await syncAndEnter(data.session.access_token);
     } catch (e: any) {
-      setError(e.message || 'เกิดข้อผิดพลาด');
+      setError(e.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -103,14 +105,14 @@ export default function LoginPage() {
   const submitOtp = async () => {
     setError('');
     if (!otp.trim()) {
-      setError('กรอกรหัส 6 หลักจากอีเมล');
+      setError(t('auth.mfaErrCodeRequired'));
       return;
     }
     setLoading(true);
     try {
       finishLogin(await api.auth.verifyOtp(accessToken, otp.trim()));
     } catch (e: any) {
-      setError(e.message || 'เกิดข้อผิดพลาด');
+      setError(e.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -122,7 +124,7 @@ export default function LoginPage() {
       await api.auth.resendOtp(accessToken);
       setResendLeft(RESEND_COOLDOWN_S);
     } catch (e: any) {
-      setError(e.message || 'เกิดข้อผิดพลาด');
+      setError(e.message || t('common.error'));
     }
   };
 
@@ -138,12 +140,10 @@ export default function LoginPage() {
   if (stage === 'otp') {
     return (
       <AuthShell>
-        <div className="mb-2 flex items-center text-xl font-semibold">ยืนยันตัวตน (2FA)</div>
-        <p className="mb-5 text-[14.5px] text-muted">
-          ส่งรหัส 6 หลักไปที่อีเมลของคุณแล้ว — รหัสหมดอายุใน 10 นาที
-        </p>
+        <div className="mb-2 flex items-center text-xl font-semibold">{t('auth.mfaTitle')}</div>
+        <p className="mb-5 text-[14.5px] text-muted">{t('auth.mfaSubtitle')}</p>
 
-        <Field label="รหัสจากอีเมล" type="text" placeholder="000000" value={otp} onChange={setOtp} />
+        <Field label={t('auth.mfaCodeLabel')} type="text" placeholder="000000" value={otp} onChange={setOtp} />
 
         {error && (
           <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
@@ -152,7 +152,7 @@ export default function LoginPage() {
         )}
 
         <PrimaryButton className="mt-2" onClick={submitOtp} disabled={loading}>
-          {loading ? 'กำลังตรวจสอบ…' : 'ยืนยัน'} <i className="ph ph-arrow-right" />
+          {loading ? t('auth.mfaChecking') : t('common.confirm')} <i className="ph ph-arrow-right" />
         </PrimaryButton>
 
         <div className="mt-4 flex justify-between text-[15px]">
@@ -161,7 +161,7 @@ export default function LoginPage() {
             disabled={resendLeft > 0}
             className="font-medium text-primary disabled:cursor-not-allowed disabled:text-muted"
           >
-            {resendLeft > 0 ? `ส่งรหัสอีกครั้ง (${resendLeft}s)` : 'ส่งรหัสอีกครั้ง'}
+            {resendLeft > 0 ? t('auth.mfaResendIn', { n: resendLeft }) : t('auth.mfaResend')}
           </button>
           <button
             onClick={() => {
@@ -170,7 +170,7 @@ export default function LoginPage() {
             }}
             className="font-medium text-primary"
           >
-            กลับไปหน้า login
+            {t('auth.backToLoginPage')}
           </button>
         </div>
       </AuthShell>
@@ -179,18 +179,18 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <div className="mb-6 flex items-center text-xl font-semibold">เข้าสู่ระบบ</div>
+      <div className="mb-6 flex items-center text-xl font-semibold">{t('auth.login')}</div>
 
       {notice && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-page-alt px-3 py-2.5">
           <i className="ph ph-clock mt-0.5 shrink-0 text-muted" />
-          <p className="text-xs text-ink-soft">{notice}</p>
+          <p className="text-xs text-ink-soft">{t(notice as MsgKey)}</p>
         </div>
       )}
 
-      <Field label="Email" type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
+      <Field label={t('auth.email')} type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
       <Field
-        label="Password"
+        label={t('auth.password')}
         type="password"
         placeholder="••••••••"
         value={password}
@@ -204,14 +204,14 @@ export default function LoginPage() {
       )}
 
       <PrimaryButton className="mt-2" onClick={submit} disabled={loading}>
-        {loading ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'} <i className="ph ph-arrow-right" />
+        {loading ? t('auth.loggingIn') : t('auth.login')} <i className="ph ph-arrow-right" />
       </PrimaryButton>
       <div className="mt-4 flex justify-between text-[15px]">
         <Link href="/forgot-password" className="font-medium text-primary">
-          ลืมรหัสผ่าน?
+          {t('auth.forgotPassword')}
         </Link>
         <Link href="/register" className="font-medium text-primary">
-          ยังไม่มีบัญชี? สมัครสมาชิก
+          {t('auth.noAccountYet')}
         </Link>
       </div>
       <OAuthButtons onOAuth={oauth} />

@@ -145,6 +145,22 @@ body {
   animation: gk-shimmer 1.5s linear infinite;
 }
 
+/* toast / confirm dialog เข้าจอ — reduced-motion ย่อ duration เหลือ ~0 ให้เอง
+   (media query ด้านบน) แต่ยังจบที่ opacity:1 เพราะเป็น animation ปกติไม่ใช่ forwards */
+@keyframes gk-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.gk-toast-in {
+  animation: gk-toast-in 0.18s ease-out;
+}
+
 /* slow spin for phosphor spinner icons */
 @keyframes gk-spin {
   to {

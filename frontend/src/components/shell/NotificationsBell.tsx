@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { NotificationFeed, NotificationItem } from '@/types';
+import { useLang, type TFunc, type Lang } from '@/lib/i18n';
 
 const POLL_MS = 30_000;
 
@@ -14,14 +15,14 @@ function dotClass(type: string): string {
   return 'bg-muted-3';
 }
 
-function timeLabel(iso: string): string {
+function timeLabel(iso: string, t: TFunc, lang: Lang): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return 'เมื่อครู่';
-  if (mins < 60) return `${mins} นาทีที่แล้ว`;
+  if (mins < 1) return t('common.justNow');
+  if (mins < 60) return t('common.minutesAgo', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ชม.ที่แล้ว`;
-  return new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+  if (hours < 24) return t('common.hoursAgo', { n: hours });
+  return new Date(iso).toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-GB', { day: 'numeric', month: 'short' });
 }
 
 /**
@@ -29,6 +30,7 @@ function timeLabel(iso: string): string {
  * ทั้งแอป ไม่มี SSE/WebSocket) เปิด dropdown = mark อ่านทั้งหมด (badge หายทันที)
  */
 export default function NotificationsBell() {
+  const { t, lang } = useLang();
   const [feed, setFeed] = useState<NotificationFeed | null>(null);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -74,7 +76,7 @@ export default function NotificationsBell() {
     <div ref={wrapRef} className="relative">
       <button
         onClick={toggle}
-        aria-label="การแจ้งเตือน"
+        aria-label={t('notif.title')}
         className="relative flex h-9 w-9 items-center justify-center rounded-[7px] border border-border bg-surface text-ink-soft hover:bg-page-alt"
       >
         <i className="ph ph-bell text-[17px]" />
@@ -87,9 +89,9 @@ export default function NotificationsBell() {
 
       {open && (
         <div className="absolute right-0 top-11 z-50 w-[320px] rounded-lg border border-border bg-surface shadow-lg">
-          <div className="border-b border-border px-4 py-2.5 text-[14.5px] font-bold">การแจ้งเตือน</div>
+          <div className="border-b border-border px-4 py-2.5 text-[14.5px] font-bold">{t('notif.title')}</div>
           {items.length === 0 && (
-            <p className="px-4 py-5 text-center text-[14px] text-muted">ยังไม่มีการแจ้งเตือน</p>
+            <p className="px-4 py-5 text-center text-[14px] text-muted">{t('notif.empty')}</p>
           )}
           <div className="max-h-[360px] overflow-auto">
             {items.map((n) => {
@@ -102,7 +104,7 @@ export default function NotificationsBell() {
                       {n.title}
                     </div>
                     {n.body && <div className="truncate text-[13px] text-muted">{n.body}</div>}
-                    <div className="mt-px text-[12.5px] text-muted-3">{timeLabel(n.createdAt)}</div>
+                    <div className="mt-px text-[12.5px] text-muted-3">{timeLabel(n.createdAt, t, lang)}</div>
                   </div>
                 </div>
               );

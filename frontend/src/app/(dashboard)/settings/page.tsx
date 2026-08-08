@@ -3,9 +3,13 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { ThemeSegmentedControl } from '@/components/shell/ThemeToggle';
+import { LanguageSegmentedControl } from '@/components/shell/LanguageToggle';
 import { Card, CardHeader, Skeleton } from '@/components/ui/primitives';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { AccountMe, GithubStatus, UsageSummary } from '@/types';
+import { useLang } from '@/lib/i18n';
 
 const USAGE_POLL_MS = 10_000;
 
@@ -79,6 +83,7 @@ function UsageSkeleton() {
 }
 
 function UsageCard() {
+  const { t } = useLang();
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -103,26 +108,26 @@ function UsageCard() {
 
   return (
     <Card>
-      <CardHeader title="Usage" subtitle="ผลการใช้งานของบัญชีนี้ · CPU/RAM สดต่อแอป และสถิติ deploy" />
+      <CardHeader title={t('usage.title')} subtitle={t('usage.subtitle')} />
       {!usage && !failed && <UsageSkeleton />}
-      {failed && !usage && <p className="text-[14.5px] text-danger-text">โหลดข้อมูลการใช้งานไม่สำเร็จ</p>}
+      {failed && !usage && <p className="text-[14.5px] text-danger-text">{t('usage.loadFailed')}</p>}
       {usage && (
         <div className="flex flex-col gap-4">
           <div className="flex gap-2.5">
-            <StatTile label="Deploy ทั้งหมด" value={usage.deploys.total} />
-            <StatTile label="ผ่าน" value={usage.deploys.allowed} tone="allow" />
-            <StatTile label="ถูกบล็อก" value={usage.deploys.blocked} tone="danger" />
+            <StatTile label={t('usage.deploysTotal')} value={usage.deploys.total} />
+            <StatTile label={t('usage.deploysAllowed')} value={usage.deploys.allowed} tone="allow" />
+            <StatTile label={t('usage.deploysBlocked')} value={usage.deploys.blocked} tone="danger" />
           </div>
 
           {usage.deploys.months.length > 0 && (
             <div>
-              <div className="mb-1.5 text-[13.5px] text-muted">รายเดือน (ล่าสุดก่อน)</div>
+              <div className="mb-1.5 text-[13.5px] text-muted">{t('usage.monthly')}</div>
               <div className="flex flex-col gap-1">
                 {usage.deploys.months.map((m) => (
                   <div key={m.month} className="flex items-center justify-between text-[14px]">
                     <span className="tabular-nums text-ink-soft">{m.month}</span>
                     <span className="tabular-nums text-muted">
-                      {m.total} ครั้ง · ผ่าน {m.allowed} · บล็อก {m.blocked}
+                      {t('usage.monthlyRow', { total: m.total, allowed: m.allowed, blocked: m.blocked })}
                     </span>
                   </div>
                 ))}
@@ -131,7 +136,7 @@ function UsageCard() {
           )}
 
           <div>
-            <div className="mb-1.5 text-[13.5px] text-muted">โควต้าทรัพยากรของบัญชี (ผลรวมเพดานทุกแอป+addon)</div>
+            <div className="mb-1.5 text-[13.5px] text-muted">{t('usage.quota')}</div>
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[14px] text-ink-soft">RAM</span>
@@ -147,8 +152,8 @@ function UsageCard() {
           </div>
 
           <div>
-            <div className="mb-1.5 text-[13.5px] text-muted">Resource ต่อแอป (สดจาก container)</div>
-            {usage.apps.length === 0 && <p className="text-[14.5px] text-muted">ยังไม่มีแอปที่ลงทะเบียนไว้</p>}
+            <div className="mb-1.5 text-[13.5px] text-muted">{t('usage.perApp')}</div>
+            {usage.apps.length === 0 && <p className="text-[14.5px] text-muted">{t('usage.noApps')}</p>}
             <div className="flex flex-col gap-2">
               {usage.apps.map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-3">
@@ -157,7 +162,9 @@ function UsageCard() {
                       className={`inline-block h-[7px] w-[7px] shrink-0 rounded-full ${a.running ? 'bg-allow-dot' : 'bg-muted-3'}`}
                     />
                     <span className="truncate text-[14.5px] font-semibold">{a.name}</span>
-                    <span className="shrink-0 text-[12.5px] text-muted">{a.running ? 'running' : a.cpuPercent === null ? 'ยังไม่ deploy' : 'stopped'}</span>
+                    <span className="shrink-0 text-[12.5px] text-muted">
+                      {a.running ? t('usage.appRunning') : a.cpuPercent === null ? t('usage.appNotDeployed') : t('usage.appStopped')}
+                    </span>
                   </div>
                   {a.running && a.memUsedMb !== null && a.memLimitMb !== null ? (
                     <div className="flex shrink-0 items-center gap-3">
@@ -224,6 +231,7 @@ function ToggleRow({
  * (ปิดก็ต้องมีรหัส กัน session ที่ถูกขโมยแอบปิด 2FA เอง) ปุ่ม disabled ถ้า SMTP ยังไม่ถูกตั้งค่า
  */
 function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: AccountMe) => void }) {
+  const { t } = useLang();
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -265,24 +273,22 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
 
   return (
     <Card>
-      <CardHeader title="Security" subtitle="เพิ่มระดับความปลอดภัยด้วยการยืนยันตัวตนสองขั้นตอน" />
+      <CardHeader title={t('twofa.cardTitle')} subtitle={t('twofa.cardSubtitle')} />
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 text-[14.5px] font-semibold">
-            Two-Factor Authentication (2FA)
+            {t('twofa.name')}
             {enabled && (
               <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[12px] font-bold text-allow-text">
-                เปิดอยู่
+                {t('twofa.badgeOn')}
               </span>
             )}
           </div>
           <div className="text-[13px] text-muted">
-            {enabled
-              ? 'ทุกครั้งที่ login ต้องกรอกรหัสที่ส่งไปที่อีเมลด้วย'
-              : 'ป้องกันการเข้าถึงที่ไม่ได้รับอนุญาต แม้รหัสผ่านจะถูกขโมย — ยืนยันด้วยรหัสทางอีเมล'}
+            {enabled ? t('twofa.descOn') : t('twofa.descOff')}
           </div>
           {me && !me.mailConfigured && (
-            <div className="mt-0.5 text-[12.5px] text-danger-text">ยังไม่ได้ตั้งค่า SMTP บนเซิร์ฟเวอร์ — ใช้ 2FA ไม่ได้</div>
+            <div className="mt-0.5 text-[12.5px] text-danger-text">{t('twofa.smtpMissing')}</div>
           )}
         </div>
         {!codeSent && (
@@ -295,7 +301,7 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
                 : 'border-border bg-surface text-ink-soft hover:bg-page-alt'
             }`}
           >
-            {busy ? 'กำลังส่งรหัส…' : enabled ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+            {busy ? t('twofa.sending') : enabled ? t('twofa.disable') : t('twofa.enable')}
           </button>
         )}
       </div>
@@ -303,7 +309,7 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
       {codeSent && (
         <div className="mt-3 border-t border-border pt-3">
           <div className="mb-1.5 text-[13.5px] text-muted">
-            ส่งรหัส 6 หลักไปที่อีเมลของคุณแล้ว — กรอกเพื่อยืนยัน{enabled ? 'การปิด' : 'การเปิด'} 2FA
+            {t(enabled ? 'twofa.codeSentDisable' : 'twofa.codeSentEnable')}
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -317,7 +323,7 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
               disabled={busy || !code.trim()}
               className="rounded-[7px] bg-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              ยืนยัน
+              {t('common.confirm')}
             </button>
             <button
               onClick={() => {
@@ -326,7 +332,7 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
               }}
               className="px-2 py-2 text-xs font-medium text-muted hover:text-ink"
             >
-              ยกเลิก
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -342,18 +348,33 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
 }
 
 function ThemeRow() {
+  const { t } = useLang();
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <div className="text-[14.5px] font-semibold">Theme</div>
-        <div className="text-[13px] text-muted">เลือกโหมดสี หรือให้ตามระบบปฏิบัติการ</div>
+        <div className="text-[14.5px] font-semibold">{t('settings.themeTitle')}</div>
+        <div className="text-[13px] text-muted">{t('settings.themeDesc')}</div>
       </div>
       <ThemeSegmentedControl />
     </div>
   );
 }
 
+function LangRow() {
+  const { t } = useLang();
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <div className="text-[14.5px] font-semibold">{t('settings.langTitle')}</div>
+        <div className="text-[13px] text-muted">{t('settings.langDesc')}</div>
+      </div>
+      <LanguageSegmentedControl />
+    </div>
+  );
+}
+
 function PrefRow({ title, desc }: { title: string; desc: string }) {
+  const { t } = useLang();
   return (
     <div className="flex items-center justify-between opacity-60">
       <div>
@@ -361,13 +382,16 @@ function PrefRow({ title, desc }: { title: string; desc: string }) {
         <div className="text-[13px] text-muted">{desc}</div>
       </div>
       <span className="rounded-full border border-border bg-page-alt px-2 py-0.5 text-[12px] font-semibold text-muted">
-        เร็วๆ นี้
+        {t('account.comingSoon')}
       </span>
     </div>
   );
 }
 
 export default function SettingsPage() {
+  const { t } = useLang();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [gh, setGh] = useState<GithubStatus | null>(null);
   const [plan, setPlan] = useState('free');
   const [me, setMe] = useState<AccountMe | null>(null);
@@ -384,44 +408,55 @@ export default function SettingsPage() {
     setMe({ ...me, notifyEmail: next }); // optimistic — พลาดค่อย revert
     try {
       await api.account.updatePrefs({ notifyEmail: next });
-    } catch {
+      toast.success(t('common.saved'));
+    } catch (e: any) {
+      // revert แล้วบอกด้วยว่าทำไม — เดิม toggle เด้งกลับเองเงียบๆ เหมือนแอปค้าง
       setMe(prev);
+      toast.error(e.message);
     }
   };
 
   const disconnectGithub = async () => {
-    if (!confirm('ยกเลิกการเชื่อมต่อ GitHub?')) return;
+    const ok = await confirm({
+      title: t('confirm.disconnectGithubTitle'),
+      body: t('confirm.disconnectGithubBody'),
+      confirmLabel: t('settings.disconnect'),
+      danger: true,
+    });
+    if (!ok) return;
     await api.github.disconnect().catch(() => undefined);
     setGh({ connected: false });
+    toast.success(t('toast.githubDisconnected'));
   };
 
   return (
     <>
-      <TopBar variant="title" title="Settings" titleIcon="ph ph-sliders" />
+      <TopBar variant="title" title={t('settings.title')} titleIcon="ph ph-sliders" />
 
       <div className="flex min-h-0 flex-1 justify-center overflow-auto px-6 py-6">
         <div className="flex w-full max-w-[640px] flex-col gap-4">
           <Card>
-            <CardHeader title="Preferences" subtitle="ตั้งค่าการแสดงผลและพฤติกรรมของระบบ" />
+            <CardHeader title={t('settings.prefs')} subtitle={t('settings.prefsSub')} />
             <div className="flex flex-col gap-4">
               <ThemeRow />
+              <LangRow />
               <ToggleRow
-                title="Email Notifications"
-                desc="รับการแจ้งเตือนทางอีเมลเมื่อ pipeline รันล้มเหลว หรือถูกบล็อก (in-app แจ้งเสมอ)"
+                title={t('settings.emailNotif')}
+                desc={t('settings.emailNotifDesc')}
                 checked={me?.notifyEmail ?? false}
                 disabled={!me || !me.mailConfigured}
-                hint={me && !me.mailConfigured ? 'ยังไม่ได้ตั้งค่า SMTP บนเซิร์ฟเวอร์ — เปิดใช้ไม่ได้' : undefined}
+                hint={me && !me.mailConfigured ? t('settings.smtpMissingToggle') : undefined}
                 onChange={toggleNotifyEmail}
               />
-              <PrefRow title="Auto-deploy (GitHub)" desc="เปิดอยู่เสมอเมื่อเชื่อม repo ผ่าน picker — ยังไม่มีสวิตช์แยกปิด" />
+              <PrefRow title={t('settings.autoDeployPref')} desc={t('settings.autoDeployPrefDesc')} />
             </div>
           </Card>
 
           {/* plan */}
           <Card>
             <CardHeader
-              title="Current Plan"
-              subtitle="รายละเอียดแพ็กเกจที่คุณกำลังใช้งาน"
+              title={t('settings.currentPlan')}
+              subtitle={t('settings.currentPlanSub')}
               divider={false}
               right={
                 <span className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.12)] px-3 py-[5px] text-[13.5px] font-bold text-allow-text">
@@ -430,7 +465,7 @@ export default function SettingsPage() {
               }
             />
             <div className="mt-4 border-t border-border pt-3.5">
-              <div className="mb-[7px] text-[13.5px] text-muted">Allowed Runtimes</div>
+              <div className="mb-[7px] text-[13.5px] text-muted">{t('settings.allowedRuntimes')}</div>
               <div className="text-[15px] font-semibold">Node.js, Static</div>
             </div>
           </Card>
@@ -440,8 +475,8 @@ export default function SettingsPage() {
 
           {/* connected accounts */}
           <Card>
-            <CardHeader title="Connected Accounts" subtitle="จัดการบัญชีผู้ให้บริการภายนอก · token เข้ารหัส AES-256-GCM" />
-            {!gh && <p className="text-[14.5px] text-muted">กำลังตรวจสอบ…</p>}
+            <CardHeader title={t('settings.connectedAccounts')} subtitle={t('settings.connectedAccountsSub')} />
+            {!gh && <p className="text-[14.5px] text-muted">{t('settings.checking')}</p>}
             {gh && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -450,20 +485,20 @@ export default function SettingsPage() {
                     <div className="text-[15px] font-semibold">GitHub</div>
                     <div className="text-[13.5px] text-muted">
                       {gh.connected ? (
-                        <>Connected as <span className="font-semibold text-ink">{gh.username}</span></>
+                        <>{t('settings.connectedAs')} <span className="font-semibold text-ink">{gh.username}</span></>
                       ) : (
-                        'ยังไม่ได้เชื่อมต่อ'
+                        t('settings.notConnected')
                       )}
                     </div>
                   </div>
                 </div>
                 {gh.connected ? (
                   <button onClick={disconnectGithub} className="rounded-[7px] border border-[rgba(214,109,82,.35)] bg-surface px-3.5 py-2 text-xs font-medium text-danger-text">
-                    Disconnect
+                    {t('settings.disconnect')}
                   </button>
                 ) : (
                   <a href="/deploy" className="rounded-[7px] border border-border bg-surface px-3.5 py-2 text-xs font-medium text-ink-soft">
-                    เชื่อมต่อ
+                    {t('settings.connect')}
                   </a>
                 )}
               </div>

@@ -8,18 +8,21 @@ import LogsTab from '@/components/shell/LogsTab';
 import VariablesTab from '@/components/shell/VariablesTab';
 import DeploySettingsTab from '@/components/shell/DeploySettingsTab';
 import DomainsTab from '@/components/shell/DomainsTab';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
+import { useLang, localeTag, type MsgKey } from '@/lib/i18n';
 
 const POLL_MS = 1500;
 
 type TabKey = 'overview' | 'logs' | 'variables' | 'deploy' | 'domains';
-const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: 'overview', label: 'Overview', icon: 'ph-git-branch' },
-  { key: 'logs', label: 'Logs', icon: 'ph-terminal-window' },
-  { key: 'variables', label: 'Variables', icon: 'ph-key' },
-  { key: 'deploy', label: 'Deploy', icon: 'ph-arrows-clockwise' },
-  { key: 'domains', label: 'Domains', icon: 'ph-globe' },
+const TABS: { key: TabKey; label: MsgKey; icon: string }[] = [
+  { key: 'overview', label: 'app.tabOverview', icon: 'ph-git-branch' },
+  { key: 'logs', label: 'app.tabLogs', icon: 'ph-terminal-window' },
+  { key: 'variables', label: 'app.tabVariables', icon: 'ph-key' },
+  { key: 'deploy', label: 'app.tabDeploy', icon: 'ph-arrows-clockwise' },
+  { key: 'domains', label: 'app.tabDomains', icon: 'ph-globe' },
 ];
 
 function StepCircle({ stage }: { stage: PipelineStage }) {
@@ -52,6 +55,9 @@ function StepCircle({ stage }: { stage: PipelineStage }) {
 }
 
 export default function PipelineDetailPage({ params }: { params: { id: string } }) {
+  const { t, lang } = useLang();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [detail, setDetail] = useState<GitAppDetail | null>(null);
   const [error, setError] = useState('');
   // bump ค่านี้ = restart polling loop (interval เดิมถูก clear ไปแล้วตอน deploy รอบก่อนจบ —
@@ -79,13 +85,14 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
   const handleRedeploy = async () => {
     if (!detail) return;
     if ((detail.sourceType ?? 'git') !== 'git') {
-      setError('แอปนี้ deploy แบบอัปโหลด .zip — แก้ env แล้วต้องอัปโหลดไฟล์ใหม่ที่หน้า Deploy เพื่อให้ค่ามีผล');
+      setError(t('app.manualRedeployHint'));
       changeTab('overview');
       return;
     }
     setError('');
     try {
       await api.deployGitApp(params.id);
+      toast.success(t('toast.deployStarted', { name: detail.projectName || detail.repoFullName || params.id }));
       changeTab('overview');
       setPollEpoch((e) => e + 1); // เริ่ม poll ใหม่ให้เห็น stage วิ่ง
     } catch (e: any) {
@@ -117,16 +124,19 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
   }, [params.id, pollEpoch]);
 
   const doRollback = async (r: ReleaseSummary) => {
-    const label = r.commitSha ? r.commitSha.slice(0, 7) : 'manual upload';
-    const ok = confirm(
-      `Rollback กลับไป release ${label} (${new Date(r.createdAt).toLocaleString('th-TH')})?\n\n` +
-        'หมายเหตุ: rollback ใช้โค้ดเวอร์ชันนั้น แต่ env vars/addons เป็นค่าปัจจุบัน ไม่ใช่ค่าตอน deploy รอบนั้น',
-    );
+    const label = r.commitSha ? r.commitSha.slice(0, 7) : t('app.manualUpload');
+    const ok = await confirm({
+      title: t('confirm.rollbackTitle'),
+      body: t('app.rollbackConfirm', { label, when: new Date(r.createdAt).toLocaleString(localeTag(lang)) }),
+      confirmLabel: t('app.rollback'),
+      danger: true,
+    });
     if (!ok) return;
     setRollingBack(true);
     setError('');
     try {
       await api.rollbackApp(params.id, r.id);
+      toast.info(t('toast.rollbackStarted', { label }));
       setPollEpoch((e) => e + 1); // เริ่ม poll ใหม่ให้เห็น production_deploy วิ่ง
     } catch (e: any) {
       setError(e.message);
@@ -155,7 +165,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
 
   return (
     <>
-      <TopBar variant="title" title="Pipeline" backHref="/" right={detail && statusBadge} />
+      <TopBar variant="title" title={t('app.topbarTitle')} backHref="/" right={detail && statusBadge} />
 
       <div className="min-h-0 flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-[760px]">
@@ -165,16 +175,16 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
           </div>
           {/* tab bar — แยก Overview / Logs / Variables ให้ชัด ไม่รวมปุ่มเดียว */}
           <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border-alt">
-            {TABS.map((t) => (
+            {TABS.map((item) => (
               <button
-                key={t.key}
-                onClick={() => changeTab(t.key)}
+                key={item.key}
+                onClick={() => changeTab(item.key)}
                 className={`-mb-px flex flex-none items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2 text-[14px] font-semibold ${
-                  tab === t.key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+                  tab === item.key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
                 }`}
               >
-                <i className={`ph ${t.icon} text-[16px]`} />
-                {t.label}
+                <i className={`ph ${item.icon} text-[16px]`} />
+                {t(item.label)}
               </button>
             ))}
           </div>
@@ -191,7 +201,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             (detail ? (
               <DeploySettingsTab appId={params.id} detail={detail} />
             ) : (
-              <p className="text-[14.5px] text-muted">กำลังโหลด…</p>
+              <p className="text-[14.5px] text-muted">{t('common.loading')}</p>
             ))}
           {tab === 'domains' && (
             <DomainsTab
@@ -202,8 +212,8 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
 
           {tab === 'overview' && (
             <>
-              <div className="mb-5 text-[19px] font-bold">Gatekeeper Pipeline</div>
-              {!detail && !error && <p className="text-[14.5px] text-muted">กำลังโหลดสถานะ pipeline…</p>}
+              <div className="mb-5 text-[19px] font-bold">{t('app.pipelineTitle')}</div>
+              {!detail && !error && <p className="text-[14.5px] text-muted">{t('app.loadingPipeline')}</p>}
 
           {stages && (
             <div className="flex flex-col">
@@ -226,11 +236,11 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                         >
                           {stage.label}
                         </span>
-                        {stage.status === 'running' && <span className="text-[13px] text-primary">กำลังดำเนินการ…</span>}
+                        {stage.status === 'running' && <span className="text-[13px] text-primary">{t('app.stageRunning')}</span>}
                       </div>
                       {stage.at && stage.status !== 'running' && (
                         <div className={`mt-0.5 text-[13.5px] ${stage.status === 'failed' ? 'text-danger-text' : 'text-muted'}`}>
-                          {new Date(stage.at).toLocaleString('th-TH')}
+                          {new Date(stage.at).toLocaleString(localeTag(lang))}
                         </div>
                       )}
                     </div>
@@ -242,9 +252,9 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
 
           {detail?.pipelineStatus === 'failed' && (
             <div className="mt-2 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-4 py-3 text-[14.5px] text-ink-soft">
-              Deploy ไม่สำเร็จ — เหตุผลโดยละเอียด (findings/score) ดูได้ที่{' '}
+              {t('app.deployFailed')}{' '}
               <Link href="/audit" className="font-semibold text-primary">
-                Audit Log
+                {t('audit.title')}
               </Link>
             </div>
           )}
@@ -259,7 +269,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                   rel="noreferrer"
                   className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-hover"
                 >
-                  <i className="ph ph-arrow-square-out" /> Visit Live Site
+                  <i className="ph ph-arrow-square-out" /> {t('app.visitLiveSite')}
                 </a>
               )}
             </>
@@ -268,10 +278,8 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
           {/* ประวัติ release + ปุ่ม rollback — safety net ตอน deploy ตัวใหม่พัง */}
           {detail?.releases && detail.releases.length > 0 && (
             <div className="mt-7">
-              <div className="mb-1 text-[15px] font-bold">Releases</div>
-              <div className="mb-2.5 text-[13.5px] text-muted">
-                เก็บเวอร์ชันล่าสุดไว้ให้กดกลับได้ — rollback ไม่ rebuild ใช้ image เดิมที่ผ่านการสแกนแล้ว
-              </div>
+              <div className="mb-1 text-[15px] font-bold">{t('app.releasesTitle')}</div>
+              <div className="mb-2.5 text-[13.5px] text-muted">{t('app.releasesSubtitle')}</div>
               <div className="divide-y divide-border-alt rounded-lg border border-border-alt bg-surface">
                 {detail.releases.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
@@ -279,7 +287,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[14.5px] font-semibold">
-                          {r.commitSha ? r.commitSha.slice(0, 7) : 'manual upload'}
+                          {r.commitSha ? r.commitSha.slice(0, 7) : t('app.manualUpload')}
                         </span>
                         {r.active && (
                           <span className="rounded-md border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.1)] px-1.5 py-px text-[12px] font-bold text-allow-text">
@@ -293,7 +301,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                         )}
                       </div>
                       <div className="mt-px text-[13px] text-muted">
-                        {new Date(r.createdAt).toLocaleString('th-TH')}
+                        {new Date(r.createdAt).toLocaleString(localeTag(lang))}
                         {r.branch ? ` · ${r.branch}` : ''}
                       </div>
                     </div>
@@ -304,7 +312,7 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
                         className="rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <i className="ph ph-arrow-counter-clockwise mr-1" />
-                        Rollback
+                        {t('app.rollback')}
                       </button>
                     )}
                   </div>

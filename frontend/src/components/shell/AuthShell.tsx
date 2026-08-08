@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import { useLang } from '@/lib/i18n';
 
 // Full-bleed dark auth background with teal aura + tech photo composite,
 // centered white card. Shared by login / register / forgot-password.
@@ -86,24 +89,25 @@ export function PrimaryButton({
 }
 
 export function OAuthButtons({ onOAuth }: { onOAuth?: (provider: 'github' | 'google') => void }) {
+  const { t } = useLang();
   return (
     <>
       <div className="my-6 flex items-center gap-3 text-xs text-muted-2">
         <div className="flex-1 border-b border-input-border" />
-        หรือ
+        {t('common.or')}
         <div className="flex-1 border-b border-input-border" />
       </div>
       <button
         onClick={() => onOAuth?.('github')}
         className="mb-3 flex w-full items-center justify-center gap-2 rounded-md border border-input-border bg-surface px-4 py-2.5 text-sm font-medium text-ink-alt hover:bg-page-alt"
       >
-        <i className="ph-fill ph-github-logo text-lg" /> Continue with GitHub
+        <i className="ph-fill ph-github-logo text-lg" /> {t('auth.continueWithGithub')}
       </button>
       <button
         onClick={() => onOAuth?.('google')}
         className="flex w-full items-center justify-center gap-2 rounded-md border border-input-border bg-surface px-4 py-2.5 text-sm font-medium text-ink-alt hover:bg-page-alt"
       >
-        <i className="ph-fill ph-google-logo text-lg text-[#35eae1]" /> Continue with Google
+        <i className="ph-fill ph-google-logo text-lg text-[#35eae1]" /> {t('auth.continueWithGoogle')}
       </button>
     </>
   );

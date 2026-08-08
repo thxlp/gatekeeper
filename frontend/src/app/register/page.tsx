@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
+import { useLang } from '@/lib/i18n';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useLang();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,15 +37,15 @@ export default function RegisterPage() {
     setError('');
     setCheckEmail(false);
     if (!email.trim() || !password) {
-      setError('กรุณากรอก email และ password');
+      setError(t('auth.errRequired'));
       return;
     }
     if (password.length < 8 || !/\d/.test(password)) {
-      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร ผสมตัวเลข');
+      setError(t('auth.errPasswordWeak'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('รหัสผ่านไม่ตรงกัน');
+      setError(t('auth.errPasswordMismatch'));
       return;
     }
     setLoading(true);
@@ -63,7 +65,7 @@ export default function RegisterPage() {
       }
       await syncAndEnter(data.session.access_token);
     } catch (e: any) {
-      setError(e.message || 'เกิดข้อผิดพลาด');
+      setError(e.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -81,16 +83,16 @@ export default function RegisterPage() {
     return (
       <AuthShell>
         <div className="mb-2 flex items-center gap-2 text-xl font-semibold text-allow-text">
-          <i className="ph-fill ph-envelope-simple-open" /> เช็คอีเมลของคุณ
+          <i className="ph-fill ph-envelope-simple-open" /> {t('auth.checkEmailTitle')}
         </div>
         <p className="mb-6 text-[14.5px] leading-relaxed text-muted-2">
-          ส่งลิงก์ยืนยันไปที่ {email.trim()} แล้ว — กดยืนยันก่อนถึงจะเข้าสู่ระบบได้
+          {t('auth.checkEmailBody', { email: email.trim() })}
         </p>
         <Link
           href="/login"
           className="flex w-full items-center justify-center gap-1.5 rounded-md border border-input-border bg-surface py-2.5 text-sm font-medium text-ink-alt hover:bg-page-alt"
         >
-          <i className="ph ph-arrow-left" /> กลับไปเข้าสู่ระบบ
+          <i className="ph ph-arrow-left" /> {t('auth.backToLogin')}
         </Link>
       </AuthShell>
     );
@@ -98,20 +100,20 @@ export default function RegisterPage() {
 
   return (
     <AuthShell>
-      <div className="mb-6 flex items-center text-xl font-semibold">สมัครสมาชิก</div>
-      <Field label="Full Name" placeholder="Studio Dup" value={fullName} onChange={setFullName} />
-      <Field label="Email" type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
-      <Field label="Password" type="password" placeholder="••••••••" value={password} onChange={setPassword} />
+      <div className="mb-6 flex items-center text-xl font-semibold">{t('auth.register')}</div>
+      <Field label={t('auth.fullName')} placeholder="Studio Dup" value={fullName} onChange={setFullName} />
+      <Field label={t('auth.email')} type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
+      <Field label={t('auth.password')} type="password" placeholder="••••••••" value={password} onChange={setPassword} />
       <div className="mb-2">
         <Field
-          label="Confirm Password"
+          label={t('auth.confirmPassword')}
           type="password"
           placeholder="••••••••"
           value={confirmPassword}
           onChange={setConfirmPassword}
         />
       </div>
-      <div className="my-1 text-[13px] text-muted-2">ต้องมีอย่างน้อย 8 ตัวอักษร ผสมตัวเลข</div>
+      <div className="my-1 text-[13px] text-muted-2">{t('auth.passwordHint')}</div>
 
       {error && (
         <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
@@ -120,12 +122,12 @@ export default function RegisterPage() {
       )}
 
       <PrimaryButton className="mt-3" onClick={submit} disabled={loading}>
-        {loading ? 'กำลังสมัครสมาชิก…' : 'สมัครสมาชิก'} <i className="ph ph-arrow-right" />
+        {loading ? t('auth.registering') : t('auth.register')} <i className="ph ph-arrow-right" />
       </PrimaryButton>
       <div className="mt-4 text-center text-[15px] text-muted-2">
-        มีบัญชีอยู่แล้ว?{' '}
+        {t('auth.haveAccount')}{' '}
         <Link href="/login" className="font-medium text-primary">
-          เข้าสู่ระบบ
+          {t('auth.login')}
         </Link>
       </div>
       <OAuthButtons onOAuth={oauth} />

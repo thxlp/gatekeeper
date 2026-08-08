@@ -1,5 +1,10 @@
+'use client';
+
+import { useLang } from '@/lib/i18n';
+
 // ASCII wordmark "DEPLOYED" โผล่ตอน pipeline success — reveal ทีละบรรทัดให้มีลูกเล่น
 // เข้าธีม terminal ที่มีอยู่ (mono + blinking cursor + สีเขียว allow-text = success)
+
 const ART = [
   '███  ████ ███  █    ████ █  █ ████ ███ ',
   '█  █ █    █  █ █    █  █ █  █ █    █  █',
@@ -9,6 +14,7 @@ const ART = [
 ];
 
 export default function DeploySuccessArt() {
+  const { t } = useLang();
   return (
     <div className="gk-deploy-art mt-6 overflow-hidden rounded-xl border border-[rgba(115,169,140,.3)] bg-[rgba(115,169,140,.06)] px-5 py-[18px]">
       <div className="mb-3 flex items-center gap-2 font-mono text-[11.5px] uppercase tracking-[1.5px] text-allow-text">
@@ -31,7 +37,7 @@ export default function DeploySuccessArt() {
         <span className="gk-cursor" />
       </div>
 
-      <span className="sr-only">Deployed successfully</span>
+      <span className="sr-only">{t('deployArt.srSuccess')}</span>
     </div>
   );
 }
