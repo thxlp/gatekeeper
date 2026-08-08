@@ -1,5 +1,6 @@
 import {
   AccountMe,
+  AuditPage,
   CustomDomain,
   DbConnection,
   DeployOutcome,
@@ -127,7 +128,16 @@ export const api = {
   },
 
   // combined audit stream
-  getMyAudit: () => request<any[]>(API_BASE, '/audit'),
+  // บันทึกการใช้งาน — backend ตัดหน้าให้ (ใหม่สุดก่อน) ไม่คืนทั้งไฟล์เหมือนเดิม
+  getMyAudit: (params: { decision?: string; q?: string; offset?: number; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.decision) qs.set('decision', params.decision);
+    if (params.q?.trim()) qs.set('q', params.q.trim());
+    if (params.offset) qs.set('offset', String(params.offset));
+    if (params.limit) qs.set('limit', String(params.limit));
+    const suffix = qs.toString();
+    return request<AuditPage>(API_BASE, `/audit${suffix ? `?${suffix}` : ''}`);
+  },
 
   // feed แจ้งเตือน (กระดิ่งบน TopBar) — poll เป็นระยะตาม pattern polling ของทั้งแอป
   notifications: {

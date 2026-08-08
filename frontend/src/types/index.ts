@@ -193,6 +193,16 @@ export interface GithubStatus {
   connectedAt?: string;
 }
 
+// ===== บันทึกการใช้งาน (audit) =====
+export type AuditDecisionFilter = 'ALLOW' | 'QUARANTINE' | 'BLOCK' | 'INFO';
+
+export interface AuditPage {
+  rows: AuditEntry[];
+  /** จำนวนแถวทั้งหมดที่ตรงเงื่อนไข (ไม่ใช่แค่หน้านี้) */
+  total: number;
+  hasMore: boolean;
+}
+
 // ===== GitLab/Bitbucket connection (paste token เอง — ไม่มี OAuth flow เหมือน GitHub) =====
 export type GitCredentialProvider = 'gitlab' | 'bitbucket';
 

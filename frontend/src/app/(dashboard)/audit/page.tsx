@@ -1,14 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { Pill, Skeleton } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
-import { AuditEntry } from '@/types';
+import { AuditDecisionFilter, AuditEntry } from '@/types';
 import { auditDetail, decisionKind, stageBadge } from '@/lib/audit';
 import { useLang, localeTag, type TFunc } from '@/lib/i18n';
 
 const COLS = '130px 160px 1fr 130px';
+const PAGE_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 300;
+
+const DECISION_FILTERS: AuditDecisionFilter[] = ['ALLOW', 'QUARANTINE', 'BLOCK', 'INFO'];
 
 const pillClassByKind: Record<'primary' | 'allow' | 'danger', string> = {
   primary: 'bg-[rgba(74,144,226,.08)] text-primary',
@@ -64,11 +68,74 @@ function AuditSkeleton({ t }: { t: TFunc }) {
 export default function AuditPage() {
   const { t, lang } = useLang();
   const [rows, setRows] = useState<AuditEntry[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const [decision, setDecision] = useState<AuditDecisionFilter | ''>('');
+  const [query, setQuery] = useState('');
+  // คำค้นที่ยิงจริง — หน่วงจากช่องพิมพ์ ไม่ยิง API ทุกตัวอักษร
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   useEffect(() => {
-    api.getMyAudit().then((r) => setRows(r.slice().reverse())).catch((e) => setError(e.message));
-  }, []);
+    const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // นับรอบโหลด — ผลของ request เก่าที่กลับมาช้าต้องไม่ทับผลของรอบใหม่
+  const runRef = useRef(0);
+
+  useEffect(() => {
+    const run = ++runRef.current;
+    setRows(null);
+    setError('');
+    api
+      .getMyAudit({ decision: decision || undefined, q: debouncedQuery, limit: PAGE_SIZE })
+      .then((page) => {
+        if (run !== runRef.current) return;
+        setRows(page.rows);
+        setTotal(page.total);
+        setHasMore(page.hasMore);
+      })
+      .catch((e: any) => {
+        if (run !== runRef.current) return;
+        setError(e.message);
+      });
+  }, [decision, debouncedQuery]);
+
+  const loadMore = useCallback(async () => {
+    if (!rows || loadingMore) return;
+    const run = runRef.current;
+    setLoadingMore(true);
+    try {
+      const page = await api.getMyAudit({
+        decision: decision || undefined,
+        q: debouncedQuery,
+        offset: rows.length,
+        limit: PAGE_SIZE,
+      });
+      if (run !== runRef.current) return; // ตัวกรองเปลี่ยนระหว่างรอ — ทิ้งผลนี้
+      setRows((prev) => [...(prev ?? []), ...page.rows]);
+      setTotal(page.total);
+      setHasMore(page.hasMore);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [rows, loadingMore, decision, debouncedQuery]);
+
+  const filtering = !!decision || !!debouncedQuery.trim();
+  const clearFilters = () => {
+    setDecision('');
+    setQuery('');
+  };
+
+  const chipClass = (active: boolean) =>
+    `rounded-full border px-3 py-1 text-[13px] font-medium transition-colors ${
+      active ? 'border-primary bg-[rgba(74,144,226,.1)] text-primary' : 'border-border text-muted hover:text-ink'
+    }`;
 
   return (
     <>
@@ -83,13 +150,61 @@ export default function AuditPage() {
       />
 
       <div className="min-h-0 flex-1 overflow-auto p-6">
+        {/* ตัวกรอง — log โตขึ้นเรื่อยๆ ไล่หาด้วยตาเปล่าไม่ไหว */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-border bg-surface px-3 py-[7px] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25 sm:max-w-xs">
+            <i className="ph ph-magnifying-glass flex-none text-muted-3" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setQuery('');
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder={t('audit.search')}
+              aria-label={t('audit.search')}
+              className="min-w-0 flex-1 appearance-none bg-transparent text-[14.5px] text-ink outline-none placeholder:text-muted-3 [&::-webkit-search-cancel-button]:appearance-none"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button onClick={() => setDecision('')} className={chipClass(!decision)}>
+              {t('audit.filterAll')}
+            </button>
+            {DECISION_FILTERS.map((d) => (
+              <button key={d} onClick={() => setDecision(d)} className={chipClass(decision === d)}>
+                {d}
+              </button>
+            ))}
+          </div>
+
+          {rows && rows.length > 0 && (
+            <span className="ml-auto text-[13px] tabular-nums text-muted-3">
+              {t('audit.showing', { shown: rows.length, total })}
+            </span>
+          )}
+        </div>
+
         {error && (
           <div className="mb-3 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
             {error}
           </div>
         )}
         {!rows && !error && <AuditSkeleton t={t} />}
-        {rows && rows.length === 0 && <p className="text-[14.5px] text-muted">{t('audit.empty')}</p>}
+
+        {rows && rows.length === 0 && (
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-[14.5px] text-muted">{filtering ? t('audit.noMatch') : t('audit.empty')}</p>
+            {filtering && (
+              <button onClick={clearFilters} className="text-[14px] font-medium text-primary">
+                {t('audit.clearFilters')}
+              </button>
+            )}
+          </div>
+        )}
 
         {rows && rows.length > 0 && (
           <>
@@ -138,6 +253,18 @@ export default function AuditPage() {
                 );
               })}
             </div>
+
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="rounded-[7px] border border-border bg-surface px-4 py-2 text-[14px] font-medium text-ink-soft transition-colors hover:bg-page-alt disabled:opacity-50"
+                >
+                  {loadingMore ? t('audit.loading') : t('audit.loadMore')}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

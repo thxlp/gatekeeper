@@ -205,6 +205,13 @@ export const en: Record<keyof typeof th, string> = {
   'audit.colStage': 'Stage',
   'audit.colDetail': 'Detail',
   'audit.colDecision': 'Decision',
+  'audit.search': 'Search the log…',
+  'audit.filterAll': 'All',
+  'audit.loadMore': 'Load more',
+  'audit.loading': 'Loading…',
+  'audit.showing': 'Showing {shown} of {total}',
+  'audit.noMatch': 'Nothing matches those filters',
+  'audit.clearFilters': 'Clear filters',
 
   // ===== account page =====
   'account.title': 'Account profile',

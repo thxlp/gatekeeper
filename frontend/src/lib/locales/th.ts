@@ -202,6 +202,13 @@ export const th = {
   'audit.colStage': 'ขั้นตอน',
   'audit.colDetail': 'รายละเอียด',
   'audit.colDecision': 'ผลตัดสิน',
+  'audit.search': 'ค้นหาในบันทึก…',
+  'audit.filterAll': 'ทั้งหมด',
+  'audit.loadMore': 'โหลดเพิ่ม',
+  'audit.loading': 'กำลังโหลด…',
+  'audit.showing': 'แสดง {shown} จาก {total} รายการ',
+  'audit.noMatch': 'ไม่พบรายการที่ตรงกับเงื่อนไข',
+  'audit.clearFilters': 'ล้างตัวกรอง',
 
   // ===== หน้า Account =====
   'account.title': 'โปรไฟล์บัญชี',
