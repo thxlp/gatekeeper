@@ -321,12 +321,6 @@ export const en: Record<keyof typeof th, string> = {
   'settings.connectedAs': 'Connected as',
   'settings.notConnected': 'Not connected',
   'settings.disconnect': 'Disconnect',
-  'settings.gitlabHint': 'Paste a Personal Access Token with read_repository scope — used to clone private repos',
-  'settings.bitbucketHint': 'Paste your username and an App password with Repositories: Read',
-  'settings.tokenPlaceholder': 'Paste token here',
-  'settings.usernamePlaceholder': 'Bitbucket username',
-  'settings.disconnectProviderTitle': 'Disconnect?',
-  'settings.disconnectProviderBody': 'Private repos on this provider will fail to deploy until you reconnect.',
   'settings.connect': 'Connect',
   'settings.disconnectGithubConfirm': 'Disconnect GitHub?',
 
@@ -494,8 +488,6 @@ export const en: Record<keyof typeof th, string> = {
   'toast.copyFailed': 'Copy failed — your browser may be blocking clipboard access',
   'toast.githubConnected': 'GitHub account connected',
   'toast.githubDisconnected': 'GitHub disconnected',
-  'toast.gitProviderConnected': '{provider} connected',
-  'toast.gitProviderDisconnected': '{provider} disconnected',
   'toast.appRegistered': 'App registered',
 
   // ===== backend error codes =====

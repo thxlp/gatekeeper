@@ -319,12 +319,6 @@ export const th = {
   'settings.disconnect': 'ยกเลิกการเชื่อมต่อ',
   'settings.connect': 'เชื่อมต่อ',
   'settings.disconnectGithubConfirm': 'ยกเลิกการเชื่อมต่อ GitHub?',
-  'settings.gitlabHint': 'ใส่ Personal Access Token สิทธิ์ read_repository — ใช้ตอน clone repo ส่วนตัว',
-  'settings.bitbucketHint': 'ใส่ username กับ App password สิทธิ์ Repositories: Read',
-  'settings.tokenPlaceholder': 'วาง token ที่นี่',
-  'settings.usernamePlaceholder': 'ชื่อผู้ใช้ Bitbucket',
-  'settings.disconnectProviderTitle': 'ยกเลิกการเชื่อมต่อ?',
-  'settings.disconnectProviderBody': 'repo ส่วนตัวของผู้ให้บริการนี้จะ deploy ไม่ได้จนกว่าจะเชื่อมใหม่',
 
   // การ์ด Usage
   'usage.title': 'การใช้งาน',
@@ -490,8 +484,6 @@ export const th = {
   'toast.copyFailed': 'คัดลอกไม่สำเร็จ — เบราว์เซอร์อาจบล็อกการเข้าถึงคลิปบอร์ด',
   'toast.githubConnected': 'เชื่อมบัญชี GitHub แล้ว',
   'toast.githubDisconnected': 'ยกเลิกการเชื่อมต่อ GitHub แล้ว',
-  'toast.gitProviderConnected': 'เชื่อมบัญชี {provider} แล้ว',
-  'toast.gitProviderDisconnected': 'ยกเลิกการเชื่อมต่อ {provider} แล้ว',
   'toast.appRegistered': 'ลงทะเบียนแอปเรียบร้อย',
 
   // ===== แปลรหัส error จาก backend =====
