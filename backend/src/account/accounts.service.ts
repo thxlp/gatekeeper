@@ -167,14 +167,23 @@ export class AccountsService {
       await this.repo.update(account.id, { otpAttempts: fresh.otpAttempts + 1 });
       return false;
     }
-    await this.repo.update(account.id, {
+    await this.clearOtp(account.id);
+    return true;
+  }
+
+  /**
+   * ล้าง challenge ทิ้งทั้งชุด — ใช้ตอนยืนยันสำเร็จ (ใช้ครั้งเดียว) และตอนส่งเมลไม่ออก
+   * (otpSentAt กลับเป็น null ด้วย = cooldown 60s รีเซ็ต ผู้ใช้ขอรหัสใหม่ได้ทันทีโดยไม่ต้องรอ
+   * เพราะรอบที่แล้วไม่มีเมลออกไปจริง จึงไม่ใช่ช่องให้ยิงเมลถล่ม)
+   */
+  async clearOtp(id: string): Promise<void> {
+    await this.repo.update(id, {
       otpHash: null,
       otpExpiresAt: null,
       otpAttempts: 0,
       otpSentAt: null,
       otpPurpose: null,
     });
-    return true;
   }
 
   async setTwoFactor(id: string, enabled: boolean): Promise<void> {

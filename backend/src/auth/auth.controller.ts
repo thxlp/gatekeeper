@@ -48,6 +48,26 @@ export class AuthController {
     return account;
   }
 
+  /**
+   * ส่ง OTP แบบ fail-closed: เมลไม่ออกจริง = ล้าง challenge ทิ้งแล้วตอบ 503
+   *
+   * ต้อง await (ไม่ใช่ void) เพราะเคสที่เจอจริง 2026-08-08 คือโฮสต์บล็อกพอร์ต SMTP ขาออก →
+   * sendMail ล้มเงียบ แต่ challenge ถูกเขียนลง DB ไปแล้ว ผู้ใช้เลยค้างอยู่หน้ากรอกรหัสที่
+   * ไม่มีวันมาถึง แถมกด "ส่งรหัสอีกครั้ง" ก็ยังติด cooldown 60s ที่ถูกกินไปตั้งแต่รอบแรก
+   * ล้าง challenge ทิ้งด้วยเพื่อให้รอบถัดไปเริ่มใหม่ได้สะอาด ไม่ค้างเป็นขยะให้ hasActiveOtp
+   * ไปเจอแล้วข้ามการส่งเมลรอบหน้าอีก
+   */
+  private async sendOtpOrFail(account: Account, code: string, purposeLabel: string): Promise<void> {
+    const t = otpEmail(code, purposeLabel);
+    const sent = await this.mail.send(account.email, t.subject, t.text);
+    if (!sent) {
+      await this.accounts.clearOtp(account.id);
+      throw new ServiceUnavailableException(
+        'mail_send_failed — ส่งอีเมลรหัสยืนยันไม่สำเร็จ ลองอีกครั้ง หรือแจ้งผู้ดูแลระบบ',
+      );
+    }
+  }
+
   /** ออก api_key + เซ็ต session cookie — จุดเดียวที่ session เกิดจริง (หลังผ่านครบทุก factor) */
   private async issueSessionCookie(account: Account, res: Response) {
     const { plainKey, keyPrefix } = await this.accounts.issueApiKey(account);
@@ -70,7 +90,8 @@ export class AuthController {
    *
    * บัญชีที่เปิด 2FA: ยังไม่ออก cookie — ส่งรหัส OTP ไปที่อีเมลแล้วตอบ { mfaRequired: true }
    * ให้ frontend พาไปกรอกรหัส แล้วค่อยแลก cookie ผ่าน POST /auth/session/verify
-   * (SMTP ไม่พร้อม = 503 fail-closed — ทางหนีไฟ ops: UPDATE accounts SET two_factor_enabled=false)
+   * เมลไม่พร้อม (ไม่ได้ตั้งค่า) หรือส่งไม่ออกจริง = 503 fail-closed ทั้งคู่ ไม่พาไปหน้ากรอกรหัส
+   * ที่ไม่มีวันมีรหัสมาถึง — ทางหนีไฟ ops: UPDATE accounts SET two_factor_enabled=false
    *
    * key จริงส่งผ่าน Set-Cookie เท่านั้น — response body มีแค่ keyPrefix (8 ตัวแรก) ไว้โชว์ผล
    * ที่ UI (เช่น "API Key: a1b2c3d4…") โดยไม่ต้องมี plaintext เต็มอยู่ที่ไหนที่ JS แตะถึงได้
@@ -85,14 +106,15 @@ export class AuthController {
     if (account.twoFactorEnabled) {
       if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
       if (!this.accounts.hasActiveOtp(account, 'login')) {
+        let code: string | null = null;
         try {
-          const code = await this.accounts.issueOtp(account, 'login');
-          const t = otpEmail(code, 'เข้าสู่ระบบ');
-          void this.mail.send(account.email, t.subject, t.text);
+          code = await this.accounts.issueOtp(account, 'login');
         } catch {
           // ติด cooldown (เช่น endpoint ถูกเรียกซ้ำหลัง challenge เดิมพลาดครบ 5 ครั้ง) —
           // ไม่ส่งซ้ำ ให้ผู้ใช้กด "ส่งรหัสอีกครั้ง" เองเมื่อพ้น cooldown
         }
+        // จับเฉพาะ cooldown ของ issueOtp — ปล่อยให้ 503 ของ sendOtpOrFail ทะลุขึ้นไปถึงผู้ใช้
+        if (code) await this.sendOtpOrFail(account, code, 'เข้าสู่ระบบ');
       }
       return { mfaRequired: true as const };
     }
@@ -124,8 +146,7 @@ export class AuthController {
     if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
 
     const code = await this.accounts.issueOtp(account, 'login');
-    const t = otpEmail(code, 'เข้าสู่ระบบ');
-    void this.mail.send(account.email, t.subject, t.text);
+    await this.sendOtpOrFail(account, code, 'เข้าสู่ระบบ');
     return { ok: true };
   }
 
@@ -145,8 +166,11 @@ export class AuthController {
     if (dto.intent === 'disable' && !account.twoFactorEnabled) throw new BadRequestException('not_enabled');
 
     const code = await this.accounts.issueOtp(account, dto.intent);
-    const t = otpEmail(code, dto.intent === 'enable' ? 'การเปิดใช้ 2FA' : 'การปิดใช้ 2FA');
-    void this.mail.send(account.email, t.subject, t.text);
+    await this.sendOtpOrFail(
+      account,
+      code,
+      dto.intent === 'enable' ? 'การเปิดใช้ 2FA' : 'การปิดใช้ 2FA',
+    );
     return { ok: true };
   }
 
