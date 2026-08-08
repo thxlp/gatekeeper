@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { Pill, Skeleton } from '@/components/ui/primitives';
+import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { AuditDecisionFilter, AuditEntry } from '@/types';
 import { auditDetail, decisionKind, stageBadge } from '@/lib/audit';
@@ -77,6 +78,8 @@ export default function AuditPage() {
   const [query, setQuery] = useState('');
   // คำค้นที่ยิงจริง — หน่วงจากช่องพิมพ์ ไม่ยิง API ทุกตัวอักษร
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  // กดลองใหม่ = บวกเลขนี้ให้ effect โหลดซ้ำด้วยตัวกรองเดิม (ไม่ต้องรีเฟรชหน้าแล้วเสียคำค้น)
+  const [reloadEpoch, setReloadEpoch] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
@@ -102,7 +105,7 @@ export default function AuditPage() {
         if (run !== runRef.current) return;
         setError(e.message);
       });
-  }, [decision, debouncedQuery]);
+  }, [decision, debouncedQuery, reloadEpoch]);
 
   const loadMore = useCallback(async () => {
     if (!rows || loadingMore) return;
@@ -189,22 +192,28 @@ export default function AuditPage() {
         </div>
 
         {error && (
-          <div className="mb-3 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
-            {error}
-          </div>
+          <ErrorBanner className="mb-3" message={error} onRetry={() => setReloadEpoch((e) => e + 1)} retrying={!rows} />
         )}
         {!rows && !error && <AuditSkeleton t={t} />}
 
-        {rows && rows.length === 0 && (
-          <div className="flex flex-col items-start gap-2">
-            <p className="text-[14.5px] text-muted">{filtering ? t('audit.noMatch') : t('audit.empty')}</p>
-            {filtering && (
-              <button onClick={clearFilters} className="text-[14px] font-medium text-primary">
-                {t('audit.clearFilters')}
-              </button>
-            )}
-          </div>
-        )}
+        {rows &&
+          rows.length === 0 &&
+          (filtering ? (
+            <EmptyState
+              icon="ph ph-funnel"
+              title={t('audit.noMatch')}
+              body={t('audit.noMatchBody')}
+              secondary={{ label: t('audit.clearFilters'), onClick: clearFilters, icon: 'ph ph-x' }}
+            />
+          ) : (
+            // log ว่างจริง = ยังไม่เคยดีพลอยอะไรเลย → พาไปหน้าที่ทำให้มันไม่ว่าง
+            <EmptyState
+              icon="ph ph-scroll"
+              title={t('audit.emptyTitle')}
+              body={t('audit.emptyBody')}
+              action={{ label: t('audit.emptyAction'), href: '/deploy', icon: 'ph ph-rocket-launch' }}
+            />
+          ))}
 
         {rows && rows.length > 0 && (
           <>

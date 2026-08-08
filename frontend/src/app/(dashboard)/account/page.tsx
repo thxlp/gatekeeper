@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { Card, CardHeader } from '@/components/ui/primitives';
 import { supabase } from '@/lib/supabase';
@@ -27,10 +27,14 @@ function PasswordField({
   onChange: (v: string) => void;
   autoComplete: 'current-password' | 'new-password';
 }) {
+  const id = useId();
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold">{label}</div>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-semibold">
+        {label}
+      </label>
       <input
+        id={id}
         type="password"
         autoComplete={autoComplete}
         value={value}

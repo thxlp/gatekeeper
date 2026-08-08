@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { EnvVarSummary } from '@/types';
 import { useLang } from '@/lib/i18n';
@@ -18,13 +19,16 @@ export default function VariablesTab({
   const toast = useToast();
   const confirm = useConfirm();
   const [vars, setVars] = useState<EnvVarSummary[] | null>(null);
-  const [error, setError] = useState('');
+  // error ของการโหลดรายการ (กดลองใหม่ได้) — error ของ เพิ่ม/แก้/ลบ/นำเข้า ไปเด้ง toast แทน
+  const [loadError, setLoadError] = useState('');
+  const [retrying, setRetrying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [needsRedeploy, setNeedsRedeploy] = useState(false);
 
   // add form
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
+  const newKeyRef = useRef<HTMLInputElement>(null);
   // แก้ค่าทีละ row (เก็บ key ที่กำลังแก้ + ค่าใหม่ — ค่าเดิมไม่เคยรู้ ต้องพิมพ์ใหม่)
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -32,27 +36,41 @@ export default function VariablesTab({
   const [importOpen, setImportOpen] = useState(false);
   const [importRaw, setImportRaw] = useState('');
 
+  // สลับแอปแล้วผลของแอปเก่าที่กลับมาช้าต้องไม่ทับของแอปใหม่ — เทียบ appId ตอน response กลับ
+  const currentAppId = useRef(appId);
+  currentAppId.current = appId;
+
+  const load = useCallback(async (id: string) => {
+    try {
+      const r = await api.env.list(id);
+      if (currentAppId.current !== id) return;
+      setVars(r.vars);
+      setLoadError('');
+    } catch (e: any) {
+      if (currentAppId.current !== id) return;
+      setLoadError(e.message);
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-    api.env
-      .list(appId)
-      .then((r) => !cancelled && setVars(r.vars))
-      .catch((e) => !cancelled && setError(e.message));
-    return () => {
-      cancelled = true;
-    };
-  }, [appId]);
+    load(appId);
+  }, [appId, load]);
+
+  const retryLoad = async () => {
+    setRetrying(true);
+    await load(appId);
+    setRetrying(false);
+  };
 
   const run = async (fn: () => Promise<{ vars: EnvVarSummary[]; needsRedeploy?: boolean }>) => {
     setBusy(true);
-    setError('');
     try {
       const r = await fn();
       setVars(r.vars);
       if (r.needsRedeploy) setNeedsRedeploy(true);
       return true;
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
       return false;
     } finally {
       setBusy(false);
@@ -129,11 +147,7 @@ export default function VariablesTab({
         </button>
       </div>
 
-      {error && (
-        <div className="mb-3 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[13.5px] text-danger-text">
-          {error}
-        </div>
-      )}
+      {loadError && <ErrorBanner className="mb-3" message={loadError} onRetry={retryLoad} retrying={retrying} />}
 
       {/* import .env */}
       {importOpen && (
@@ -142,6 +156,7 @@ export default function VariablesTab({
             value={importRaw}
             onChange={(e) => setImportRaw(e.target.value)}
             placeholder={t('vars.importPlaceholder')}
+            aria-label={t('vars.importLabel')}
             rows={5}
             className="w-full resize-y rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13px] text-ink outline-none focus:border-primary"
           />
@@ -172,10 +187,15 @@ export default function VariablesTab({
         {vars === null ? (
           <div className="px-4 py-6 text-[13.5px] text-muted">{t('common.loading')}</div>
         ) : vars.length === 0 ? (
-          <div className="px-4 py-8 text-center text-[13.5px] text-muted">
-            <i className="ph ph-key mb-1 block text-2xl text-muted-3" />
-            {t('vars.empty')}
-          </div>
+          <EmptyState
+            icon="ph ph-key"
+            title={t('vars.emptyTitle')}
+            body={t('vars.emptyBody')}
+            className="py-10"
+            // ฟอร์มเพิ่มอยู่ใต้ตารางนี้ — ปุ่มโฟกัสไปที่ช่องชื่อตัวแปรให้เลย
+            action={{ label: t('vars.emptyAction'), onClick: () => newKeyRef.current?.focus(), icon: 'ph ph-plus' }}
+            secondary={{ label: t('vars.import'), onClick: () => setImportOpen(true), icon: 'ph ph-upload-simple' }}
+          />
         ) : (
           <div className="divide-y divide-border-alt">
             {vars.map((v) => (
@@ -190,6 +210,7 @@ export default function VariablesTab({
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && saveEdit(v.key)}
                       placeholder={t('vars.newValuePlaceholder')}
+                      aria-label={t('vars.editValueLabel', { key: v.key })}
                       className="mt-1 w-full rounded-md border border-primary bg-page px-2 py-1 font-mono text-[13px] text-ink outline-none"
                     />
                   ) : (
@@ -247,9 +268,11 @@ export default function VariablesTab({
         <div className="mb-2 text-[13.5px] font-semibold text-ink-soft">{t('vars.addTitle')}</div>
         <div className="flex flex-wrap items-center gap-2">
           <input
+            ref={newKeyRef}
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
             placeholder="KEY"
+            aria-label={t('vars.keyLabel')}
             className="w-[200px] rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13.5px] text-ink outline-none focus:border-primary"
           />
           <span className="text-muted">=</span>
@@ -258,6 +281,7 @@ export default function VariablesTab({
             onChange={(e) => setNewValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addVar()}
             placeholder="value"
+            aria-label={t('vars.valueLabel')}
             className="min-w-[200px] flex-1 rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13.5px] text-ink outline-none focus:border-primary"
           />
           <button

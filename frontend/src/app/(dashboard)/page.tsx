@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
 import { Pill, Skeleton } from '@/components/ui/primitives';
+import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import CopyField from '@/components/ui/CopyField';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
@@ -53,6 +54,7 @@ function DashboardPageInner() {
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [retrying, setRetrying] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -62,6 +64,13 @@ function DashboardPageInner() {
       setError(e.message);
     }
   }, []);
+
+  // ลองใหม่ = โหลดรายการซ้ำในที่เดิม ไม่ต้องรีเฟรชทั้งหน้า (คำค้นที่พิมพ์ไว้ยังอยู่)
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    await refresh();
+    setRetrying(false);
+  }, [refresh]);
 
   useEffect(() => {
     refresh();
@@ -146,45 +155,27 @@ function DashboardPageInner() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-1.5">
-        {error && (
-          <div className="mb-3 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
-            {error}
-          </div>
-        )}
+        {error && <ErrorBanner className="mb-3" message={error} onRetry={retry} retrying={retrying} />}
 
         {!apps && !error && <ProjectsSkeleton t={t} />}
 
         {apps && apps.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-            <i className="ph ph-rocket-launch text-4xl text-muted" />
-            <div>
-              <p className="text-sm font-semibold">{t('projects.emptyTitle')}</p>
-              <p className="mt-1 text-xs text-muted">{t('projects.emptyBody')}</p>
-            </div>
-            <Link
-              href="/deploy"
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[15px] font-semibold text-white hover:bg-primary-hover"
-            >
-              <i className="ph ph-plus" /> {t('projects.newProject')}
-            </Link>
-          </div>
+          <EmptyState
+            icon="ph ph-rocket-launch"
+            title={t('projects.emptyTitle')}
+            body={t('projects.emptyBody')}
+            action={{ label: t('projects.newProject'), href: '/deploy', icon: 'ph ph-plus' }}
+          />
         )}
 
         {/* มีโปรเจกต์อยู่ แต่คำค้นไม่ตรงสักอัน — คนละสถานะกับ "ยังไม่มีโปรเจกต์" ข้างบน */}
         {apps && apps.length > 0 && visible && visible.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-            <i className="ph ph-magnifying-glass text-4xl text-muted-3" />
-            <div>
-              <p className="text-sm font-semibold">{t('projects.searchEmptyTitle', { query: query.trim() })}</p>
-              <p className="mt-1 text-[13.5px] text-muted">{t('projects.searchEmptyBody')}</p>
-            </div>
-            <button
-              onClick={() => setQuery('')}
-              className="rounded-lg border border-border bg-surface px-3.5 py-1.5 text-[14px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
-            >
-              {t('projects.searchClearAll')}
-            </button>
-          </div>
+          <EmptyState
+            icon="ph ph-magnifying-glass"
+            title={t('projects.searchEmptyTitle', { query: query.trim() })}
+            body={t('projects.searchEmptyBody')}
+            secondary={{ label: t('projects.searchClearAll'), onClick: () => setQuery('') }}
+          />
         )}
 
         {visible && visible.length > 0 && (
@@ -450,6 +441,8 @@ function EditRow({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+  // แถวแก้ไขเปิดได้ทีละหลายแถว → id ต้องไม่ชนกัน ไม่งั้น label ชี้ไปช่องของแถวอื่น
+  const fieldId = useId();
 
   const save = async () => {
     setError('');
@@ -469,16 +462,22 @@ function EditRow({
     <div className="rounded-[10px] border border-primary/40 bg-page-alt p-4">
       <div className="mb-3 grid grid-cols-3 gap-3">
         <div>
-          <div className="mb-1 text-xs font-semibold">{t('projects.branch')}</div>
+          <label htmlFor={`${fieldId}-branch`} className="mb-1 block text-xs font-semibold">
+            {t('projects.branch')}
+          </label>
           <input
+            id={`${fieldId}-branch`}
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
         <div>
-          <div className="mb-1 text-xs font-semibold">{t('projects.runtime')}</div>
+          <label htmlFor={`${fieldId}-runtime`} className="mb-1 block text-xs font-semibold">
+            {t('projects.runtime')}
+          </label>
           <select
+            id={`${fieldId}-runtime`}
             value={runtime}
             onChange={(e) => setRuntime(e.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
