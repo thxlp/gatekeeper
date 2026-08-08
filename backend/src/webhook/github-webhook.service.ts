@@ -4,7 +4,7 @@ import { GitAppRegistryService } from './git-app-registry.service';
 import { GitAutomatorService } from './git-automator.service';
 import { AuditService } from '../audit/audit.service';
 import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
-import { GithubTokenStore } from '../github/github-token.store';
+import { CloneAuthResolver } from '../git-credentials/clone-auth.resolver';
 import { GitAppStore } from '../apps/git-app.store';
 import { GitProvider } from '../common/types';
 import { parseWebhook, verifyWebhook } from './providers';
@@ -18,7 +18,7 @@ export class GithubWebhookService {
     private automator: GitAutomatorService,
     private audit: AuditService,
     private deployPipeline: DeployPipelineService,
-    private githubTokens: GithubTokenStore,
+    private cloneAuth: CloneAuthResolver,
     private store: GitAppStore,
   ) {}
 
@@ -87,10 +87,10 @@ export class GithubWebhookService {
       this.store.save(app);
     }
 
-    // token ใช้ตอน clone private repo — ตอนนี้รองรับเฉพาะ github (gitlab/bitbucket private = follow-up)
-    const token = provider === 'github' && app.accountId ? this.githubTokens.get(app.accountId)?.token : undefined;
+    // credential ใช้ตอน clone private repo — รองรับครบทั้ง github (OAuth) และ gitlab/bitbucket (PAT)
+    const auth = this.cloneAuth.resolve(app);
     return this.deployPipeline.runPipeline(app, requestId, 'git-auto-deploy', (stagingDir) =>
-      this.automator.cloneShallow(app, stagingDir, token),
+      this.automator.cloneShallow(app, stagingDir, auth),
     );
   }
 }

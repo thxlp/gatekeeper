@@ -193,6 +193,20 @@ export interface GithubStatus {
   connectedAt?: string;
 }
 
+// ===== GitLab/Bitbucket connection (paste token เอง — ไม่มี OAuth flow เหมือน GitHub) =====
+export type GitCredentialProvider = 'gitlab' | 'bitbucket';
+
+export interface GitCredentialStatus {
+  provider: GitCredentialProvider;
+  connected: boolean;
+  username?: string;
+  connectedAt?: string;
+}
+
+export interface GitCredentialsStatus {
+  providers: GitCredentialStatus[];
+}
+
 export interface GithubRepo {
   fullName: string;
   name: string;

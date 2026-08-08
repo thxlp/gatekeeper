@@ -23,7 +23,8 @@ import { buildLiveUrl, initialPipelineStages } from '../common/pipeline.util';
 import { AuditService } from '../audit/audit.service';
 import { DeployPipelineService } from '../deploy/deploy-pipeline.service';
 import { DockerRuntimeService } from '../deploy/docker-runtime.service';
-import { GitAutomatorService } from '../webhook/git-automator.service';
+import { CloneAuth, GitAutomatorService } from '../webhook/git-automator.service';
+import { CloneAuthResolver } from '../git-credentials/clone-auth.resolver';
 import { GithubApiService } from '../github/github-api.service';
 import { GithubTokenStore } from '../github/github-token.store';
 import { QuotaService } from '../entitlement/quota.service';
@@ -82,6 +83,7 @@ export class AppsService {
     private automator: GitAutomatorService,
     private githubApi: GithubApiService,
     private githubTokens: GithubTokenStore,
+    private cloneAuth: CloneAuthResolver,
     private quota: QuotaService,
     private dockerRuntime: DockerRuntimeService,
   ) {}
@@ -219,7 +221,7 @@ export class AppsService {
     });
 
     // first deploy ทันทีแบบ Railway — ไม่ await ให้ endpoint ตอบเร็ว UI poll GET /apps/:id เอง
-    this.startGitDeploy(app, conn.token);
+    this.startGitDeploy(app, { username: 'x-access-token', token: conn.token });
 
     return {
       id: app.id,
@@ -249,8 +251,7 @@ export class AppsService {
       throw new ConflictException('deploy_already_in_progress');
     }
 
-    const token = this.githubTokens.get(account.id)?.token;
-    this.startGitDeploy(app, token);
+    this.startGitDeploy(app, this.cloneAuth.resolve(app, account.id));
 
     this.audit.append({
       requestId: uuidv4(),
@@ -296,14 +297,14 @@ export class AppsService {
   }
 
   /** clone + pipeline แบบ fire-and-forget — สถานะทั้งหมดอ่านผ่าน pipelineStages ใน store */
-  private startGitDeploy(app: GitApp, token?: string): void {
+  private startGitDeploy(app: GitApp, auth?: CloneAuth): void {
     const requestId = uuidv4();
     this.deployPipeline.resetStages(app);
     this.deployPipeline.persistStage(app, 'payload_verification', 'success');
 
     this.deployPipeline
       .runPipeline(app, requestId, 'git-manual-trigger', (stagingDir) =>
-        this.automator.cloneShallow(app, stagingDir, token),
+        this.automator.cloneShallow(app, stagingDir, auth),
       )
       .catch((err) => this.logger.warn(`trigger deploy ${app.id} failed: ${err.message}`));
   }

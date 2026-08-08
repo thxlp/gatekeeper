@@ -312,6 +312,12 @@ export const th = {
   'settings.disconnect': 'ยกเลิกการเชื่อมต่อ',
   'settings.connect': 'เชื่อมต่อ',
   'settings.disconnectGithubConfirm': 'ยกเลิกการเชื่อมต่อ GitHub?',
+  'settings.gitlabHint': 'ใส่ Personal Access Token สิทธิ์ read_repository — ใช้ตอน clone repo ส่วนตัว',
+  'settings.bitbucketHint': 'ใส่ username กับ App password สิทธิ์ Repositories: Read',
+  'settings.tokenPlaceholder': 'วาง token ที่นี่',
+  'settings.usernamePlaceholder': 'ชื่อผู้ใช้ Bitbucket',
+  'settings.disconnectProviderTitle': 'ยกเลิกการเชื่อมต่อ?',
+  'settings.disconnectProviderBody': 'repo ส่วนตัวของผู้ให้บริการนี้จะ deploy ไม่ได้จนกว่าจะเชื่อมใหม่',
 
   // การ์ด Usage
   'usage.title': 'การใช้งาน',
@@ -476,6 +482,8 @@ export const th = {
   'toast.copyFailed': 'คัดลอกไม่สำเร็จ — เบราว์เซอร์อาจบล็อกการเข้าถึงคลิปบอร์ด',
   'toast.githubConnected': 'เชื่อมบัญชี GitHub แล้ว',
   'toast.githubDisconnected': 'ยกเลิกการเชื่อมต่อ GitHub แล้ว',
+  'toast.gitProviderConnected': 'เชื่อมบัญชี {provider} แล้ว',
+  'toast.gitProviderDisconnected': 'ยกเลิกการเชื่อมต่อ {provider} แล้ว',
   'toast.appRegistered': 'ลงทะเบียนแอปเรียบร้อย',
 
   // ===== แปลรหัส error จาก backend =====
@@ -537,6 +545,12 @@ export const th = {
   'err.github_repo_not_found': 'ไม่พบ repo นี้บน GitHub',
   'err.github_repo_not_found_or_no_access': 'ไม่พบ repo นี้ หรือ token ไม่มีสิทธิ์เข้าถึง (ต้องมี scope: repo)',
   'err.github_unreachable': 'ติดต่อ GitHub ไม่ได้ในขณะนี้ — ลองใหม่อีกครั้ง',
+  'err.gitlab_token_invalid': 'GitLab token ใช้ไม่ได้ — ต้องเป็น Personal Access Token สิทธิ์ read_repository',
+  'err.gitlab_unreachable': 'ติดต่อ GitLab ไม่ได้ในขณะนี้ — ลองใหม่อีกครั้ง',
+  'err.bitbucket_token_invalid': 'Bitbucket app password ใช้ไม่ได้ — ตรวจ username และสิทธิ์ Repositories: Read',
+  'err.bitbucket_unreachable': 'ติดต่อ Bitbucket ไม่ได้ในขณะนี้ — ลองใหม่อีกครั้ง',
+  'err.bitbucket_username_required': 'Bitbucket ต้องกรอก username คู่กับ app password',
+  'err.unsupported_provider': 'ยังไม่รองรับผู้ให้บริการนี้',
 
   'err.domain_not_configured': 'โดเมนนี้ยังไม่ได้ตั้งค่าไว้ในระบบ',
   'err.provision_failed': 'สร้างฐานข้อมูลไม่สำเร็จ — ลองใหม่อีกครั้ง',

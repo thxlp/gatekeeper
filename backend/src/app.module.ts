@@ -6,6 +6,7 @@ import { ChallengeModule } from './challenge/challenge.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { AppsModule } from './apps/apps.module';
 import { GithubModule } from './github/github.module';
+import { GitCredentialsModule } from './git-credentials/git-credentials.module';
 import { AccountModule } from './account/account.module';
 import { AuthModule } from './auth/auth.module';
 import { LiveModule } from './live/live.module';
@@ -23,6 +24,7 @@ import { databaseConfig } from './common/database.config';
     WebhookModule,
     AppsModule,
     GithubModule,
+    GitCredentialsModule,
     AccountModule,
     AuthModule,
     LiveModule,

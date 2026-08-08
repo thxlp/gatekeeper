@@ -5,9 +5,10 @@ import { ChallengeModule } from '../challenge/challenge.module';
 import { AccountModule } from '../account/account.module';
 import { DeployModule } from '../deploy/deploy.module';
 import { GithubModule } from '../github/github.module';
+import { GitCredentialsModule } from '../git-credentials/git-credentials.module';
 
 @Module({
-  imports: [ChallengeModule, AccountModule, DeployModule, GithubModule],
+  imports: [ChallengeModule, AccountModule, DeployModule, GithubModule, GitCredentialsModule],
   controllers: [AppsController],
   providers: [AppsService],
   exports: [AppsService], // ManagedDbModule ใช้ setEnvVar/deleteEnvVar ตอน attach/detach DB

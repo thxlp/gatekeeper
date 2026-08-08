@@ -5,7 +5,7 @@
   "packageManager": "pnpm@11.15.1",
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "node scripts/check-build-env.js && next build",
     "start": "next start -p 3000"
   },
   "dependencies": {

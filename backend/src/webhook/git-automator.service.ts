@@ -29,6 +29,18 @@ export interface ScannedFile {
   content: string;
 }
 
+/**
+ * credential สำหรับ clone private repo — ทุก provider ใช้ HTTP Basic เหมือนกัน ต่างแค่ username
+ * ที่แต่ละเจ้ากำหนดไว้: github='x-access-token', gitlab='oauth2', bitbucket=username จริง
+ */
+export interface CloneAuth {
+  username: string;
+  token: string;
+}
+
+/** host ที่อนุญาตให้แนบ credential ไปด้วย — ตรงกับ allowlist ใน git-url.util */
+const CLONE_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org']);
+
 @Injectable()
 export class GitAutomatorService {
   private readonly logger = new Logger(GitAutomatorService.name);
@@ -66,15 +78,21 @@ export class GitAutomatorService {
    * ใช้ execFile (ไม่ใช่ exec) — args ส่งเป็น array แยกช่อง ไม่ผ่าน shell จึงไม่มีช่องให้ shell injection
    * ใช้ cloneUrl/branch จาก config ที่เราลงทะเบียนเองเท่านั้น ไม่เชื่อค่าจาก webhook payload
    */
-  async cloneShallow(app: GitApp, targetDir: string, token?: string): Promise<void> {
+  async cloneShallow(app: GitApp, targetDir: string, auth?: CloneAuth): Promise<void> {
     fs.mkdirSync(path.dirname(targetDir), { recursive: true });
 
-    // repo private ต้องมี token ของเจ้าของ app แนบไปด้วย — ส่งผ่าน http.extraheader แบบเดียวกับ
+    // repo private ต้องมี credential ของเจ้าของ app แนบไปด้วย — ส่งผ่าน http.extraheader แบบเดียวกับ
     // actions/checkout (ไม่ฝัง token ลงใน URL เพื่อไม่ให้หลุดไปอยู่ใน error message/.git/config)
+    //
+    // ผูก extraheader กับ host ของ cloneUrl เท่านั้น (ไม่ใช่ global) — ถ้า clone ถูก redirect ไป
+    // host อื่น git จะไม่แนบ header นี้ไปด้วย token จึงไม่รั่วข้าม host
     const authArgs: string[] = [];
-    if (token) {
-      const basic = Buffer.from(`x-access-token:${token}`).toString('base64');
-      authArgs.push('-c', `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`);
+    if (auth?.token) {
+      const host = this.cloneHost(app.cloneUrl);
+      if (host) {
+        const basic = Buffer.from(`${auth.username}:${auth.token}`).toString('base64');
+        authArgs.push('-c', `http.https://${host}/.extraheader=AUTHORIZATION: basic ${basic}`);
+      }
     }
 
     await execFileAsync(
@@ -97,6 +115,21 @@ export class GitAutomatorService {
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       },
     );
+  }
+
+  /**
+   * host ของ cloneUrl ถ้าอยู่ใน allowlist — ใช้ผูก extraheader ให้แคบที่สุด
+   * cloneUrl ถูก normalize ผ่าน parseGitRepoUrl ตอนลงทะเบียนแล้ว ตรงนี้เป็น defense-in-depth
+   */
+  private cloneHost(cloneUrl?: string): string | undefined {
+    if (!cloneUrl) return undefined;
+    try {
+      const { protocol, hostname } = new URL(cloneUrl);
+      if (protocol !== 'https:' || !CLONE_HOSTS.has(hostname)) return undefined;
+      return hostname;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

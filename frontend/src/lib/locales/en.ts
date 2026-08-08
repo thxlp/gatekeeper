@@ -314,6 +314,12 @@ export const en: Record<keyof typeof th, string> = {
   'settings.connectedAs': 'Connected as',
   'settings.notConnected': 'Not connected',
   'settings.disconnect': 'Disconnect',
+  'settings.gitlabHint': 'Paste a Personal Access Token with read_repository scope — used to clone private repos',
+  'settings.bitbucketHint': 'Paste your username and an App password with Repositories: Read',
+  'settings.tokenPlaceholder': 'Paste token here',
+  'settings.usernamePlaceholder': 'Bitbucket username',
+  'settings.disconnectProviderTitle': 'Disconnect?',
+  'settings.disconnectProviderBody': 'Private repos on this provider will fail to deploy until you reconnect.',
   'settings.connect': 'Connect',
   'settings.disconnectGithubConfirm': 'Disconnect GitHub?',
 
@@ -480,6 +486,8 @@ export const en: Record<keyof typeof th, string> = {
   'toast.copyFailed': 'Copy failed — your browser may be blocking clipboard access',
   'toast.githubConnected': 'GitHub account connected',
   'toast.githubDisconnected': 'GitHub disconnected',
+  'toast.gitProviderConnected': '{provider} connected',
+  'toast.gitProviderDisconnected': '{provider} disconnected',
   'toast.appRegistered': 'App registered',
 
   // ===== backend error codes =====
@@ -541,6 +549,12 @@ export const en: Record<keyof typeof th, string> = {
   'err.github_repo_not_found': 'That repo was not found on GitHub',
   'err.github_repo_not_found_or_no_access': 'Repo not found, or the token lacks access (needs scope: repo)',
   'err.github_unreachable': 'Cannot reach GitHub right now — try again',
+  'err.gitlab_token_invalid': 'That GitLab token does not work — it must be a Personal Access Token with read_repository scope',
+  'err.gitlab_unreachable': 'Cannot reach GitLab right now — try again',
+  'err.bitbucket_token_invalid': 'That Bitbucket app password does not work — check the username and Repositories: Read permission',
+  'err.bitbucket_unreachable': 'Cannot reach Bitbucket right now — try again',
+  'err.bitbucket_username_required': 'Bitbucket needs a username alongside the app password',
+  'err.unsupported_provider': 'That provider is not supported yet',
 
   'err.domain_not_configured': 'That domain is not configured here',
   'err.provision_failed': 'Could not create the database — try again',

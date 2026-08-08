@@ -4,9 +4,10 @@ import { GithubWebhookService } from './github-webhook.service';
 import { GitAppRegistryService } from './git-app-registry.service';
 import { DeployModule } from '../deploy/deploy.module';
 import { GithubModule } from '../github/github.module';
+import { GitCredentialsModule } from '../git-credentials/git-credentials.module';
 
 @Module({
-  imports: [DeployModule, GithubModule],
+  imports: [DeployModule, GithubModule, GitCredentialsModule],
   controllers: [GithubWebhookController],
   providers: [GithubWebhookService, GitAppRegistryService],
 })

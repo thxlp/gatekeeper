@@ -8,7 +8,7 @@ import { Card, CardHeader, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
-import { AccountMe, GithubStatus, UsageSummary } from '@/types';
+import { AccountMe, GitCredentialProvider, GitCredentialStatus, GithubStatus, UsageSummary } from '@/types';
 import { useLang } from '@/lib/i18n';
 
 const USAGE_POLL_MS = 10_000;
@@ -388,6 +388,151 @@ function PrefRow({ title, desc }: { title: string; desc: string }) {
   );
 }
 
+// GitLab/Bitbucket ไม่มี OAuth flow เหมือน GitHub — ผู้ใช้สร้าง token ที่ฝั่ง provider แล้ว paste เข้ามา
+// เก็บเข้ารหัสฝั่ง backend และไม่มี endpoint ไหนคืนค่า token กลับมาอีก (UI จึงโชว์แค่ username)
+const GIT_PROVIDERS: { provider: GitCredentialProvider; label: string; icon: string; hintKey: 'settings.gitlabHint' | 'settings.bitbucketHint' }[] = [
+  { provider: 'gitlab', label: 'GitLab', icon: 'ph ph-gitlab-logo-simple', hintKey: 'settings.gitlabHint' },
+  { provider: 'bitbucket', label: 'Bitbucket', icon: 'ph ph-git-branch', hintKey: 'settings.bitbucketHint' },
+];
+
+function GitProviderRows() {
+  const { t } = useLang();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [status, setStatus] = useState<GitCredentialStatus[] | null>(null);
+  const [openFor, setOpenFor] = useState<GitCredentialProvider | null>(null);
+  const [token, setToken] = useState('');
+  const [username, setUsername] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.gitCredentials
+      .status()
+      .then((r) => setStatus(r.providers))
+      .catch(() => setStatus(GIT_PROVIDERS.map((p) => ({ provider: p.provider, connected: false }))));
+  }, []);
+
+  const closeForm = () => {
+    setOpenFor(null);
+    setToken('');
+    setUsername('');
+  };
+
+  const connect = async (provider: GitCredentialProvider) => {
+    setBusy(true);
+    try {
+      const saved = await api.gitCredentials.connect({
+        provider,
+        token: token.trim(),
+        username: provider === 'bitbucket' ? username.trim() : undefined,
+      });
+      setStatus((prev) => (prev ?? []).map((s) => (s.provider === provider ? saved : s)));
+      toast.success(t('toast.gitProviderConnected', { provider: labelOf(provider) }));
+      closeForm();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async (provider: GitCredentialProvider) => {
+    const ok = await confirm({
+      title: t('settings.disconnectProviderTitle'),
+      body: t('settings.disconnectProviderBody'),
+      confirmLabel: t('settings.disconnect'),
+      danger: true,
+    });
+    if (!ok) return;
+    await api.gitCredentials.disconnect(provider).catch(() => undefined);
+    setStatus((prev) => (prev ?? []).map((s) => (s.provider === provider ? { provider, connected: false } : s)));
+    toast.success(t('toast.gitProviderDisconnected', { provider: labelOf(provider) }));
+  };
+
+  if (!status) return null;
+
+  return (
+    <>
+      {GIT_PROVIDERS.map(({ provider, label, icon, hintKey }) => {
+        const conn = status.find((s) => s.provider === provider);
+        const open = openFor === provider;
+        // bitbucket ต้องมีทั้ง username และ app password — gitlab ใช้แค่ token
+        const canSubmit = !!token.trim() && (provider !== 'bitbucket' || !!username.trim());
+        return (
+          <div key={provider} className="mt-4 border-t border-border pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <i className={`${icon} text-[30px]`} />
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold">{label}</div>
+                  <div className="truncate text-[13.5px] text-muted">
+                    {conn?.connected ? (
+                      <>
+                        {t('settings.connectedAs')} <span className="font-semibold text-ink">{conn.username}</span>
+                      </>
+                    ) : (
+                      t('settings.notConnected')
+                    )}
+                  </div>
+                </div>
+              </div>
+              {conn?.connected ? (
+                <button
+                  onClick={() => disconnect(provider)}
+                  className="flex-none rounded-[7px] border border-[rgba(214,109,82,.35)] bg-surface px-3.5 py-2 text-xs font-medium text-danger-text"
+                >
+                  {t('settings.disconnect')}
+                </button>
+              ) : (
+                <button
+                  onClick={() => (open ? closeForm() : (closeForm(), setOpenFor(provider)))}
+                  className="flex-none rounded-[7px] border border-border bg-surface px-3.5 py-2 text-xs font-medium text-ink-soft"
+                >
+                  {open ? t('common.cancel') : t('settings.connect')}
+                </button>
+              )}
+            </div>
+
+            {open && !conn?.connected && (
+              <div className="mt-3 flex flex-col gap-2 rounded-[9px] border border-border bg-page-alt p-3">
+                <p className="text-[13px] text-muted">{t(hintKey)}</p>
+                {provider === 'bitbucket' && (
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder={t('settings.usernamePlaceholder')}
+                    autoComplete="off"
+                    className="rounded-[7px] border border-border bg-surface px-3 py-2 text-[14px] text-ink outline-none focus:border-primary"
+                  />
+                )}
+                <input
+                  type="password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder={t('settings.tokenPlaceholder')}
+                  autoComplete="off"
+                  className="rounded-[7px] border border-border bg-surface px-3 py-2 font-mono text-[14px] text-ink outline-none focus:border-primary"
+                />
+                <button
+                  onClick={() => connect(provider)}
+                  disabled={busy || !canSubmit}
+                  className="self-start rounded-[7px] bg-primary px-4 py-2 text-[14px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {busy ? t('common.saving') : t('settings.connect')}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function labelOf(provider: GitCredentialProvider): string {
+  return GIT_PROVIDERS.find((p) => p.provider === provider)?.label ?? provider;
+}
+
 export default function SettingsPage() {
   const { t } = useLang();
   const toast = useToast();
@@ -503,6 +648,9 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
+
+            {/* gitlab/bitbucket — ไม่มี OAuth flow ต้อง paste token เอง (ใช้ clone repo ส่วนตัว) */}
+            <GitProviderRows />
           </Card>
 
           {/* security — 2FA แบบรหัสทางอีเมล (เปิด/ปิดต้องยืนยันรหัสจากอีเมลทั้งคู่) */}

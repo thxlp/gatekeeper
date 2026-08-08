@@ -7,6 +7,9 @@ import {
   GitAppDetail,
   GitAppRegistration,
   GitAppSummary,
+  GitCredentialProvider,
+  GitCredentialStatus,
+  GitCredentialsStatus,
   GithubRegisterResult,
   GithubRepo,
   GithubStatus,
@@ -152,6 +155,18 @@ export const api = {
     repos: () => request<GithubRepo[]>(API_BASE, '/github/repos'),
     branches: (owner: string, repo: string) =>
       request<string[]>(API_BASE, `/github/repos/${owner}/${repo}/branches`),
+  },
+
+  // GitLab/Bitbucket — ไม่มี OAuth flow ผู้ใช้ paste PAT/app password เอง (ใช้ตอน clone private repo)
+  gitCredentials: {
+    status: () => request<GitCredentialsStatus>(API_BASE, '/git-credentials/status'),
+    connect: (body: { provider: GitCredentialProvider; token: string; username?: string }) =>
+      request<GitCredentialStatus>(API_BASE, '/git-credentials/connect', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    disconnect: (provider: GitCredentialProvider) =>
+      request<GitCredentialStatus>(API_BASE, `/git-credentials/connect/${provider}`, { method: 'DELETE' }),
   },
 
   // เลือก repo จาก picker → backend สร้าง webhook ใน GitHub ให้อัตโนมัติ + ยิง first deploy ทันที
