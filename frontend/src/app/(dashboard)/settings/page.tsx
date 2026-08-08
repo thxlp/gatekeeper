@@ -543,7 +543,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.github.status().then(setGh).catch(() => setGh({ connected: false }));
-    api.account.me().then(setMe).catch(() => undefined);
+    api.account.me().then(setMe).catch((e: any) => toast.error(e.message));
     setPlan(localStorage.getItem('gk_plan') || 'free');
   }, []);
 

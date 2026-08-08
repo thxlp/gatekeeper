@@ -70,7 +70,7 @@ export default function DatabasesPage() {
 
   useEffect(() => {
     load();
-    api.listGitApps().then(setApps).catch(() => undefined);
+    api.listGitApps().then(setApps).catch((e: any) => toast.error(e.message));
   }, []);
 
   // poll เฉพาะตอนมี DB กำลัง provision อยู่ (ไม่ poll ตลอด)

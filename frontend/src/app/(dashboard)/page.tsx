@@ -10,13 +10,11 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { GitAppSummary } from '@/types';
 import { useLang, localeTag, type MsgKey, type TFunc } from '@/lib/i18n';
+import { RUNTIMES } from '@/lib/runtimes';
 
 const LIST_POLL_MS = 4000;
 const COLS = '2.2fr 1fr 1fr 1.2fr 1.3fr 90px';
 
-// node/static only — python/docker return runtime_not_yet_supported server-side
-// (backend/src/deploy/docker-runtime.service.ts)
-const RUNTIMES = ['node', 'static'];
 
 type StatusKind = 'allow' | 'primary' | 'danger' | 'muted';
 

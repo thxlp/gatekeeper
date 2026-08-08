@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { useModalA11y } from '@/lib/use-modal-a11y';
 import { useLang } from '@/lib/i18n';
 
 // ── กล่องยืนยันของแอปเอง (แทน window.confirm) ────────────────────────────────────
@@ -34,7 +35,6 @@ export function useConfirm() {
   return useContext(ConfirmContext);
 }
 
-const FOCUSABLE = 'button:not([disabled]), input, a[href], [tabindex]:not([tabindex="-1"])';
 
 export default function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLang();
@@ -63,45 +63,10 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
     setOpts(null);
   }, []);
 
-  useEffect(() => {
-    if (!opts) return;
-
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const panel = panelRef.current;
-    // typeToConfirm → โฟกัสช่องพิมพ์, ไม่งั้นโฟกัสปุ่มยกเลิก (ปลอดภัยกว่าโฟกัสปุ่มลบ)
-    panel?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close(false);
-        return;
-      }
-      if (e.key !== 'Tab' || !panelRef.current) return;
-      // focus trap — วน Tab อยู่ในกล่อง ไม่หลุดไปหน้าเบื้องหลังที่กดไม่ได้
-      const nodes = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-      if (nodes.length === 0) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = prevOverflow;
-      previouslyFocused?.focus?.();
-    };
-  }, [opts, close]);
+  // Escape / focus trap / คืนโฟกัสตอนปิด — ใช้ hook ตัวเดียวกับ StarterFilesModal
+  // ([data-autofocus] อยู่ที่ช่องพิมพ์ยืนยันถ้ามี ไม่งั้นปุ่มยกเลิก ซึ่งปลอดภัยกว่าปุ่มลบ)
+  const cancel = useCallback(() => close(false), [close]);
+  useModalA11y(panelRef, cancel, !!opts);
 
   const needsTyping = !!opts?.typeToConfirm;
   const canConfirm = !needsTyping || typed.trim() === opts?.typeToConfirm;

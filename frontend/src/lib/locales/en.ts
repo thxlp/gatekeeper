@@ -421,6 +421,7 @@ export const en: Record<keyof typeof th, string> = {
   'deploy.errZipDrop': "Couldn't read/compress what you dropped: {reason}",
   'deploy.errNothingDropped': 'No files in what you dropped — drop a .zip file or a project folder',
   'deploy.errNotZip': 'That file is not a complete .zip ({bytes} bytes) — try choosing the file or folder again',
+  'deploy.errTooLarge': 'That file is too large ({size} MB) — the limit is {max} MB. Try removing node_modules and build output before zipping',
   'deploy.deploying': 'Deploying…',
   'deploy.redeploy': 'Redeploy',
   'deploy.viewPipeline': 'View pipeline →',

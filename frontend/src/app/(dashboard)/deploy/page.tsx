@@ -14,11 +14,15 @@ import { supabase } from '@/lib/supabase';
 import { filesToZipEntries, isZipBlob, readDropped, zipEntriesToBlob } from '@/lib/zip';
 import { DeployOutcome, GitAppDetail, GitAppRegistration, GithubRepo, GithubStatus } from '@/types';
 import { useLang } from '@/lib/i18n';
+import { RUNTIMES } from '@/lib/runtimes';
 
 // node/static/python รองรับผ่าน generated Dockerfile, docker = ใช้ Dockerfile ของ repo เอง
 // (backend/src/deploy/docker-runtime.service.ts) — port เว้นว่างได้ ระบบเดาจาก EXPOSE/runtime
-const RUNTIMES = ['node', 'static', 'python', 'docker'];
 const GITHUB_REPO_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
+
+// ต้องตรงกับ MAX_ARCHIVE_UPLOAD_BYTES ใน backend/src/apps/apps.controller.ts —
+// เช็คฝั่ง client ก่อน ไม่งั้นผู้ใช้รออัปโหลดจนจบแล้วค่อยโดน 413 ตอบกลับมาเปล่าๆ
+const MAX_ARCHIVE_MB = 50;
 
 export default function DeployPage() {
   return (
@@ -30,6 +34,7 @@ export default function DeployPage() {
 
 function DeployPageInner() {
   const { t } = useLang();
+  const pageToast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redeployAppId = searchParams.get('appId') || undefined;
@@ -38,8 +43,11 @@ function DeployPageInner() {
   const [redeployDetail, setRedeployDetail] = useState<GitAppDetail | null>(null);
 
   useEffect(() => {
-    if (redeployAppId) api.getApp(redeployAppId).then(setRedeployDetail).catch(() => undefined);
-  }, [redeployAppId]);
+    // พังแล้วต้องบอก — เดิมกลืนเงียบ ผู้ใช้เห็นหน้า redeploy ที่ไม่รู้ว่ากำลัง redeploy แอปไหน
+    if (redeployAppId) {
+      api.getApp(redeployAppId).then(setRedeployDetail).catch((e: any) => pageToast.error(e.message));
+    }
+  }, [redeployAppId, pageToast]);
 
   return (
     <>
@@ -120,7 +128,7 @@ function SelectRow({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  options: string[];
+  options: readonly string[];
 }) {
   return (
     <div>
@@ -673,8 +681,19 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
     setDragActive(false);
   };
 
+  // ไฟล์ใหญ่เกิน = บอกทันทีตั้งแต่เลือก ไม่ต้องรออัปโหลด
+  const tooLargeReason = (f: Blob) =>
+    f.size > MAX_ARCHIVE_MB * 1024 * 1024
+      ? t('deploy.errTooLarge', { size: (f.size / 1024 / 1024).toFixed(1), max: MAX_ARCHIVE_MB })
+      : '';
+
   const deploy = async () => {
     if (!pendingArchive) return;
+    const tooLarge = tooLargeReason(pendingArchive);
+    if (tooLarge) {
+      setResult({ decision: 'BLOCK', requestId: '', reason: tooLarge });
+      return;
+    }
     // กันอัปโหลดของเพี้ยน: เช็ค magic bytes ฝั่ง client ก่อน จะได้ข้อความที่บอกวิธีแก้
     // แทน invalid_zip_file จาก pipeline (เจอได้เช่นไฟล์ .zip ปลอม หรือบีบอัดฝั่ง browser เพี้ยน)
     if (!(await isZipBlob(pendingArchive))) {

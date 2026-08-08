@@ -32,16 +32,28 @@ export default function TopBar({
   const searchable = variant === 'actions' && !!onSearchChange;
   const [startersOpen, setStartersOpen] = useState(false);
 
-  // มือถือไม่มี IconRail (ซ่อนที่ <sm) ปุ่มไฟล์เริ่มงานเลยย้ายมาอยู่แถบบนแทน
-  // วางไว้ทั้งสอง variant เพื่อให้เข้าถึงได้ทุกหน้าเหมือน rail ฝั่ง desktop
-  const startersButton = (
-    <button
-      onClick={() => setStartersOpen(true)}
-      aria-label={t('nav.starterFiles')}
-      className="flex flex-none items-center justify-center rounded-[7px] p-1.5 text-muted transition-colors hover:bg-page-alt hover:text-ink sm:hidden"
-    >
-      <i className="ph ph-download-simple text-xl" />
-    </button>
+  // มือถือไม่มี IconRail (ซ่อนที่ <sm) ของที่อยู่แต่ใน rail จึงเข้าไม่ถึงเลยบนจอเล็ก
+  // ย้ายมาไว้แถบบนแทน วางทั้งสอง variant เพื่อให้กดได้ทุกหน้าเหมือน rail ฝั่ง desktop
+  //
+  // ปุ่มบัญชีสำคัญเป็นพิเศษ: /account ถูกลิงก์จาก IconRail ที่เดียว และปุ่ม "ออกจากระบบ"
+  // อยู่ในหน้านั้น — ก่อนหน้านี้ผู้ใช้มือถือจึงออกจากระบบไม่ได้เลย
+  const mobileRailButtons = (
+    <>
+      <button
+        onClick={() => setStartersOpen(true)}
+        aria-label={t('nav.starterFiles')}
+        className="flex flex-none items-center justify-center rounded-[7px] p-1.5 text-muted transition-colors hover:bg-page-alt hover:text-ink sm:hidden"
+      >
+        <i className="ph ph-download-simple text-xl" />
+      </button>
+      <Link
+        href="/account"
+        aria-label={t('nav.account')}
+        className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary text-white sm:hidden"
+      >
+        <i className="ph-fill ph-user text-sm" />
+      </Link>
+    </>
   );
 
   // "/" = โฟกัสช่องค้นหา (ตามธรรมเนียม GitHub/Slack) — ข้ามไปถ้ากำลังพิมพ์ในช่องอื่นอยู่
@@ -102,7 +114,7 @@ export default function TopBar({
             </div>
           )}
           <div className="ml-auto flex flex-none items-center gap-2.5">
-            {startersButton}
+            {mobileRailButtons}
             <NotificationsBell />
             <Link
               href="/deploy"
@@ -135,7 +147,7 @@ export default function TopBar({
           </div>
           <div className="ml-auto flex items-center gap-2.5">
             {right}
-            {startersButton}
+            {mobileRailButtons}
             <NotificationsBell />
           </div>
         </>

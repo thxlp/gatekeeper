@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import AuthShell, { Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
+import AuthShell, { AuthForm, Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
 import { useLang } from '@/lib/i18n';
 
 export default function RegisterPage() {
@@ -101,29 +101,32 @@ export default function RegisterPage() {
   return (
     <AuthShell>
       <div className="mb-6 flex items-center text-xl font-semibold">{t('auth.register')}</div>
-      <Field label={t('auth.fullName')} placeholder="Studio Dup" value={fullName} onChange={setFullName} />
-      <Field label={t('auth.email')} type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
-      <Field label={t('auth.password')} type="password" placeholder="••••••••" value={password} onChange={setPassword} />
-      <div className="mb-2">
-        <Field
-          label={t('auth.confirmPassword')}
-          type="password"
-          placeholder="••••••••"
-          value={confirmPassword}
-          onChange={setConfirmPassword}
-        />
-      </div>
-      <div className="my-1 text-[13px] text-muted-2">{t('auth.passwordHint')}</div>
-
-      {error && (
-        <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
-          {error}
+      <AuthForm onSubmit={submit}>
+        <Field label={t('auth.fullName')} autoComplete="name" placeholder="Studio Dup" value={fullName} onChange={setFullName} />
+        <Field label={t('auth.email')} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={setEmail} />
+        <Field label={t('auth.password')} type="password" autoComplete="new-password" placeholder="••••••••" value={password} onChange={setPassword} />
+        <div className="mb-2">
+          <Field
+            label={t('auth.confirmPassword')}
+            type="password"
+            autoComplete="new-password"
+            placeholder="••••••••"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+          />
         </div>
-      )}
+        <div className="my-1 text-[13px] text-muted-2">{t('auth.passwordHint')}</div>
 
-      <PrimaryButton className="mt-3" onClick={submit} disabled={loading}>
-        {loading ? t('auth.registering') : t('auth.register')} <i className="ph ph-arrow-right" />
-      </PrimaryButton>
+        {error && (
+          <div className="mt-3 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
+            {error}
+          </div>
+        )}
+
+        <PrimaryButton className="mt-3" type="submit" disabled={loading}>
+          {loading ? t('auth.registering') : t('auth.register')} <i className="ph ph-arrow-right" />
+        </PrimaryButton>
+      </AuthForm>
       <div className="mt-4 text-center text-[15px] text-muted-2">
         {t('auth.haveAccount')}{' '}
         <Link href="/login" className="font-medium text-primary">

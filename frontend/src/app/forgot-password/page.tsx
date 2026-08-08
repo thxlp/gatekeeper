@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import AuthShell, { Field, PrimaryButton } from '@/components/shell/AuthShell';
+import AuthShell, { AuthForm, Field, PrimaryButton } from '@/components/shell/AuthShell';
 import { useLang } from '@/lib/i18n';
 
 export default function ForgotPasswordPage() {
@@ -57,17 +57,19 @@ export default function ForgotPasswordPage() {
         <i className="ph ph-key mr-2 text-primary" /> {t('auth.forgotTitle')}
       </div>
       <div className="mb-6 text-[14.5px] leading-relaxed text-muted-2">{t('auth.forgotSubtitle')}</div>
-      <Field label={t('auth.email')} type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
+      <AuthForm onSubmit={submit}>
+        <Field label={t('auth.email')} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={setEmail} />
 
-      {error && (
-        <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
+            {error}
+          </div>
+        )}
 
-      <PrimaryButton onClick={submit} disabled={loading}>
-        {loading ? t('auth.forgotSending') : t('auth.forgotSubmit')} <i className="ph ph-paper-plane-tilt" />
-      </PrimaryButton>
+        <PrimaryButton type="submit" disabled={loading}>
+          {loading ? t('auth.forgotSending') : t('auth.forgotSubmit')} <i className="ph ph-paper-plane-tilt" />
+        </PrimaryButton>
+      </AuthForm>
       <div className="mt-5 flex justify-center text-[15px]">
         <Link href="/login" className="flex items-center gap-1.5 font-medium text-primary">
           <i className="ph ph-arrow-left" /> {t('auth.backToLogin')}

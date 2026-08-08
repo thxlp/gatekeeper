@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useRef } from 'react';
 import { useLang, type MsgKey } from '@/lib/i18n';
+import { useModalA11y } from '@/lib/use-modal-a11y';
 
 // หมวด template ตรงกับ runtime ที่ pipeline รองรับ (node/python/static/docker)
 // zip ถูก generate จาก frontend/starters/ ด้วย scripts/build-starters.js
@@ -42,13 +43,8 @@ const categories: StarterCategory[] = [
 export default function StarterFilesModal({ onClose }: { onClose: () => void }) {
   const { t } = useLang();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalA11y(panelRef, onClose);
 
   return (
     <div
@@ -56,6 +52,7 @@ export default function StarterFilesModal({ onClose }: { onClose: () => void }) 
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={t('starter.title')}
@@ -66,6 +63,7 @@ export default function StarterFilesModal({ onClose }: { onClose: () => void }) 
           <div className="text-sm font-bold text-ink">{t('starter.title')}</div>
           <button
             onClick={onClose}
+            data-autofocus
             aria-label={t('common.close')}
             className="-mr-1 -mt-1 flex h-7 w-7 items-center justify-center rounded-md text-muted hover:text-ink"
           >

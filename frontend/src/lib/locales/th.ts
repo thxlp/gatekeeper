@@ -417,6 +417,7 @@ export const th = {
   'deploy.errZipDrop': 'อ่าน/บีบอัดไฟล์ที่ลากมาไม่สำเร็จ: {reason}',
   'deploy.errNothingDropped': 'ไม่พบไฟล์ในสิ่งที่ลากมาวาง — ลากไฟล์ .zip หรือโฟลเดอร์โปรเจกต์มาวาง',
   'deploy.errNotZip': 'ไฟล์ที่เลือกไม่ใช่ .zip ที่สมบูรณ์ ({bytes} bytes) — ลองเลือกไฟล์/โฟลเดอร์ใหม่อีกครั้ง',
+  'deploy.errTooLarge': 'ไฟล์ใหญ่เกินกำหนด ({size} MB) — จำกัดที่ {max} MB ลองลบ node_modules/ไฟล์ build ออกก่อนบีบอัด',
   'deploy.deploying': 'กำลังดีพลอย…',
   'deploy.redeploy': 'ดีพลอยใหม่',
   'deploy.viewPipeline': 'ดูไปป์ไลน์ →',

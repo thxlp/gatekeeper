@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useLang } from '@/lib/i18n';
 
 // Full-bleed dark auth background with teal aura + tech photo composite,
@@ -28,6 +28,27 @@ export default function AuthShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * ฟอร์มของหน้า auth — ครอบด้วย <form> เสมอเพื่อให้ "กด Enter ในช่องกรอก = ส่งฟอร์ม"
+ * (เดิมทั้งสามหน้าเป็น div เปล่า ผู้ใช้ต้องเอื้อมไปกดปุ่มอย่างเดียว) และเบราว์เซอร์/
+ * password manager ถึงจะรู้จักว่านี่คือฟอร์ม login จริงแล้วเสนอบันทึกรหัสผ่านให้
+ */
+export function AuthForm({ onSubmit, children }: { onSubmit: () => void; children: ReactNode }) {
+  return (
+    <form
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      {children}
+    </form>
+  );
+}
+
+let fieldSeq = 0;
+
 export function Field({
   label,
   type = 'text',
@@ -36,6 +57,7 @@ export function Field({
   onChange,
   error,
   name,
+  autoComplete,
 }: {
   label: string;
   type?: string;
@@ -44,21 +66,36 @@ export function Field({
   onChange?: (v: string) => void;
   error?: string;
   name?: string;
+  /** บอกเบราว์เซอร์ว่าช่องนี้คืออะไร (email / current-password / new-password …) */
+  autoComplete?: string;
 }) {
+  // ผูก label เข้ากับ input จริงๆ — เดิม label เป็น <div> ลอยๆ screen reader อ่านไม่รู้ว่าคู่กัน
+  // และคลิกที่ข้อความก็ไม่โฟกัสช่องกรอก
+  const [id] = useState(() => `f${++fieldSeq}`);
   return (
     <div className="mb-4">
-      <div className="mb-1.5 text-[15px] font-medium">{label}</div>
+      <label htmlFor={id} className="mb-1.5 block text-[15px] font-medium">
+        {label}
+      </label>
       <input
+        id={id}
         type={type}
         name={name}
+        autoComplete={autoComplete}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
+        aria-invalid={!!error}
+        aria-describedby={error ? `${id}-err` : undefined}
         className={`w-full rounded-md border bg-input-fill px-3 py-2.5 text-sm text-ink placeholder:text-muted-3 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
           error ? 'border-danger-text' : 'border-input-border'
         }`}
       />
-      {error && <div className="mt-1 text-[13px] text-danger-text">{error}</div>}
+      {error && (
+        <div id={`${id}-err`} className="mt-1 text-[13px] text-danger-text">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

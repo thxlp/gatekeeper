@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, AuthResult } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import AuthShell, { Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
+import AuthShell, { AuthForm, Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
 import { useLang, type MsgKey } from '@/lib/i18n';
 
 // เหตุที่ถูกพากลับมาหน้านี้ (จาก AuthProvider idle timer / api.ts ดัก 401) → คีย์ข้อความ
@@ -143,17 +143,26 @@ export default function LoginPage() {
         <div className="mb-2 flex items-center text-xl font-semibold">{t('auth.mfaTitle')}</div>
         <p className="mb-5 text-[14.5px] text-muted">{t('auth.mfaSubtitle')}</p>
 
-        <Field label={t('auth.mfaCodeLabel')} type="text" placeholder="000000" value={otp} onChange={setOtp} />
+        <AuthForm onSubmit={submitOtp}>
+          <Field
+            label={t('auth.mfaCodeLabel')}
+            type="text"
+            autoComplete="one-time-code"
+            placeholder="000000"
+            value={otp}
+            onChange={setOtp}
+          />
 
-        {error && (
-          <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
+              {error}
+            </div>
+          )}
 
-        <PrimaryButton className="mt-2" onClick={submitOtp} disabled={loading}>
-          {loading ? t('auth.mfaChecking') : t('common.confirm')} <i className="ph ph-arrow-right" />
-        </PrimaryButton>
+          <PrimaryButton className="mt-2" type="submit" disabled={loading}>
+            {loading ? t('auth.mfaChecking') : t('common.confirm')} <i className="ph ph-arrow-right" />
+          </PrimaryButton>
+        </AuthForm>
 
         <div className="mt-4 flex justify-between text-[15px]">
           <button
@@ -188,24 +197,27 @@ export default function LoginPage() {
         </div>
       )}
 
-      <Field label={t('auth.email')} type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
-      <Field
-        label={t('auth.password')}
-        type="password"
-        placeholder="••••••••"
-        value={password}
-        onChange={setPassword}
-      />
+      <AuthForm onSubmit={submit}>
+        <Field label={t('auth.email')} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={setEmail} />
+        <Field
+          label={t('auth.password')}
+          type="password"
+          autoComplete="current-password"
+          placeholder="••••••••"
+          value={password}
+          onChange={setPassword}
+        />
 
-      {error && (
-        <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">
+            {error}
+          </div>
+        )}
 
-      <PrimaryButton className="mt-2" onClick={submit} disabled={loading}>
-        {loading ? t('auth.loggingIn') : t('auth.login')} <i className="ph ph-arrow-right" />
-      </PrimaryButton>
+        <PrimaryButton className="mt-2" type="submit" disabled={loading}>
+          {loading ? t('auth.loggingIn') : t('auth.login')} <i className="ph ph-arrow-right" />
+        </PrimaryButton>
+      </AuthForm>
       <div className="mt-4 flex justify-between text-[15px]">
         <Link href="/forgot-password" className="font-medium text-primary">
           {t('auth.forgotPassword')}
