@@ -4,6 +4,13 @@ import * as path from 'path';
 import { AuditEntry } from '../common/types';
 import { DATA_DIR, ROOT } from '../common/paths';
 
+/** ค่าที่ parse ไม่ได้ถือว่าไม่ได้ส่งมา (= ไม่กรอง) ดีกว่าตอบ 400 ให้หน้าเว็บพังเพราะ query เพี้ยน */
+function parseInstant(v?: string): number | undefined {
+  if (!v) return undefined;
+  const ms = Date.parse(v);
+  return Number.isNaN(ms) ? undefined : ms;
+}
+
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
@@ -90,15 +97,26 @@ export class AuditService {
    */
   queryByAccount(
     accountId: string,
-    opts: { decision?: string; q?: string; offset?: number; limit?: number } = {},
+    opts: { decision?: string; q?: string; from?: string; to?: string; offset?: number; limit?: number } = {},
   ): { rows: AuditEntry[]; total: number; hasMore: boolean } {
     const offset = Math.max(0, opts.offset ?? 0);
     const limit = Math.min(500, Math.max(1, opts.limit ?? 100));
     const needle = (opts.q ?? '').trim().toLowerCase();
+    // ช่วงวันที่รับมาเป็น ISO instant ที่ frontend คำนวณจากวันที่ผู้ใช้เลือกตาม timezone ของเครื่อง
+    // เขาเอง (ดู toDayRange ในหน้า /audit) — เซิร์ฟเวอร์รัน UTC ถ้ามาเดาขอบวันเองที่นี่ คนไทย
+    // (UTC+7) จะได้ผลเคลื่อนไป 7 ชม. เช่นดีพลอย 4 ส.ค. 02:00 +07 ถูกเก็บเป็น 3 ส.ค. 19:00Z
+    const fromMs = parseInstant(opts.from);
+    const toMs = parseInstant(opts.to);
 
     const matched = this.readByAccount(accountId)
       .filter((e) => !opts.decision || e.decision === opts.decision)
       .filter((e) => !needle || this.haystack(e).includes(needle))
+      .filter((e) => {
+        if (fromMs === undefined && toMs === undefined) return true;
+        const ts = Date.parse(e.ts);
+        if (Number.isNaN(ts)) return false; // ts พัง = ไม่รู้ว่าอยู่ในช่วงไหม ตัดออกดีกว่าเดา
+        return (fromMs === undefined || ts >= fromMs) && (toMs === undefined || ts <= toMs);
+      })
       .reverse(); // ใหม่สุดก่อน — เดิม frontend เป็นคน reverse เอง
 
     return {

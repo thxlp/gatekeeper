@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { Pill, Skeleton } from '@/components/ui/primitives';
 import { EmptyState, ErrorBanner } from '@/components/ui/states';
@@ -14,6 +14,29 @@ const PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 300;
 
 const DECISION_FILTERS: AuditDecisionFilter[] = ['ALLOW', 'QUARANTINE', 'BLOCK', 'INFO'];
+
+/**
+ * แปลงวันที่จาก <input type="date"> (YYYY-MM-DD ตามปฏิทินที่ผู้ใช้เห็น) เป็น ISO instant
+ * ของขอบวันนั้น **ตาม timezone ของเครื่องผู้ใช้**
+ *
+ * ต้องคำนวณฝั่งนี้ ไม่ใช่ส่งแค่ "2026-08-04" ให้เซิร์ฟเวอร์เดา — เซิร์ฟเวอร์รัน UTC แต่ ts ใน log
+ * เป็น UTC ถ้าเดาขอบวันเป็น UTC คนไทย (UTC+7) จะได้ผลเคลื่อน 7 ชม. (ดีพลอย 4 ส.ค. 02:00
+ * ตามเวลาไทย ถูกเก็บเป็น 2026-08-03T19:00Z — เลือกวันที่ 4 ส.ค. ต้องเห็นแถวนี้)
+ */
+function toDayStart(date: string): string | undefined {
+  if (!date) return undefined;
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+function toDayEnd(date: string): string | undefined {
+  if (!date) return undefined;
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return undefined;
+  // ปลายวันคือ 23:59:59.999 — ถ้าใช้ 00:00 ของวันนั้น จะกรองแถวของวันที่เลือกทิ้งเกือบหมด
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+}
 
 const pillClassByKind: Record<'primary' | 'allow' | 'danger', string> = {
   primary: 'bg-[rgba(74,144,226,.08)] text-primary',
@@ -76,6 +99,9 @@ export default function AuditPage() {
 
   const [decision, setDecision] = useState<AuditDecisionFilter | ''>('');
   const [query, setQuery] = useState('');
+  // ช่วงวันที่ (YYYY-MM-DD ตามปฏิทินของผู้ใช้) — แปลงเป็น ISO instant ตอนยิง API
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   // คำค้นที่ยิงจริง — หน่วงจากช่องพิมพ์ ไม่ยิง API ทุกตัวอักษร
   const [debouncedQuery, setDebouncedQuery] = useState('');
   // กดลองใหม่ = บวกเลขนี้ให้ effect โหลดซ้ำด้วยตัวกรองเดิม (ไม่ต้องรีเฟรชหน้าแล้วเสียคำค้น)
@@ -89,12 +115,23 @@ export default function AuditPage() {
   // นับรอบโหลด — ผลของ request เก่าที่กลับมาช้าต้องไม่ทับผลของรอบใหม่
   const runRef = useRef(0);
 
+  // ตัวกรองชุดเดียวที่ใช้ทั้งโหลดรอบแรกและ "โหลดเพิ่ม" — แยกไว้กันสองที่หลุดไม่ตรงกัน
+  const filterArgs = useMemo(
+    () => ({
+      decision: decision || undefined,
+      q: debouncedQuery,
+      from: toDayStart(fromDate),
+      to: toDayEnd(toDate),
+    }),
+    [decision, debouncedQuery, fromDate, toDate],
+  );
+
   useEffect(() => {
     const run = ++runRef.current;
     setRows(null);
     setError('');
     api
-      .getMyAudit({ decision: decision || undefined, q: debouncedQuery, limit: PAGE_SIZE })
+      .getMyAudit({ ...filterArgs, limit: PAGE_SIZE })
       .then((page) => {
         if (run !== runRef.current) return;
         setRows(page.rows);
@@ -105,19 +142,14 @@ export default function AuditPage() {
         if (run !== runRef.current) return;
         setError(e.message);
       });
-  }, [decision, debouncedQuery, reloadEpoch]);
+  }, [filterArgs, reloadEpoch]);
 
   const loadMore = useCallback(async () => {
     if (!rows || loadingMore) return;
     const run = runRef.current;
     setLoadingMore(true);
     try {
-      const page = await api.getMyAudit({
-        decision: decision || undefined,
-        q: debouncedQuery,
-        offset: rows.length,
-        limit: PAGE_SIZE,
-      });
+      const page = await api.getMyAudit({ ...filterArgs, offset: rows.length, limit: PAGE_SIZE });
       if (run !== runRef.current) return; // ตัวกรองเปลี่ยนระหว่างรอ — ทิ้งผลนี้
       setRows((prev) => [...(prev ?? []), ...page.rows]);
       setTotal(page.total);
@@ -127,12 +159,14 @@ export default function AuditPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [rows, loadingMore, decision, debouncedQuery]);
+  }, [rows, loadingMore, filterArgs]);
 
-  const filtering = !!decision || !!debouncedQuery.trim();
+  const filtering = !!decision || !!debouncedQuery.trim() || !!fromDate || !!toDate;
   const clearFilters = () => {
     setDecision('');
     setQuery('');
+    setFromDate('');
+    setToDate('');
   };
 
   const chipClass = (active: boolean) =>
@@ -182,6 +216,44 @@ export default function AuditPage() {
                 {d}
               </button>
             ))}
+          </div>
+
+          {/* ช่วงวันที่ — max/min ผูกกันไว้ ให้เบราว์เซอร์กันเลือกช่วงกลับหลังตั้งแต่ต้น
+              ไม่ต้องรอให้ผลออกมา 0 แถวแล้วผู้ใช้มางงว่าทำไม */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted">
+            <i className="ph ph-calendar-blank flex-none text-muted-3" />
+            <input
+              type="date"
+              value={fromDate}
+              max={toDate || undefined}
+              onChange={(e) => setFromDate(e.target.value)}
+              aria-label={t('audit.filterFrom')}
+              title={t('audit.filterFrom')}
+              className="rounded-[7px] border border-border bg-surface px-2 py-1 text-[13px] text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+            />
+            <span className="text-muted-3">–</span>
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(e) => setToDate(e.target.value)}
+              aria-label={t('audit.filterTo')}
+              title={t('audit.filterTo')}
+              className="rounded-[7px] border border-border bg-surface px-2 py-1 text-[13px] text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+            />
+            {(fromDate || toDate) && (
+              <button
+                onClick={() => {
+                  setFromDate('');
+                  setToDate('');
+                }}
+                aria-label={t('audit.clearDates')}
+                title={t('audit.clearDates')}
+                className="rounded p-1 text-muted-3 transition-colors hover:text-ink"
+              >
+                <i className="ph ph-x text-[13px]" />
+              </button>
+            )}
           </div>
 
           {rows && rows.length > 0 && (
