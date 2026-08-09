@@ -39,7 +39,22 @@ function DeployPageInner() {
   const searchParams = useSearchParams();
   const redeployAppId = searchParams.get('appId') || undefined;
 
-  const [tab, setTab] = useState<'github' | 'manual'>(redeployAppId ? 'manual' : 'github');
+  // แท็บอ่านจาก URL ล้วน ไม่เก็บเป็น state — ปุ่ม "อัปโหลดไฟล์เอง" บนหน้าโปรเจกต์ชี้มาที่
+  // ?tab=manual จะได้ลงแท็บที่ตรงกับชื่อปุ่มจริงๆ (เดิมตกที่แท็บ GitHub ทุกทาง) และการที่ URL
+  // เป็นแหล่งความจริงอันเดียวทำให้ refresh / กดย้อนกลับ / แชร์ลิงก์ ได้แท็บตรงกับที่เห็นเสมอ
+  const tab: 'github' | 'manual' =
+    redeployAppId || searchParams.get('tab') === 'manual' ? 'manual' : 'github';
+
+  // สลับแท็บเองก็เขียนกลับ URL — คง query อื่นไว้ (?appId= redeploy, ?github=connect ตอนกลับ
+  // จาก OAuth) ไม่ให้หายไปกับการสลับแท็บ
+  const setTab = (next: 'github' | 'manual') => {
+    const q = new URLSearchParams(searchParams.toString());
+    if (next === 'manual') q.set('tab', 'manual');
+    else q.delete('tab');
+    const qs = q.toString();
+    router.replace(qs ? `/deploy?${qs}` : '/deploy', { scroll: false });
+  };
+
   const [redeployDetail, setRedeployDetail] = useState<GitAppDetail | null>(null);
 
   useEffect(() => {

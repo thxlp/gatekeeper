@@ -116,8 +116,9 @@ export default function TopBar({
           <div className="ml-auto flex flex-none items-center gap-2.5">
             {mobileRailButtons}
             <NotificationsBell />
+            {/* ?tab=manual — ไม่งั้นไปตกแท็บ GitHub Repo ซึ่งไม่ตรงกับชื่อปุ่ม */}
             <Link
-              href="/deploy"
+              href="/deploy?tab=manual"
               className="hidden items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[15px] font-medium text-ink-soft hover:bg-page-alt sm:flex"
             >
               <i className="ph ph-upload-simple" /> {t('nav.manualDeploy')}
