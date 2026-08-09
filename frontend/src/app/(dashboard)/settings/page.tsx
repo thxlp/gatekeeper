@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { ThemeSegmentedControl } from '@/components/shell/ThemeToggle';
 import { LanguageSegmentedControl } from '@/components/shell/LanguageToggle';
 import { Card, CardHeader, Skeleton } from '@/components/ui/primitives';
+import { ErrorBanner } from '@/components/ui/states';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
@@ -86,31 +87,43 @@ function UsageCard() {
   const { t } = useLang();
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const aliveRef = useRef(true);
 
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
+  const load = useCallback(
+    () =>
       api
         .usage()
         .then((u) => {
-          if (!alive) return;
+          if (!aliveRef.current) return;
           setUsage(u);
           setFailed(false);
         })
-        .catch(() => alive && setFailed(true));
+        .catch(() => aliveRef.current && setFailed(true)),
+    [],
+  );
+
+  useEffect(() => {
+    aliveRef.current = true;
     load();
     const timer = setInterval(load, USAGE_POLL_MS);
     return () => {
-      alive = false;
+      aliveRef.current = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [load]);
+
+  const retry = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  };
 
   return (
     <Card>
       <CardHeader title={t('usage.title')} subtitle={t('usage.subtitle')} />
       {!usage && !failed && <UsageSkeleton />}
-      {failed && !usage && <p className="text-[14.5px] text-danger-text">{t('usage.loadFailed')}</p>}
+      {failed && !usage && <ErrorBanner message={t('usage.loadFailed')} onRetry={retry} retrying={retrying} />}
       {usage && (
         <div className="flex flex-col gap-4">
           <div className="flex gap-2.5">
@@ -327,7 +340,11 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmCode()}
               placeholder="000000"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              aria-label={t('auth.mfaCodeLabel')}
               className="w-[120px] rounded-[7px] border border-border bg-page-alt px-3 py-2 font-mono text-[15px] tabular-nums outline-none focus:border-primary"
             />
             <button

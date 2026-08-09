@@ -10,6 +10,7 @@ import DeploySettingsTab from '@/components/shell/DeploySettingsTab';
 import DomainsTab from '@/components/shell/DomainsTab';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
 import { useLang, localeTag, type MsgKey } from '@/lib/i18n';
@@ -60,7 +61,10 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
   const toast = useToast();
   const confirm = useConfirm();
   const [detail, setDetail] = useState<GitAppDetail | null>(null);
+  // error ของการกดปุ่ม (redeploy / rollback) — โชว์ค้างไว้เฉยๆ ไม่มีปุ่มลองใหม่เพราะผู้ใช้
+  // กดปุ่มเดิมซ้ำได้อยู่แล้ว · loadError คือดึงสถานะแอปไม่ได้ อันนั้นต้องมีปุ่มลองใหม่
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   // bump ค่านี้ = restart polling loop (interval เดิมถูก clear ไปแล้วตอน deploy รอบก่อนจบ —
   // กด rollback ต้องเริ่ม poll ใหม่ให้เห็น stage วิ่ง)
   const [pollEpoch, setPollEpoch] = useState(0);
@@ -113,12 +117,13 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
         const d = await api.getApp(params.id);
         if (cancelled) return;
         setDetail(d);
+        setLoadError('');
         if (d.pipelineStatus !== 'deploying' && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
       } catch (e: any) {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) setLoadError(e.message);
       }
     };
     tick();
@@ -195,11 +200,11 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
             ))}
           </div>
 
-          {error && (
-            <div className="mb-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
-              {error}
-            </div>
+          {loadError && (
+            // ลองใหม่ = เริ่ม poll รอบใหม่ (ตัว interval ถูก clear ไปแล้วถ้าดีพลอยจบ)
+            <ErrorBanner className="mb-4" message={loadError} onRetry={() => setPollEpoch((e) => e + 1)} />
           )}
+          {error && <ErrorBanner className="mb-4" message={error} />}
 
           {tab === 'logs' && <LogsTab appId={params.id} />}
           {tab === 'variables' && <VariablesTab appId={params.id} onRequestRedeploy={handleRedeploy} />}

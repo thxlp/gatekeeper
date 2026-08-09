@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { useLang } from '@/lib/i18n';
 
@@ -187,9 +188,16 @@ export default function LogsTab({ appId }: { appId: string }) {
       </div>
 
       {streamErr && (
-        <div className="mb-2 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[13.5px] text-danger-text">
-          {streamErr}
-        </div>
+        // ลองใหม่ = เปิด stream รอบใหม่ (เหมือนกดปุ่มรีเฟรช) ไม่ต้องรีโหลดทั้งหน้า
+        <ErrorBanner
+          className="mb-2"
+          message={streamErr}
+          onRetry={() => {
+            setLines([]);
+            setLive(true);
+            setEpoch((e) => e + 1);
+          }}
+        />
       )}
 
       {/* console — มืดทั้งสองธีม (แบบ terminal) เพื่ออ่าน log ง่ายที่สุด */}

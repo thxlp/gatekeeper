@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '@/components/shell/TopBar';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { GitAppSummary, ManagedDbSummary } from '@/types';
 import { useLang } from '@/lib/i18n';
@@ -49,23 +50,34 @@ export default function DatabasesPage() {
   const confirm = useConfirm();
   const [dbs, setDbs] = useState<ManagedDbSummary[] | null>(null);
   const [apps, setApps] = useState<GitAppSummary[]>([]);
-  const [error, setError] = useState('');
+  // แยก error ของ "โหลดรายการ" (กดลองใหม่ได้) ออกจาก error ของการกดปุ่ม (เด้ง toast)
+  // ปุ่มลองใหม่ที่ไปโหลดรายการซ้ำไม่ตรงกับสิ่งที่ผู้ใช้เพิ่งกดพลาด เช่นลบไม่สำเร็จ
+  const [loadError, setLoadError] = useState('');
+  const [retrying, setRetrying] = useState(false);
   const [name, setName] = useState('');
   const [engine, setEngine] = useState<'postgres' | 'redis' | 'mysql'>('postgres');
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     try {
       const list = await api.databases.list();
       setDbs(list);
+      setLoadError('');
       return list;
     } catch (e: any) {
-      setError(e.message);
+      setLoadError(e.message);
       return null;
     }
+  };
+
+  const retryLoad = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
   };
 
   useEffect(() => {
@@ -99,21 +111,19 @@ export default function DatabasesPage() {
     const dbName = name.trim();
     if (!dbName) return;
     setCreating(true);
-    setError('');
     try {
       await api.databases.create({ name: dbName, engine });
       toast.success(t('toast.dbCreated', { name: dbName }));
       setName('');
       await load();
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setCreating(false);
     }
   };
 
   const copyConnection = async (id: string) => {
-    setError('');
     try {
       const c = await api.databases.connection(id);
       await navigator.clipboard.writeText(c.url);
@@ -121,20 +131,19 @@ export default function DatabasesPage() {
       toast.success(t('toast.connectionCopied'));
       setTimeout(() => setCopiedId((v) => (v === id ? null : v)), 1800);
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     }
   };
 
   const attach = async (id: string, appId: string) => {
     if (!appId) return;
     setBusyId(id);
-    setError('');
     try {
       const updated = await api.databases.attach(id, appId);
       setDbs((prev) => (prev || []).map((d) => (d.id === id ? updated : d)));
       toast.success(t('toast.dbAttached', { name: appName(appId) }));
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
@@ -142,13 +151,12 @@ export default function DatabasesPage() {
 
   const detach = async (id: string, appId: string) => {
     setBusyId(id);
-    setError('');
     try {
       const updated = await api.databases.detach(id, appId);
       setDbs((prev) => (prev || []).map((d) => (d.id === id ? updated : d)));
       toast.success(t('toast.dbDetached', { name: appName(appId) }));
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
@@ -164,13 +172,12 @@ export default function DatabasesPage() {
     });
     if (!ok) return;
     setBusyId(db.id);
-    setError('');
     try {
       await api.databases.remove(db.id);
       toast.success(t('toast.dbDeleted', { name: db.name }));
       setDbs((prev) => (prev || []).filter((d) => d.id !== db.id));
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
@@ -190,10 +197,8 @@ export default function DatabasesPage() {
 
       <div className="min-h-0 flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-[820px]">
-          {error && (
-            <div className="mb-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[14.5px] text-danger-text">
-              {error}
-            </div>
+          {loadError && (
+            <ErrorBanner className="mb-4" message={loadError} onRetry={retryLoad} retrying={retrying} />
           )}
 
           {/* สร้าง database ใหม่ */}
@@ -217,10 +222,12 @@ export default function DatabasesPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
+                ref={nameRef}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && create()}
                 placeholder={t('db.namePlaceholder')}
+                aria-label={t('db.nameLabel')}
                 className="min-w-[220px] flex-1 rounded-lg border border-border-alt bg-page px-3 py-2 text-[14px] text-ink outline-none focus:border-primary"
               />
               <button
@@ -234,12 +241,20 @@ export default function DatabasesPage() {
           </div>
 
           {/* รายการ database */}
-          {!dbs && !error && <p className="text-[14.5px] text-muted">{t('common.loading')}</p>}
+          {!dbs && !loadError && <p className="text-[14.5px] text-muted">{t('common.loading')}</p>}
           {dbs && dbs.length === 0 && (
-            <div className="rounded-xl border border-border-alt bg-surface px-4 py-10 text-center text-[14px] text-muted">
-              <i className="ph ph-database mb-1 block text-3xl text-muted-3" />
-              {t('db.empty')}
-            </div>
+            <EmptyState
+              card
+              icon="ph ph-database"
+              title={t('db.emptyTitle')}
+              body={t('db.emptyBody')}
+              // ฟอร์มสร้างอยู่บนหน้าเดียวกันแล้ว — ปุ่มพาโฟกัสไปที่ช่องชื่อเลย ไม่ต้องให้ผู้ใช้ไล่หา
+              action={{
+                label: t('db.emptyAction'),
+                onClick: () => nameRef.current?.focus(),
+                icon: 'ph ph-plus',
+              }}
+            />
           )}
 
           <div className="flex flex-col gap-3">
@@ -315,6 +330,7 @@ export default function DatabasesPage() {
                           value=""
                           onChange={(e) => attach(db.id, e.target.value)}
                           disabled={busyId === db.id || db.status !== 'running'}
+                          aria-label={t('db.attachLabel')}
                           className="rounded-lg border border-dashed border-border-alt bg-surface px-2.5 py-1 text-[13px] text-muted hover:border-primary hover:text-primary disabled:opacity-40"
                         >
                           <option value="">{t('db.attachPlaceholder')}</option>

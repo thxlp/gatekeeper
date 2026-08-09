@@ -129,10 +129,15 @@ export const api = {
 
   // combined audit stream
   // บันทึกการใช้งาน — backend ตัดหน้าให้ (ใหม่สุดก่อน) ไม่คืนทั้งไฟล์เหมือนเดิม
-  getMyAudit: (params: { decision?: string; q?: string; offset?: number; limit?: number } = {}) => {
+  getMyAudit: (
+    params: { decision?: string; q?: string; from?: string; to?: string; offset?: number; limit?: number } = {},
+  ) => {
     const qs = new URLSearchParams();
     if (params.decision) qs.set('decision', params.decision);
     if (params.q?.trim()) qs.set('q', params.q.trim());
+    // from/to เป็น ISO instant ที่คำนวณจากวันที่ผู้ใช้เลือกตาม timezone ของเครื่องเขา
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
     if (params.offset) qs.set('offset', String(params.offset));
     if (params.limit) qs.set('limit', String(params.limit));
     const suffix = qs.toString();

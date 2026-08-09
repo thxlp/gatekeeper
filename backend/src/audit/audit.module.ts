@@ -19,6 +19,8 @@ export class AuditController {
     @Req() req: any,
     @Query('decision') decision?: string,
     @Query('q') q?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
@@ -27,6 +29,10 @@ export class AuditController {
       // ค่าที่ไม่รู้จักถือว่าไม่กรอง — ดีกว่าตอบ 400 ให้หน้าเว็บพังเพราะ query เพี้ยน
       decision: decision && DECISIONS.includes(decision) ? decision : undefined,
       q,
+      // from/to เป็น ISO instant (frontend คำนวณขอบวันตาม timezone ของผู้ใช้มาให้แล้ว)
+      // ค่าที่ parse ไม่ได้ถูกมองข้ามใน service
+      from,
+      to,
       offset: toInt(offset),
       limit: toInt(limit),
     });

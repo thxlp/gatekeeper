@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import TopBar from '@/components/shell/TopBar';
@@ -106,34 +106,9 @@ function DeployPageInner() {
   );
 }
 
-function DropdownRow({
-  label,
-  value,
-  onClick,
-  leadingIcon,
-}: {
-  label: string;
-  value: string;
-  onClick?: () => void;
-  leadingIcon?: string;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 text-xs font-semibold">{label}</div>
-      <button
-        onClick={onClick}
-        className="flex w-full items-center justify-between rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px]"
-      >
-        <span className="flex items-center gap-1.5">
-          {leadingIcon && <i className={`${leadingIcon} text-muted`} />}
-          {value}
-        </span>
-        <i className="ph ph-caret-down text-muted-3" />
-      </button>
-    </div>
-  );
-}
-
+// SelectRow/InputRow เป็นทางเดียวที่ฟอร์มหน้านี้สร้างช่องกรอก — ผูก label เข้ากับ control
+// ด้วย htmlFor/id ที่นี่ที่เดียวก็ครอบคลุมทุกช่องในหน้า (useId กัน id ชนกันเองตอน render หลายตัว
+// และตรงกันทั้ง server/client ไม่มี hydration mismatch)
 function SelectRow({
   label,
   value,
@@ -145,10 +120,14 @@ function SelectRow({
   onChange: (v: string) => void;
   options: readonly string[];
 }) {
+  const id = useId();
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold">{label}</div>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-semibold">
+        {label}
+      </label>
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-border bg-page-alt px-3 py-[9px] text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -162,10 +141,14 @@ function SelectRow({
 }
 
 function InputRow({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const id = useId();
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold">{label}</div>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-semibold">
+        {label}
+      </label>
       <input
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -212,16 +195,20 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
       <div className="mb-1.5 text-xs font-semibold">{t('deploy.envVars')}</div>
       {config.envVars.map((e, i) => (
         <div key={i} className="mb-2 flex items-center gap-2">
+          {/* แถวตัวแปรไม่มี label ที่มองเห็น (หัวตารางอยู่บนสุดครั้งเดียว) — บอก screen reader
+              ด้วย aria-label ที่มีลำดับแถวกำกับ ไม่งั้นได้ยินแค่ "edit text" ซ้ำกันทุกช่อง */}
           <input
             value={e.key}
             onChange={(ev) => setEnv(i, 'key', ev.target.value)}
             placeholder="KEY"
+            aria-label={t('deploy.envKeyLabel', { n: i + 1 })}
             className="w-2/5 rounded-lg border border-border bg-surface px-2.5 py-2 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <input
             value={e.value}
             onChange={(ev) => setEnv(i, 'value', ev.target.value)}
             placeholder="value"
+            aria-label={t('deploy.envValueLabel', { n: i + 1 })}
             className="flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button onClick={() => removeEnv(i)} className="px-1.5 text-muted hover:text-ink" title={t('common.delete')}>
@@ -458,6 +445,7 @@ function GithubTab() {
               value={pat}
               onChange={(e) => setPat(e.target.value)}
               placeholder="ghp_… (scope: repo)"
+              aria-label={t('deploy.patLabel')}
               className="flex-1 rounded-lg border border-border bg-page-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
             <button
@@ -494,6 +482,7 @@ function GithubTab() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t('deploy.searchRepo')}
+                  aria-label={t('deploy.searchRepo')}
                   className="w-full rounded-lg border border-border bg-page-alt py-2 pl-8 pr-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>

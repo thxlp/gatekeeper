@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { CustomDomain } from '@/types';
 import { useLang } from '@/lib/i18n';
@@ -34,17 +35,27 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
   const toast = useToast();
   const confirm = useConfirm();
   const [domains, setDomains] = useState<CustomDomain[] | null>(null);
-  const [error, setError] = useState('');
+  // error ของการโหลดรายการ (กดลองใหม่ได้) — error ของ เพิ่ม/ตรวจ/ลบ ไปเด้ง toast แทน
+  const [loadError, setLoadError] = useState('');
+  const [retrying, setRetrying] = useState(false);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     try {
       setDomains(await api.domains.list(appId));
+      setLoadError('');
     } catch (e: any) {
-      setError(e.message);
+      setLoadError(e.message);
     }
+  };
+
+  const retryLoad = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
   };
 
   useEffect(() => {
@@ -69,13 +80,12 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
     const domain = input.trim();
     if (!domain) return;
     setBusy(true);
-    setError('');
     try {
       setDomains(await api.domains.add(appId, domain));
       toast.success(t('toast.domainAdded', { domain }));
       setInput('');
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
@@ -83,12 +93,11 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
 
   const verify = async (domain: string) => {
     setBusy(true);
-    setError('');
     try {
       setDomains(await api.domains.verify(appId, domain));
       toast.info(t('toast.domainChecked', { domain }));
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
@@ -103,12 +112,11 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
     });
     if (!ok) return;
     setBusy(true);
-    setError('');
     try {
       setDomains(await api.domains.remove(appId, domain));
       toast.success(t('toast.domainDeleted', { domain }));
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
@@ -116,21 +124,19 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
 
   return (
     <div>
-      {error && (
-        <div className="mb-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.06)] px-3 py-2 text-[13.5px] text-danger-text">
-          {error}
-        </div>
-      )}
+      {loadError && <ErrorBanner className="mb-4" message={loadError} onRetry={retryLoad} retrying={retrying} />}
 
       {/* เพิ่มโดเมน */}
       <div className="mb-5 rounded-xl border border-border-alt bg-surface p-4">
         <div className="mb-2 text-[15px] font-bold">{t('domains.addTitle')}</div>
         <div className="flex flex-wrap items-center gap-2">
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
             placeholder="app.yourdomain.com"
+            aria-label={t('domains.inputLabel')}
             className="min-w-[220px] flex-1 rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[14px] text-ink outline-none focus:border-primary"
           />
           <button
@@ -149,12 +155,19 @@ export default function DomainsTab({ appId, liveOriginHost }: { appId: string; l
       </div>
 
       {/* รายการโดเมน */}
-      {!domains && !error && <p className="text-[14px] text-muted">{t('common.loading')}</p>}
+      {!domains && !loadError && <p className="text-[14px] text-muted">{t('common.loading')}</p>}
       {domains && domains.length === 0 && (
-        <div className="rounded-xl border border-border-alt bg-surface px-4 py-8 text-center text-[14px] text-muted">
-          <i className="ph ph-globe mb-1 block text-3xl text-muted-3" />
-          {t('domains.empty')}
-        </div>
+        <EmptyState
+          card
+          icon="ph ph-globe"
+          title={t('domains.emptyTitle')}
+          body={t('domains.emptyBody')}
+          action={{
+            label: t('domains.emptyAction'),
+            onClick: () => inputRef.current?.focus(),
+            icon: 'ph ph-plus',
+          }}
+        />
       )}
 
       <div className="flex flex-col gap-2.5">
