@@ -4,6 +4,7 @@ import { CookieChallengeGuard } from '../challenge/challenge.guard';
 import { AccountsService } from './accounts.service';
 import { MailService } from '../mail/mail.service';
 import { UpdatePrefsDto } from './prefs.dto';
+import { isTwoFactorAvailable } from '../auth/two-factor.flag';
 
 /**
  * ข้อมูล + preference ของบัญชีตัวเอง — หน้า Settings ใช้ผูก toggle "Email Notifications"
@@ -26,6 +27,8 @@ export class AccountController {
       notifyEmail: account?.notifyEmail ?? false,
       twoFactorEnabled: account?.twoFactorEnabled ?? false,
       mailConfigured: this.mail.isConfigured(),
+      // ฟีเจอร์ 2FA เปิดใช้ทั้งระบบอยู่ไหม (FEATURE_2FA) — UI ใช้โชว์สถานะ "ปิดปรับปรุง"
+      twoFactorAvailable: isTwoFactorAvailable(),
     };
   }
 

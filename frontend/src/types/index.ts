@@ -183,6 +183,8 @@ export interface AccountMe {
   twoFactorEnabled: boolean;
   // SMTP ฝั่ง server ถูกตั้งค่าหรือยัง — UI ใช้ disable toggle email/ปุ่ม 2FA ให้ตรงความจริง
   mailConfigured: boolean;
+  // ฟีเจอร์ 2FA เปิดใช้ทั้งระบบอยู่ไหม (env FEATURE_2FA ฝั่ง backend) — false = ปิดปรับปรุง
+  twoFactorAvailable: boolean;
 }
 
 // ===== GitHub connection (Railway-style repo picker) =====

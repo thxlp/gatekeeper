@@ -21,6 +21,7 @@ import { otpEmail } from '../mail/mail-templates';
 import { NotificationsService } from '../notification/notifications.service';
 import { OtpVerifyDto, TwoFaOtpRequestDto } from './otp.dto';
 import { SESSION_COOKIE_NAME } from './session.constants';
+import { isTwoFactorAvailable, TWO_FACTOR_MAINTENANCE_MSG } from './two-factor.flag';
 
 // เก็บ api_key จริงใน httpOnly cookie เท่านั้น (ไม่ echo กลับใน JSON body) — JS บน dashboard
 // origin อ่านไม่ได้แม้เกิด XSS ก็ตาม ใช้ maxAge ยาว (30 วัน) เพราะตัวบังคับอายุจริงคือ idle
@@ -71,6 +72,8 @@ export class AuthController {
    * บัญชีที่เปิด 2FA: ยังไม่ออก cookie — ส่งรหัส OTP ไปที่อีเมลแล้วตอบ { mfaRequired: true }
    * ให้ frontend พาไปกรอกรหัส แล้วค่อยแลก cookie ผ่าน POST /auth/session/verify
    * (SMTP ไม่พร้อม = 503 fail-closed — ทางหนีไฟ ops: UPDATE accounts SET two_factor_enabled=false)
+   * ทั้งท่อนนี้ทำงานเฉพาะตอน FEATURE_2FA เปิดเท่านั้น ปิดปรับปรุงอยู่ = ออก cookie ให้เลย
+   * ตั้งแต่ first factor (ดู two-factor.flag.ts)
    *
    * key จริงส่งผ่าน Set-Cookie เท่านั้น — response body มีแค่ keyPrefix (8 ตัวแรก) ไว้โชว์ผล
    * ที่ UI (เช่น "API Key: a1b2c3d4…") โดยไม่ต้องมี plaintext เต็มอยู่ที่ไหนที่ JS แตะถึงได้
@@ -82,7 +85,10 @@ export class AuthController {
   ) {
     const account = await this.accountFromSupabaseToken(authHeader);
 
-    if (account.twoFactorEnabled) {
+    // ฟีเจอร์ปิดปรับปรุงอยู่ = ข้าม second factor ไปเลย แม้บัญชีนี้จะเปิด 2FA ค้างไว้ก็ตาม
+    // (ไม่แตะค่าใน DB — เปิดฟีเจอร์กลับมาเมื่อไหร่ก็กลับมาบังคับเหมือนเดิม) ถ้าไม่ทำแบบนี้
+    // บัญชีที่เปิด 2FA ไว้จะค้างอยู่หน้ากรอกรหัสตลอดกาลระหว่างที่ฟีเจอร์ปิด
+    if (account.twoFactorEnabled && isTwoFactorAvailable()) {
       if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
       if (!this.accounts.hasActiveOtp(account, 'login')) {
         try {
@@ -108,8 +114,11 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const account = await this.accountFromSupabaseToken(authHeader);
-    // 2FA ถูกปิดไประหว่างทาง (เช่น ops แก้ DB ให้) — first factor ผ่านแล้วออก cookie ได้เลย
-    if (!account.twoFactorEnabled) return this.issueSessionCookie(account, res);
+    // 2FA ถูกปิดไประหว่างทาง (ops แก้ DB ให้ หรือฟีเจอร์เพิ่งถูกปิดปรับปรุง) — first factor
+    // ผ่านแล้วออก cookie ได้เลย ไม่ปล่อยให้ค้างคาอยู่หน้ากรอกรหัสที่ไม่มีทางผ่าน
+    if (!account.twoFactorEnabled || !isTwoFactorAvailable()) {
+      return this.issueSessionCookie(account, res);
+    }
 
     const ok = await this.accounts.verifyOtp(account, dto.code, 'login');
     if (!ok) throw new UnauthorizedException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
@@ -120,6 +129,7 @@ export class AuthController {
   @Post('session/resend')
   async sessionResend(@Headers('authorization') authHeader: string | undefined) {
     const account = await this.accountFromSupabaseToken(authHeader);
+    if (!isTwoFactorAvailable()) throw new ServiceUnavailableException(TWO_FACTOR_MAINTENANCE_MSG);
     if (!account.twoFactorEnabled) throw new BadRequestException('two_factor_not_enabled');
     if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
 
@@ -138,6 +148,7 @@ export class AuthController {
   async request2faOtp(@Body() dto: TwoFaOtpRequestDto, @Req() req: any) {
     const account = await this.accounts.findById(getAccount(req).id);
     if (!account) throw new UnauthorizedException('invalid_api_key');
+    if (!isTwoFactorAvailable()) throw new ServiceUnavailableException(TWO_FACTOR_MAINTENANCE_MSG);
     if (!this.mail.isConfigured()) {
       throw new BadRequestException('mail_not_configured — ต้องตั้งค่า SMTP บนเซิร์ฟเวอร์ก่อนใช้ 2FA');
     }
@@ -156,6 +167,7 @@ export class AuthController {
     const account = await this.accounts.findById(getAccount(req).id);
     if (!account) throw new UnauthorizedException('invalid_api_key');
 
+    if (!isTwoFactorAvailable()) throw new ServiceUnavailableException(TWO_FACTOR_MAINTENANCE_MSG);
     const ok = await this.accounts.verifyOtp(account, dto.code, 'enable');
     if (!ok) throw new BadRequestException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
     await this.accounts.setTwoFactor(account.id, true);
@@ -173,6 +185,9 @@ export class AuthController {
     const account = await this.accounts.findById(getAccount(req).id);
     if (!account) throw new UnauthorizedException('invalid_api_key');
 
+    // ปิดตอนฟีเจอร์ปิดปรับปรุงด้วย — ขอรหัสยังไม่ได้เลย (2fa/otp ตอบ 503) จะมายืนยันตรงนี้
+    // ไม่ได้อยู่แล้ว และระหว่างปิดปรับปรุง flag ใน DB ก็ไม่มีผลกับการ login อยู่แล้ว
+    if (!isTwoFactorAvailable()) throw new ServiceUnavailableException(TWO_FACTOR_MAINTENANCE_MSG);
     const ok = await this.accounts.verifyOtp(account, dto.code, 'disable');
     if (!ok) throw new BadRequestException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
     await this.accounts.setTwoFactor(account.id, false);

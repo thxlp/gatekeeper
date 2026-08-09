@@ -237,7 +237,10 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const enabled = me?.twoFactorEnabled ?? false;
+  // ปิดปรับปรุงทั้งระบบ — ไม่โชว์ป้าย "เปิดอยู่" ต่อให้บัญชีนี้เคยเปิดค้างไว้ เพราะระหว่างนี้
+  // login ไม่ได้ถูกบังคับ 2FA จริง ป้ายเขียวจะกลายเป็นข้อมูลลวง
+  const available = me?.twoFactorAvailable ?? false;
+  const enabled = (me?.twoFactorEnabled ?? false) && available;
   const intent: 'enable' | 'disable' = enabled ? 'disable' : 'enable';
 
   const requestCode = async () => {
@@ -283,18 +286,27 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
                 {t('twofa.badgeOn')}
               </span>
             )}
+            {me && !available && (
+              <span className="rounded-md border border-border bg-page-alt px-1.5 py-px text-[12px] font-bold text-muted">
+                {t('twofa.badgeMaintenance')}
+              </span>
+            )}
           </div>
           <div className="text-[13px] text-muted">
             {enabled ? t('twofa.descOn') : t('twofa.descOff')}
           </div>
-          {me && !me.mailConfigured && (
-            <div className="mt-0.5 text-[12.5px] text-danger-text">{t('twofa.smtpMissing')}</div>
+          {me && !available ? (
+            <div className="mt-0.5 text-[12.5px] text-muted">{t('twofa.maintenanceNote')}</div>
+          ) : (
+            me && !me.mailConfigured && (
+              <div className="mt-0.5 text-[12.5px] text-danger-text">{t('twofa.smtpMissing')}</div>
+            )
           )}
         </div>
         {!codeSent && (
           <button
             onClick={requestCode}
-            disabled={!me || !me.mailConfigured || busy}
+            disabled={!me || !available || !me.mailConfigured || busy}
             className={`rounded-[7px] border px-3.5 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
               enabled
                 ? 'border-[rgba(214,109,82,.35)] bg-surface text-danger-text'
