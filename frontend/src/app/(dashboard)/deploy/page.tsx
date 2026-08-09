@@ -38,7 +38,6 @@ function DeployPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redeployAppId = searchParams.get('appId') || undefined;
-
   // แท็บอ่านจาก URL ล้วน ไม่เก็บเป็น state — ปุ่ม "อัปโหลดไฟล์เอง" บนหน้าโปรเจกต์ชี้มาที่
   // ?tab=manual จะได้ลงแท็บที่ตรงกับชื่อปุ่มจริงๆ (เดิมตกที่แท็บ GitHub ทุกทาง) และการที่ URL
   // เป็นแหล่งความจริงอันเดียวทำให้ refresh / กดย้อนกลับ / แชร์ลิงก์ ได้แท็บตรงกับที่เห็นเสมอ
