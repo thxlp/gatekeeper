@@ -6,6 +6,7 @@ import { api, AuthResult } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { AuthForm, Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
 import { useLang, type MsgKey } from '@/lib/i18n';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 // เหตุที่ถูกพากลับมาหน้านี้ (จาก AuthProvider idle timer / api.ts ดัก 401) → คีย์ข้อความ
 const REASON_NOTICES: Record<string, MsgKey> = {
@@ -19,6 +20,7 @@ const RESEND_COOLDOWN_S = 60;
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useLang();
+  useDocumentTitle(t('auth.login'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

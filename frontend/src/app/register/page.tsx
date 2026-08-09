@@ -6,10 +6,12 @@ import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { AuthForm, Field, PrimaryButton, OAuthButtons } from '@/components/shell/AuthShell';
 import { useLang } from '@/lib/i18n';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { t } = useLang();
+  useDocumentTitle(t('auth.register'));
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

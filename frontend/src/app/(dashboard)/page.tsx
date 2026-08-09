@@ -74,21 +74,9 @@ function DashboardPageInner() {
     return () => clearInterval(t);
   }, [apps, refresh]);
 
-  // browser tab title: โปรเจกต์ล่าสุด (เรียงตาม updatedAt/createdAt) แทนคำว่า
-  // "Gatekeeper" คงที่ — ถ้ายังไม่มีโปรเจกต์เลยให้ตั้งเป็น "Deploy" ชวนกดปุ่ม deploy บนหน้า
-  useEffect(() => {
-    if (!apps) return;
-    if (apps.length === 0) {
-      document.title = 'Deploy';
-      return;
-    }
-    const latest = [...apps].sort(
-      (a, b) =>
-        new Date(b.updatedAt || b.createdAt || 0).getTime() -
-        new Date(a.updatedAt || a.createdAt || 0).getTime(),
-    )[0];
-    document.title = latest.projectName || latest.repoFullName || latest.id;
-  }, [apps]);
+  // ชื่อบนแท็บของหน้านี้ตั้งที่ (dashboard)/layout.tsx แล้ว ("โปรเจกต์ · Gatekeeper")
+  // เดิมหน้านี้เขียนทับด้วยชื่อโปรเจกต์ล่าสุด ทำให้แท็บไม่บอกว่ากำลังอยู่หน้าไหน แถมค้าง
+  // ติดไปหน้าอื่นด้วยเพราะ SPA ไม่รีเซ็ต title ให้
 
   // ค้นหาแบบ client-side: รายการทั้งหมดอยู่ในมืออยู่แล้ว (endpoint เดียวคืนทุกแอปของ user)
   // จึงไม่ต้องยิง API ซ้ำ — คำค้นเทียบกับทุกอย่างที่ผู้ใช้เห็นบนแถว ไม่ใช่แค่ชื่อ

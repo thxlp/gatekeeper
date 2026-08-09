@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import AuthShell, { AuthForm, Field, PrimaryButton } from '@/components/shell/AuthShell';
 import { useLang } from '@/lib/i18n';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 export default function ForgotPasswordPage() {
   const { t } = useLang();
+  useDocumentTitle(t('auth.forgotTitle'));
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

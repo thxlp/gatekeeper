@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { GitAppDetail, PipelineStage, ReleaseSummary } from '@/types';
 import { useLang, localeTag, type MsgKey } from '@/lib/i18n';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 const POLL_MS = 1500;
 
@@ -66,6 +67,11 @@ export default function PipelineDetailPage({ params }: { params: { id: string } 
   const [rollingBack, setRollingBack] = useState(false);
   const [tab, setTab] = useState<TabKey>('overview');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ชื่อบนแท็บเบราว์เซอร์ = ชื่อแอปจริง ("ทดสอบ · Gatekeeper") — หน้านี้เป็นหน้าเดียวที่ตั้งเอง
+  // (layout เว้นให้ ดู titleKeyFor) ระหว่างที่ยังโหลดไม่เสร็จใช้ชื่อหน้าไปก่อน ไม่ปล่อยให้
+  // ค้างชื่อหน้าก่อนหน้า
+  useDocumentTitle(detail?.projectName || detail?.repoFullName || t('app.topbarTitle'));
 
   // seed แท็บจาก ?tab= (deep-link) ครั้งแรกฝั่ง client
   useEffect(() => {

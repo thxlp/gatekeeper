@@ -7,8 +7,11 @@ import AuthProvider from '@/components/auth/AuthProvider';
 import ToastProvider from '@/components/ui/Toast';
 import ConfirmProvider from '@/components/ui/ConfirmDialog';
 
+// title ตรงนี้คือค่าตั้งต้นที่ติดมากับ HTML ตอน prerender (เห็นแวบแรกก่อน JS ทำงาน และเป็น
+// ค่าที่ search engine/ตัว preview ลิงก์อ่าน) — ชื่อรายหน้าตั้งทีหลังฝั่ง client ผ่าน
+// lib/use-document-title.ts เพราะทุกหน้าเป็น client component จึง export metadata เองไม่ได้
 export const metadata: Metadata = {
-  title: 'Deploy Platform',
+  title: 'Gatekeeper',
   description:
     'Railway-style deploy platform where every deploy runs through a security scan + risk engine before going live.',
 };
