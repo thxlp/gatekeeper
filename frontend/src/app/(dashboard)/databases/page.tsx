@@ -168,7 +168,7 @@ export default function DatabasesPage() {
       body: t('db.deleteConfirm', { name: db.name }),
       confirmLabel: t('common.delete'),
       danger: true,
-      typeToConfirm: db.name, // ลบ volume ทิ้งด้วย = ข้อมูลหายถาวร
+      confirmTwice: true, // ลบ volume ทิ้งด้วย = ข้อมูลหายถาวร ต้องกดยืนยันซ้ำ
     });
     if (!ok) return;
     setBusyId(db.id);

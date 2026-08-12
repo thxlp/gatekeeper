@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useModalA11y } from '@/lib/use-modal-a11y';
 import { useLang } from '@/lib/i18n';
 
@@ -12,7 +12,8 @@ import { useLang } from '@/lib/i18n';
 // เรียกใช้เหมือน confirm เดิมเป๊ะ — await ได้ค่า boolean:
 //   const ok = await confirm({ body: '…', danger: true });
 //   if (!ok) return;
-// งานที่ย้อนกลับไม่ได้จริงๆ ใส่ typeToConfirm: '<ชื่อ>' เพื่อบังคับให้พิมพ์ชื่อยืนยันก่อน
+// งานที่ย้อนกลับไม่ได้จริงๆ ใส่ confirmTwice: true — ปุ่มยืนยันจะต้องกด 2 ครั้ง โดยครั้งแรก
+// เปลี่ยนเป็น "กดอีกครั้งเพื่อยืนยัน" และล็อกปุ่มไว้ครู่หนึ่งกันกดรัว/ค้าง Enter ทะลุ
 
 export interface ConfirmOptions {
   title?: string;
@@ -23,9 +24,12 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   /** ปุ่มยืนยันเป็นสีแดง + ไอคอนเตือน */
   danger?: boolean;
-  /** บังคับให้พิมพ์ข้อความนี้ให้ตรงก่อนถึงจะกดยืนยันได้ */
-  typeToConfirm?: string;
+  /** ต้องกดปุ่มยืนยัน 2 ครั้ง — ใช้กับงานที่กู้คืนไม่ได้ */
+  confirmTwice?: boolean;
 }
+
+/** หน่วงปุ่มยืนยันขั้นที่ 2 (ms) — กันคลิกรัวๆ / ค้าง Enter แล้วผ่านทั้งสองจังหวะรวดเดียว */
+const ARM_DELAY_MS = 700;
 
 type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>;
 
@@ -39,11 +43,21 @@ export function useConfirm() {
 export default function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLang();
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
-  const [typed, setTyped] = useState('');
+  // ขั้นที่ 2 ของ confirmTwice: armed = กดยืนยันไปหนึ่งครั้งแล้ว, arming = ยังหน่วงปุ่มอยู่
+  const [armed, setArmed] = useState(false);
+  const [arming, setArming] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // เก็บ resolver ไว้นอก state — จะได้ไม่ต้อง resolve ใน setState updater (React StrictMode
   // เรียก updater ซ้ำตอน dev)
   const resolverRef = useRef<((ok: boolean) => void) | null>(null);
+
+  const clearArmTimer = useCallback(() => {
+    if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    armTimerRef.current = null;
+  }, []);
+
+  useEffect(() => clearArmTimer, [clearArmTimer]);
 
   const confirm = useCallback<ConfirmFn>(
     (next) =>
@@ -51,25 +65,46 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
         // ถ้ามีกล่องเก่าค้างอยู่ ถือว่าถูกยกเลิก — ไม่ปล่อย promise ค้างตลอดกาล
         resolverRef.current?.(false);
         resolverRef.current = resolve;
-        setTyped('');
+        clearArmTimer();
+        setArmed(false);
+        setArming(false);
         setOpts(next);
       }),
-    [],
+    [clearArmTimer],
   );
 
-  const close = useCallback((ok: boolean) => {
-    resolverRef.current?.(ok);
-    resolverRef.current = null;
-    setOpts(null);
-  }, []);
+  const close = useCallback(
+    (ok: boolean) => {
+      clearArmTimer();
+      resolverRef.current?.(ok);
+      resolverRef.current = null;
+      setOpts(null);
+    },
+    [clearArmTimer],
+  );
+
+  // ปุ่มยืนยัน: ถ้าเป็น confirmTwice ครั้งแรกแค่ "ง้างปุ่ม" ไว้ ครั้งที่สองถึงจะลบจริง
+  // (ช่วงหน่วงไม่ใช้ disabled เพราะปุ่มที่ถูก disable ตอนกำลังโฟกัสอยู่จะทำโฟกัสหลุดออกนอกกล่อง
+  //  — กันคลิกรัวด้วยการเมินคลิกแทน)
+  const onConfirmClick = useCallback(() => {
+    if (!opts?.confirmTwice) {
+      close(true);
+      return;
+    }
+    if (armed) {
+      if (!arming) close(true);
+      return;
+    }
+    setArmed(true);
+    setArming(true);
+    clearArmTimer();
+    armTimerRef.current = setTimeout(() => setArming(false), ARM_DELAY_MS);
+  }, [opts, armed, arming, close, clearArmTimer]);
 
   // Escape / focus trap / คืนโฟกัสตอนปิด — ใช้ hook ตัวเดียวกับ StarterFilesModal
-  // ([data-autofocus] อยู่ที่ช่องพิมพ์ยืนยันถ้ามี ไม่งั้นปุ่มยกเลิก ซึ่งปลอดภัยกว่าปุ่มลบ)
+  // ([data-autofocus] อยู่ที่ปุ่มยกเลิก ซึ่งปลอดภัยกว่าปุ่มลบ)
   const cancel = useCallback(() => close(false), [close]);
   useModalA11y(panelRef, cancel, !!opts);
-
-  const needsTyping = !!opts?.typeToConfirm;
-  const canConfirm = !needsTyping || typed.trim() === opts?.typeToConfirm;
 
   return (
     <ConfirmContext.Provider value={confirm}>
@@ -114,44 +149,35 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
               </div>
             </div>
 
-            {needsTyping && (
-              <div className="mt-4">
-                <label htmlFor="gk-confirm-type" className="mb-1.5 block text-[13px] text-muted">
-                  {t('confirm.typeToConfirm', { name: opts.typeToConfirm as string })}
-                </label>
-                <input
-                  id="gk-confirm-type"
-                  data-autofocus
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && canConfirm) close(true);
-                  }}
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="w-full rounded-lg border border-input-border bg-page-alt px-3 py-2 font-mono text-[14px] text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
+            {armed && (
+              <p
+                role="status"
+                className="mt-4 rounded-lg border border-danger-text/30 bg-[rgba(214,109,82,.07)] px-3 py-2 text-[13px] font-semibold leading-relaxed text-danger-text"
+              >
+                {t('confirm.pressAgainHint')}
+              </p>
             )}
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                data-autofocus={needsTyping ? undefined : true}
+                data-autofocus
                 onClick={() => close(false)}
                 className="rounded-lg border border-border px-4 py-2 text-[14px] font-semibold text-ink-soft transition-colors hover:bg-page-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 {opts.cancelLabel || t('common.cancel')}
               </button>
               <button
-                onClick={() => close(true)}
-                disabled={!canConfirm}
-                className={`rounded-lg px-4 py-2 text-[14px] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                onClick={onConfirmClick}
+                aria-disabled={arming || undefined}
+                className={`rounded-lg px-4 py-2 text-[14px] font-semibold text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  arming ? 'cursor-not-allowed opacity-50' : ''
+                } ${
                   opts.danger
                     ? 'bg-danger-text hover:brightness-95 focus-visible:outline-danger-text'
                     : 'bg-primary hover:bg-primary-hover focus-visible:outline-primary'
                 }`}
               >
-                {opts.confirmLabel || t('common.confirm')}
+                {armed ? t('confirm.pressAgain') : opts.confirmLabel || t('common.confirm')}
               </button>
             </div>
           </div>

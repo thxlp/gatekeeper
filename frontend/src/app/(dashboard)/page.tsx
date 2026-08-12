@@ -374,7 +374,7 @@ function RowActions({
       note: t('confirm.deleteProjectNote'),
       confirmLabel: t('common.delete'),
       danger: true,
-      typeToConfirm: label, // ลบแล้วกู้ไม่ได้ — บังคับพิมพ์ชื่อยืนยัน
+      confirmTwice: true, // ลบแล้วกู้ไม่ได้ — ต้องกดยืนยันซ้ำอีกครั้ง
     });
     if (!ok) return;
     setBusy(true);

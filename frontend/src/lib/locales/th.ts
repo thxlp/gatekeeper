@@ -481,7 +481,8 @@ export const th = {
 
   // ===== กล่องยืนยัน (แทน window.confirm) =====
   'confirm.defaultTitle': 'ยืนยันการทำรายการ',
-  'confirm.typeToConfirm': 'พิมพ์ {name} เพื่อยืนยัน',
+  'confirm.pressAgain': 'กดอีกครั้งเพื่อยืนยัน',
+  'confirm.pressAgainHint': 'แน่ใจนะ? กดปุ่มสีแดงอีกครั้งเพื่อยืนยัน — ทำแล้วย้อนกลับไม่ได้',
   'confirm.deleteProjectTitle': 'ลบโปรเจกต์',
   'confirm.deleteProjectNote': 'แอปที่กำลังทำงานจะถูกปิดและลบทิ้งทันที — กู้คืนไม่ได้',
   'confirm.deleteVarTitle': 'ลบตัวแปร',

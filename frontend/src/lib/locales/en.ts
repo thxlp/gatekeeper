@@ -485,7 +485,8 @@ export const en: Record<keyof typeof th, string> = {
 
   // ===== confirm dialog (replaces window.confirm) =====
   'confirm.defaultTitle': 'Please confirm',
-  'confirm.typeToConfirm': 'Type {name} to confirm',
+  'confirm.pressAgain': 'Click again to confirm',
+  'confirm.pressAgainHint': 'Are you sure? Click the red button again to confirm — this cannot be undone.',
   'confirm.deleteProjectTitle': 'Delete project',
   'confirm.deleteProjectNote': 'The running app is stopped and removed immediately — this cannot be undone.',
   'confirm.deleteVarTitle': 'Delete variable',
