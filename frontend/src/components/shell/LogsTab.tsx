@@ -120,7 +120,7 @@ export default function LogsTab({ appId }: { appId: string }) {
             if (!live) setLines([]); // resume = เริ่มดึงใหม่ ล้างจอกันบรรทัดซ้ำจาก tail history
             setLive(!live);
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
+          className="gk-tap gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
         >
           {live ? (
             <>
@@ -139,7 +139,7 @@ export default function LogsTab({ appId }: { appId: string }) {
               setLive(true);
               setEpoch((e) => e + 1);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
+            className="gk-tap gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
           >
             <i className="ph ph-arrow-clockwise" /> {t('logs.refresh')}
           </button>
@@ -173,14 +173,14 @@ export default function LogsTab({ appId }: { appId: string }) {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setLines([])}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
+            className="gk-tap gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
           >
             <i className="ph ph-eraser" /> {t('logs.clear')}
           </button>
           <button
             onClick={download}
             disabled={lines.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="gk-tap gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             <i className="ph ph-download-simple" /> {t('logs.download')}
           </button>
@@ -203,7 +203,7 @@ export default function LogsTab({ appId }: { appId: string }) {
       {/* console — มืดทั้งสองธีม (แบบ terminal) เพื่ออ่าน log ง่ายที่สุด */}
       <div
         ref={scrollRef}
-        className="h-[60vh] overflow-auto rounded-xl border border-[#33302b] bg-[#1a1917] p-4 font-mono text-[12.5px] leading-[1.55] text-[#d6d2c8]"
+        className="gk-h-logbox overflow-auto rounded-xl border border-[#33302b] bg-[#1a1917] p-4 font-mono text-[12.5px] leading-[1.55] text-[#d6d2c8]"
       >
         {pending ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-[#8a857a]">

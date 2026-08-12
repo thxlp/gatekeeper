@@ -42,14 +42,14 @@ export default function TopBar({
       <button
         onClick={() => setStartersOpen(true)}
         aria-label={t('nav.starterFiles')}
-        className="flex flex-none items-center justify-center rounded-[7px] p-1.5 text-muted transition-colors hover:bg-page-alt hover:text-ink sm:hidden"
+        className="gk-tap flex-none rounded-[7px] p-1.5 text-muted transition-colors hover:bg-page-alt hover:text-ink sm:hidden"
       >
         <i className="ph ph-download-simple text-xl" />
       </button>
       <Link
         href="/account"
         aria-label={t('nav.account')}
-        className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary text-white sm:hidden"
+        className="gk-tap h-8 w-8 flex-none rounded-full bg-primary text-white sm:hidden"
       >
         <i className="ph-fill ph-user text-sm" />
       </Link>
@@ -102,7 +102,7 @@ export default function TopBar({
                     searchRef.current?.focus();
                   }}
                   aria-label={t('search.clear')}
-                  className="-mr-1 flex-none rounded p-0.5 text-muted-3 transition-colors hover:text-ink"
+                  className="gk-tap -mr-1 flex-none rounded p-0.5 text-muted-3 transition-colors hover:text-ink"
                 >
                   <i className="ph ph-x text-[13px]" />
                 </button>
@@ -137,7 +137,7 @@ export default function TopBar({
         <>
           <div className="flex items-center gap-2.5">
             {backHref && (
-              <Link href={backHref} className="text-muted hover:text-ink">
+              <Link href={backHref} className="gk-tap -ml-2 text-muted hover:text-ink">
                 <i className="ph ph-arrow-left text-lg" />
               </Link>
             )}

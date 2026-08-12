@@ -141,7 +141,7 @@ export default function VariablesTab({
         </div>
         <button
           onClick={() => setImportOpen((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
+          className="gk-tap gap-1.5 rounded-lg border border-border-alt px-3 py-1.5 text-[13.5px] font-semibold text-ink-soft hover:border-primary hover:text-primary"
         >
           <i className="ph ph-upload-simple" /> {t('vars.import')}
         </button>
@@ -199,26 +199,35 @@ export default function VariablesTab({
         ) : (
           <div className="divide-y divide-border-alt">
             {vars.map((v) => (
-              <div key={v.key} className="flex items-center gap-3 px-4 py-2.5">
-                <i className="ph ph-key text-[15px] text-muted" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-[14px] font-semibold text-ink">{v.key}</div>
-                  {editKey === v.key ? (
-                    <input
-                      autoFocus
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(v.key)}
-                      placeholder={t('vars.newValuePlaceholder')}
-                      aria-label={t('vars.editValueLabel', { key: v.key })}
-                      className="mt-1 w-full rounded-md border border-primary bg-page px-2 py-1 font-mono text-[13px] text-ink outline-none"
-                    />
-                  ) : (
-                    <div className="mt-px font-mono text-[13px] tracking-wider text-muted-3">••••••••••••</div>
-                  )}
+              // มือถือ: ชื่อ+ค่าอยู่บรรทัดบน ปุ่มลงไปแถวล่างชิดขวา — เดิมยัดแถวเดียวกันหมด
+              // ชื่อตัวแปรเลยโดน truncate เกือบทั้งชื่อเพื่อให้เหลือที่ให้ปุ่มจิ๋วสองปุ่ม
+              <div
+                key={v.key}
+                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:py-2.5"
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                  <i className="ph ph-key mt-0.5 flex-none text-[15px] text-muted sm:mt-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="break-all font-mono text-[14px] font-semibold text-ink sm:truncate">
+                      {v.key}
+                    </div>
+                    {editKey === v.key ? (
+                      <input
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && saveEdit(v.key)}
+                        placeholder={t('vars.newValuePlaceholder')}
+                        aria-label={t('vars.editValueLabel', { key: v.key })}
+                        className="mt-1 w-full rounded-md border border-primary bg-page px-2 py-1 font-mono text-[13px] text-ink outline-none"
+                      />
+                    ) : (
+                      <div className="mt-px font-mono text-[13px] tracking-wider text-muted-3">••••••••••••</div>
+                    )}
+                  </div>
                 </div>
                 {editKey === v.key ? (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-none items-center justify-end gap-1.5">
                     <button
                       onClick={() => saveEdit(v.key)}
                       disabled={busy}
@@ -237,21 +246,23 @@ export default function VariablesTab({
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-none items-center justify-end gap-1">
                     <button
                       title={t('vars.editValue')}
+                      aria-label={t('vars.editValue')}
                       onClick={() => {
                         setEditKey(v.key);
                         setEditValue('');
                       }}
-                      className="rounded-md p-1.5 text-muted hover:bg-page hover:text-primary"
+                      className="gk-tap rounded-md p-1.5 text-muted hover:bg-page hover:text-primary"
                     >
                       <i className="ph ph-pencil-simple text-[15px]" />
                     </button>
                     <button
                       title={t('common.delete')}
+                      aria-label={t('common.delete')}
                       onClick={() => removeVar(v.key)}
-                      className="rounded-md p-1.5 text-muted hover:bg-page hover:text-danger-text"
+                      className="gk-tap rounded-md p-1.5 text-muted hover:bg-page hover:text-danger-text"
                     >
                       <i className="ph ph-trash text-[15px]" />
                     </button>
@@ -266,6 +277,8 @@ export default function VariablesTab({
       {/* เพิ่มตัวแปรใหม่ */}
       <div className="mt-4 rounded-xl border border-border-alt bg-surface p-3">
         <div className="mb-2 text-[13.5px] font-semibold text-ink-soft">{t('vars.addTitle')}</div>
+        {/* มือถือ: ช่อง KEY/value และปุ่มเรียงเต็มความกว้างทีละบรรทัด — เดิม w-[200px] คู่กับ
+            min-w-[200px] ทำให้บนจอ 360px ทุกอย่างห่อบรรทัดเป็นขั้นบันไดไม่เท่ากัน */}
         <div className="flex flex-wrap items-center gap-2">
           <input
             ref={newKeyRef}
@@ -273,21 +286,21 @@ export default function VariablesTab({
             onChange={(e) => setNewKey(e.target.value)}
             placeholder="KEY"
             aria-label={t('vars.keyLabel')}
-            className="w-[200px] rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13.5px] text-ink outline-none focus:border-primary"
+            className="w-full rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13.5px] text-ink outline-none focus:border-primary sm:w-[200px]"
           />
-          <span className="text-muted">=</span>
+          <span className="hidden text-muted sm:inline">=</span>
           <input
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addVar()}
             placeholder="value"
             aria-label={t('vars.valueLabel')}
-            className="min-w-[200px] flex-1 rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13.5px] text-ink outline-none focus:border-primary"
+            className="w-full rounded-lg border border-border-alt bg-page px-3 py-2 font-mono text-[13.5px] text-ink outline-none focus:border-primary sm:min-w-[200px] sm:flex-1"
           />
           <button
             onClick={addVar}
             disabled={busy || !newKey.trim()}
-            className="rounded-lg bg-primary px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+            className="w-full rounded-lg bg-primary px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50 sm:w-auto"
           >
             <i className="ph ph-plus mr-1" /> {t('common.add')}
           </button>

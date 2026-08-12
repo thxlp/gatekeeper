@@ -51,7 +51,7 @@ export function ThemeSegmentedControl() {
         <button
           key={opt.value}
           onClick={() => setTheme(opt.value)}
-          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+          className={`gk-tap gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
             theme === opt.value ? 'bg-surface text-ink shadow-card-soft' : 'text-muted hover:text-ink'
           }`}
         >

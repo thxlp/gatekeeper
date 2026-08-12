@@ -43,7 +43,7 @@ export function LanguageSegmentedControl() {
         <button
           key={opt.value}
           onClick={() => setLang(opt.value)}
-          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+          className={`gk-tap gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
             lang === opt.value ? 'bg-surface text-ink shadow-card-soft' : 'text-muted hover:text-ink'
           }`}
         >

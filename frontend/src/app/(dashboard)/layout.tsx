@@ -40,16 +40,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!authChecked) {
     return (
-      <div className="flex h-screen items-center justify-center bg-page text-sm text-muted">
+      <div className="gk-h-screen flex items-center justify-center bg-page text-sm text-muted">
         {t('shell.checkingAuth')}
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-screen bg-page-alt text-ink">
+    <div className="gk-h-screen relative flex bg-page-alt text-ink">
       <IconRail />
-      <div className="flex min-w-0 flex-1 flex-col pb-[60px] sm:pb-0">{children}</div>
+      {/* เว้นที่ให้แถบแท็บล่าง (60px) + safe area ของ home indicator — ต้องตรงกับความสูงจริง
+          ของ nav ใน MobileTabBar ถ้าแก้ที่นั่นต้องแก้ที่นี่ด้วย */}
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(60px_+_env(safe-area-inset-bottom,0px))] sm:pb-0">
+        {children}
+      </div>
       <MobileTabBar />
     </div>
   );

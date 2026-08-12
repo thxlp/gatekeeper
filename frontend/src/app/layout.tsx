@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import '@phosphor-icons/web/regular';
 import '@phosphor-icons/web/bold';
 import '@phosphor-icons/web/fill';
@@ -14,6 +14,29 @@ export const metadata: Metadata = {
   title: 'Gatekeeper',
   description:
     'Railway-style deploy platform where every deploy runs through a security scan + risk engine before going live.',
+  // ไอคอนเดียวเป็น SVG ใช้ได้ทั้ง favicon และไอคอนใน manifest (ดูข้อจำกัดฝั่ง iOS ใน manifest.ts)
+  icons: { icon: '/icon.svg' },
+  manifest: '/manifest.webmanifest',
+};
+
+// viewportFit: 'cover' = ให้หน้าเว็บกินพื้นที่ถึงขอบจริงบนเครื่องจอบาก/ขอบมน (ไม่งั้นจะเหลือ
+// แถบดำคาดหัวท้าย) แลกกับที่ของ fixed ติดขอบจะไปอยู่ใต้ home indicator — ชดเชยด้วยคลาส
+// .gk-safe-bottom / .gk-safe-x ใน globals.css ที่ MobileTabBar, ปุ่มลอย, Toast และ layout
+// ค่า width/initialScale เท่ากับ default ของ Next แต่ต้องเขียนเองเพราะพอ export viewport
+// แล้ว Next จะไม่ใส่ default ให้อีก (ห้ามใส่ maximumScale/userScalable=no — คนสายตาไม่ดี
+// จะซูมอ่านไม่ได้)
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  // สีแถบ address bar บนมือถือ ให้เป็นสีเดียวกับ --color-surface (พื้นของแถบบน) ทั้งสองธีม
+  // ไม่งั้นแถบขาวจะคาดอยู่เหนือแอปตอนใช้ธีมมืด — ค่าต้องตามพาเลตใน globals.css
+  // ข้อจำกัดที่ยอมรับ: อิงจาก prefers-color-scheme ของเครื่อง ตามปุ่มสลับธีมในแอปไม่ได้
+  // (meta ตัวนี้ถูกอ่านตอนโหลดหน้า ก่อน JS ของ use-theme.ts จะทำงาน)
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#FBFAF7' },
+    { media: '(prefers-color-scheme: dark)', color: '#2A2822' },
+  ],
 };
 
 // Runs before paint so the page never flashes the wrong theme. Keep this in

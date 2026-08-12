@@ -56,6 +56,77 @@ body {
   transition: background-color .15s ease, color .15s ease;
 }
 
+/* ── มือถือ ───────────────────────────────────────────────────────────────────
+   คลาสในบล็อกนี้อยู่ใน @layer components ทั้งหมด "โดยตั้งใจ" — Tailwind วาง components
+   ไว้ก่อน utilities เสมอ utility จึงยังทับได้ตามปกติ ถ้าเขียนลอยๆ นอก layer มันจะไปอยู่
+   ท้ายไฟล์แล้วทับ utility ที่ specificity เท่ากัน (เจอจริงตอนเขียนครั้งแรก: display ของ
+   .gk-tap ไปลบล้าง sm:hidden ทำให้ปุ่มเฉพาะมือถือโผล่บนเดสก์ท็อป)
+
+   1) ความสูงเต็มจอ: h-screen ของ Tailwind = 100vh ซึ่งบน iOS Safari/Chrome มือถือ
+      "ไม่นับ" แถบ address bar ที่ยังกางอยู่ เนื้อหาส่วนล่าง (แถบแท็บ/ปุ่ม) จึงถูกดันตกจอ
+      100dvh คิดตามความสูงที่มองเห็นจริงและอัปเดตตอนแถบหด/กาง — ประกาศ 100vh ไว้ก่อน
+      เป็น fallback ให้เบราว์เซอร์เก่าที่ไม่รู้จัก dvh (ก่อน Safari 15.4 / Chrome 108)
+      ห้ามเปลี่ยนกลับไปใช้ h-screen ที่ตัว shell */
+@layer components {
+  .gk-h-screen {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .gk-min-h-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  /* กล่อง log ใน LogsTab — เขียนเป็นคลาสที่นี่แทน h-[60dvh] ของ Tailwind เพราะต้องการคู่
+     fallback vh→dvh ตามลำดับ ซึ่งใส่สอง utility class ทับกันแล้วลำดับใน CSS ที่ Tailwind
+     generate ออกมาไม่ได้เรียงตามที่เขียนใน className */
+  .gk-h-logbox {
+    height: 60vh;
+    height: 60dvh;
+  }
+
+  /* 2) safe-area: layout.tsx ตั้ง viewportFit: 'cover' เพื่อให้พื้นหลังเต็มจอบนเครื่องจอบาก
+        ผลข้างเคียงคือของที่ fixed ติดขอบจะไปอยู่ใต้ home indicator / บาก — ทุกอย่างที่
+        fixed ติดขอบล่างต้องเผื่อระยะนี้ (ใช้ที่ MobileTabBar, ปุ่มลอย, Toast, และ padding
+        ล่างของ (dashboard)/layout.tsx) */
+  .gk-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .gk-safe-x {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* 3) เป้าแตะขั้นต่ำ 44×44 (มาตรฐาน Apple HIG / Material) สำหรับปุ่มไอคอนล้วนที่เดิมเป็น
+        p-1.5 ราวๆ 28–30px — จงใจขยายเฉพาะ pointer:coarse (นิ้ว) ไม่แตะเดสก์ท็อปที่ชี้ด้วย
+        เมาส์ซึ่งแม่นอยู่แล้ว และไม่ให้ toolbar บนจอใหญ่บวมขึ้นโดยไม่จำเป็น
+        ใช้ min-width/height จริงแทนการขยายพื้นที่กดด้วย ::after เพราะปุ่มพวกนี้อยู่ติดกันเป็นแถว
+        พื้นที่ล่องหนที่ทับกันจะทำให้กด "แก้ไข" แล้วโดน "ลบ" ซึ่งอันตรายกว่าปุ่มโตขึ้นเล็กน้อย */
+  .gk-tap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  @media (pointer: coarse) {
+    .gk-tap {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+}
+
+/* 4) iOS ซูมหน้าจอเข้าเองทุกครั้งที่โฟกัสช่องกรอกที่ฟอนต์เล็กกว่า 16px แล้ว "ไม่ซูมกลับ"
+      ผู้ใช้ต้องถ่างนิ้วออกเองทุกรอบ — บนจอเล็ก+นิ้วสัมผัสจึงบังคับ 16px ทับค่าจาก Tailwind
+      อยู่นอก @layer โดยตั้งใจ + ต้อง !important เพราะต้องชนะ utility class ที่ตั้งขนาด
+      ฟอนต์ไว้ (text-[13px] ฯลฯ) ซึ่ง specificity สูงกว่า element selector เสมอ
+      จำกัดด้วย pointer:coarse เพื่อไม่ให้ไปโดนเดสก์ท็อปที่ย่อหน้าต่างแคบ */
+@media (max-width: 640px) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ReactFlow overrides — re-themed to match the app palette in both modes */
 .react-flow__background { background: rgb(var(--color-page)); }
 .react-flow__edge-path { stroke: #9C948A; stroke-width: 2; }

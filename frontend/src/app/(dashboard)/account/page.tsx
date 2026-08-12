@@ -162,7 +162,7 @@ export default function AccountPage() {
                 />
               </div>
             )}
-            <div className="mb-3.5 grid grid-cols-2 gap-3.5">
+            <div className="mb-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <PasswordField
                 label={t('account.newPassword')}
                 value={newPassword}

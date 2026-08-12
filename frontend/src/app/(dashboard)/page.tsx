@@ -448,7 +448,7 @@ function EditRow({
 
   return (
     <div className="rounded-[10px] border border-primary/40 bg-page-alt p-4">
-      <div className="mb-3 grid grid-cols-3 gap-3">
+      <div className="mb-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label htmlFor={`${fieldId}-branch`} className="mb-1 block text-xs font-semibold">
             {t('projects.branch')}

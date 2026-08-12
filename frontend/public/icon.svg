@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gatekeeper">
+  <rect width="512" height="512" rx="112" fill="#4A90E2"/>
+  <path d="M256 92 396 148v116c0 88-58 148-140 176-82-28-140-88-140-176V148L256 92z" fill="#FBFAF7"/>
+  <path d="M196 262l44 44 84-88" fill="none" stroke="#4A90E2" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -102,11 +102,12 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {/* มือถือ: ยกขึ้นเหนือ tab bar (60px) + FAB ไม่ให้ทับกัน */}
+      {/* มือถือ: ยกขึ้นเหนือแถบแท็บ (60px + ระยะห่าง 16px) และเผื่อ safe area ของ home
+          indicator อีกชั้น — เดิมเผื่อไว้ 132px เพราะต้องหลบปุ่มลอยที่ถอดออกไปแล้ว */}
       <div
         aria-live="polite"
         aria-atomic="false"
-        className="pointer-events-none fixed inset-x-4 bottom-[132px] z-[60] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[380px]"
+        className="pointer-events-none fixed inset-x-4 bottom-[calc(76px_+_env(safe-area-inset-bottom,0px))] z-[60] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[380px]"
       >
         {items.map((item) => {
           const style = KIND_STYLE[item.kind];
@@ -123,7 +124,7 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
               <button
                 onClick={() => dismiss(item.id)}
                 aria-label="close"
-                className="-m-1 flex-none rounded p-1 text-muted-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+                className="gk-tap -m-1 flex-none rounded p-1 text-muted-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
               >
                 <i className="ph ph-x text-[13px]" />
               </button>

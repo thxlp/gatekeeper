@@ -263,30 +263,34 @@ export default function DatabasesPage() {
               const attachable = apps.filter((a) => !db.attachedAppIds.includes(a.id));
               return (
                 <div key={db.id} className="rounded-xl border border-border-alt bg-surface p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-page text-primary">
-                      <i className={`ph ${meta.icon} text-[20px]`} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[15.5px] font-bold text-ink">{db.name}</span>
-                        <span className="text-[12.5px] text-muted-3">{meta.label}</span>
-                        <StatusBadge db={db} />
+                  {/* จอเล็ก: ปุ่ม (คัดลอก connection / ลบ) ลงไปแถวล่าง — เดิมอยู่แถวเดียวกับ
+                      ชื่อ+host ซึ่ง flex-none ทำให้ชื่อฐานข้อมูลโดนบีบจนอ่านไม่ออก */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-page text-primary">
+                        <i className={`ph ${meta.icon} text-[20px]`} />
                       </div>
-                      <div className="mt-0.5 font-mono text-[12.5px] text-muted">
-                        {db.connection.host}:{db.connection.port}
-                        {db.connection.dbName ? ` / ${db.connection.dbName}` : ''}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="break-all text-[15.5px] font-bold text-ink">{db.name}</span>
+                          <span className="text-[12.5px] text-muted-3">{meta.label}</span>
+                          <StatusBadge db={db} />
+                        </div>
+                        <div className="mt-0.5 break-all font-mono text-[12.5px] text-muted">
+                          {db.connection.host}:{db.connection.port}
+                          {db.connection.dbName ? ` / ${db.connection.dbName}` : ''}
+                        </div>
+                        {db.status === 'error' && db.lastError && (
+                          <div className="mt-1 text-[12.5px] text-danger-text">{db.lastError}</div>
+                        )}
                       </div>
-                      {db.status === 'error' && db.lastError && (
-                        <div className="mt-1 text-[12.5px] text-danger-text">{db.lastError}</div>
-                      )}
                     </div>
-                    <div className="flex flex-none items-center gap-1.5">
+                    <div className="flex flex-none items-center justify-end gap-1.5">
                       <button
                         onClick={() => copyConnection(db.id)}
                         disabled={db.status !== 'running'}
                         title={t('db.copyConnection')}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-border-alt px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-40"
+                        className="gk-tap gap-1.5 rounded-lg border border-border-alt px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-40"
                       >
                         <i className={`ph ${copiedId === db.id ? 'ph-check' : 'ph-copy'}`} />
                         {copiedId === db.id ? t('common.copied') : t('db.connection')}
@@ -295,7 +299,8 @@ export default function DatabasesPage() {
                         onClick={() => remove(db)}
                         disabled={busyId === db.id}
                         title={t('db.deleteTitle')}
-                        className="rounded-lg p-1.5 text-muted hover:bg-page hover:text-danger-text disabled:opacity-40"
+                        aria-label={t('db.deleteTitle')}
+                        className="gk-tap rounded-lg p-1.5 text-muted hover:bg-page hover:text-danger-text disabled:opacity-40"
                       >
                         <i className="ph ph-trash text-[16px]" />
                       </button>

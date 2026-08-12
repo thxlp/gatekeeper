@@ -9,7 +9,7 @@ import { useLang } from '@/lib/i18n';
 export default function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center px-4 text-ink"
+      className="gk-min-h-screen relative flex items-center justify-center px-4 text-ink"
       style={{
         backgroundColor: '#0a0f14',
         backgroundImage:

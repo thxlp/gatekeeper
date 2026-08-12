@@ -234,7 +234,7 @@ function AppConfigFields({ config, setConfig, runtime }: { config: AppConfigStat
       </div>
 
       {/* Resources */}
-      <div className="mb-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <InputRow label={t('deploy.memoryMb')} value={config.memoryMb} onChange={(v) => setConfig({ ...config, memoryMb: v })} placeholder="256" />
         <InputRow label={t('deploy.cpuMilli')} value={config.cpuMilli} onChange={(v) => setConfig({ ...config, cpuMilli: v })} placeholder="500 = 0.5 vCPU" />
       </div>
@@ -516,11 +516,11 @@ function GithubTab() {
                 </button>
               </div>
 
-              <div className="mb-3.5 grid grid-cols-2 gap-3.5">
+              <div className="mb-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <SelectRow label={t('deploy.branch')} value={branch} onChange={setBranch} options={branches || [branch]} />
                 <SelectRow label={t('deploy.runtime')} value={runtime} onChange={setRuntime} options={RUNTIMES} />
               </div>
-              <div className="mb-4 grid grid-cols-2 gap-3.5">
+              <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <InputRow
                   label={t('deploy.projectNameOptional', { optional: t('common.optional') })}
                   value={projectName}
@@ -567,7 +567,7 @@ function GithubTab() {
                   <div className="mb-3">
                     <InputRow label={t('deploy.repoUrl')} value={advRepoUrl} onChange={setAdvRepoUrl} placeholder="https://github.com/owner/repo" />
                   </div>
-                  <div className="mb-3 grid grid-cols-2 gap-3">
+                  <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <InputRow label={t('deploy.branch')} value={advBranch} onChange={setAdvBranch} placeholder="main" />
                     <SelectRow label={t('deploy.runtime')} value={advRuntime} onChange={setAdvRuntime} options={RUNTIMES} />
                   </div>
@@ -748,7 +748,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
 
       {!redeployAppId && (
         <>
-          <div className="mb-4 grid grid-cols-2 gap-3.5">
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <InputRow label={t('deploy.projectName')} value={projectName} onChange={setProjectName} placeholder="my-awesome-app" />
             <SelectRow label={t('deploy.runtime')} value={runtime} onChange={setRuntime} options={RUNTIMES} />
           </div>
@@ -766,7 +766,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
 
       <div className="mb-3.5">
         <div className="mb-1.5 text-xs font-semibold">{t('deploy.source')}</div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label
             onDrop={handleDrop}
             onDragOver={handleDragOver}

@@ -15,34 +15,32 @@ const tabs: { href: string; icon: string; label: MsgKey; match: (p: string) => b
 export default function MobileTabBar() {
   const pathname = usePathname();
   const { t } = useLang();
+  // เดิมมีปุ่มลอย (FAB) ทับมุมขวาล่างพาไป /deploy — ถอดออกแล้วด้วยสองเหตุผล: มันบังปุ่ม
+  // ในการ์ดใบสุดท้ายของลิสต์ (layout เว้นที่ให้แค่ความสูงแถบแท็บ) และมันไปที่เดียวกับแท็บ
+  // "ดีพลอย" ที่อยู่ห่างกันไม่ถึงนิ้วอยู่แล้ว
   return (
-    <>
-      {/* floating New Deploy button above the bar */}
-      <Link
-        href="/deploy"
-        aria-label={t('nav.newDeploy')}
-        className="fixed bottom-[72px] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg sm:hidden"
-      >
-        <i className="ph ph-plus text-2xl" />
-      </Link>
-
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[60px] items-stretch border-t border-border bg-surface sm:hidden">
-        {tabs.map((tab) => {
-          const active = tab.match(pathname);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 text-[12px] ${
-                active ? 'text-primary' : 'text-muted'
-              }`}
-            >
-              <i className={`${active ? 'ph-fill' : 'ph'} ${tab.icon} text-lg`} />
-              {t(tab.label)}
-            </Link>
-          );
-        })}
-      </nav>
-    </>
+    // h-[60px] คือความสูงของแถวแท็บจริง ส่วน gk-safe-bottom เติมพื้นที่ใต้แถวให้เท่ากับ
+    // home indicator (box-content จึงไม่ไปบีบแถวแท็บให้เตี้ยลง) — ระยะรวมนี้ต้องตรงกับ
+    // padding-bottom ของ (dashboard)/layout.tsx
+    <nav className="gk-safe-bottom gk-safe-x fixed inset-x-0 bottom-0 z-40 box-content flex h-[60px] items-stretch border-t border-border bg-surface sm:hidden">
+      {tabs.map((tab) => {
+        const active = tab.match(pathname);
+        return (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            aria-current={active ? 'page' : undefined}
+            className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 ${
+              active ? 'text-primary' : 'text-muted'
+            }`}
+          >
+            <i className={`${active ? 'ph-fill' : 'ph'} ${tab.icon} flex-none text-lg`} />
+            {/* จอ 320px เหลือแท็บละ ~64px — ป้ายไทยอย่าง "ฐานข้อมูล" จะตัดขึ้นบรรทัดใหม่
+                แล้วดันไอคอนเบี้ยวทั้งแถว ตัดด้วย … แทนให้ความสูงคงที่เสมอ */}
+            <span className="w-full truncate text-center text-[12px] leading-none">{t(tab.label)}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

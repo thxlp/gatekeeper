@@ -249,7 +249,7 @@ export default function AuditPage() {
                 }}
                 aria-label={t('audit.clearDates')}
                 title={t('audit.clearDates')}
-                className="rounded p-1 text-muted-3 transition-colors hover:text-ink"
+                className="gk-tap rounded p-1 text-muted-3 transition-colors hover:text-ink"
               >
                 <i className="ph ph-x text-[13px]" />
               </button>

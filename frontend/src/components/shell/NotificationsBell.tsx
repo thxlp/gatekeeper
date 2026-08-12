@@ -77,7 +77,7 @@ export default function NotificationsBell() {
       <button
         onClick={toggle}
         aria-label={t('notif.title')}
-        className="relative flex h-9 w-9 items-center justify-center rounded-[7px] border border-border bg-surface text-ink-soft hover:bg-page-alt"
+        className="gk-tap relative h-9 w-9 rounded-[7px] border border-border bg-surface text-ink-soft hover:bg-page-alt"
       >
         <i className="ph ph-bell text-[17px]" />
         {(feed?.unread ?? 0) > 0 && (
@@ -88,7 +88,9 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-[320px] rounded-lg border border-border bg-surface shadow-lg">
+        // 320px คือความกว้างของ iPhone SE ทั้งจอพอดี — บนเครื่องเล็กสุดจึงหดตามจอ
+        // (เหลือขอบข้างละ 16px) ไม่ให้กล่องดันจนหน้าเลื่อนซ้ายขวาได้
+        <div className="absolute right-0 top-11 z-50 w-[min(320px,calc(100vw-2rem))] rounded-lg border border-border bg-surface shadow-lg">
           <div className="border-b border-border px-4 py-2.5 text-[14.5px] font-bold">{t('notif.title')}</div>
           {items.length === 0 && (
             <p className="px-4 py-5 text-center text-[14px] text-muted">{t('notif.empty')}</p>

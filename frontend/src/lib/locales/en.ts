@@ -94,7 +94,6 @@ export const en: Record<keyof typeof th, string> = {
   'nav.searchProjects': 'Search projects…',
   'nav.manualDeploy': 'Manual deploy',
   'nav.deployFromGithub': 'Deploy from GitHub',
-  'nav.newDeploy': 'New deploy',
 
   // ===== theme / language =====
   'theme.toDark': 'Switch to dark theme',

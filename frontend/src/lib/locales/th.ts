@@ -95,7 +95,6 @@ export const th = {
   'nav.searchProjects': 'ค้นหาโปรเจกต์…',
   'nav.manualDeploy': 'อัปโหลดไฟล์เอง',
   'nav.deployFromGithub': 'ดีพลอยจาก GitHub',
-  'nav.newDeploy': 'ดีพลอยใหม่',
 
   // ===== ธีม / ภาษา =====
   'theme.toDark': 'สลับเป็นธีมมืด',

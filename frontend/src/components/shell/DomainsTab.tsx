@@ -246,17 +246,19 @@ export default function DomainsTab({
                 href={`https://${d.domain}`}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-[14.5px] font-semibold text-ink hover:text-primary"
+                className="min-w-0 break-all font-mono text-[14.5px] font-semibold text-ink hover:text-primary"
               >
                 {d.domain}
               </a>
               <DomainStatus status={d.status} />
-              <div className="ml-auto flex items-center gap-1.5">
+              {/* จอเล็ก: ปุ่มลงไปเต็มบรรทัดของตัวเอง (ml-auto ใช้ไม่ได้ผลตอนห่อบรรทัด
+                  เพราะกลายเป็นชิดซ้ายใต้ชื่อโดเมน) */}
+              <div className="ml-auto flex w-full items-center justify-end gap-1.5 sm:w-auto">
                 {d.status !== 'active' && (
                   <button
                     onClick={() => verify(d.domain)}
                     disabled={busy}
-                    className="rounded-lg border border-border-alt px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-50"
+                    className="gk-tap rounded-lg border border-border-alt px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-50"
                   >
                     <i className="ph ph-arrow-clockwise mr-1" /> {t('domains.verify')}
                   </button>
@@ -264,8 +266,9 @@ export default function DomainsTab({
                 <button
                   onClick={() => remove(d.domain)}
                   disabled={busy}
-                  className="rounded-lg p-1.5 text-muted hover:bg-page hover:text-danger-text disabled:opacity-50"
+                  className="gk-tap rounded-lg p-1.5 text-muted hover:bg-page hover:text-danger-text disabled:opacity-50"
                   title={t('domains.deleteTitle')}
+                  aria-label={t('domains.deleteTitle')}
                 >
                   <i className="ph ph-trash text-[15px]" />
                 </button>
