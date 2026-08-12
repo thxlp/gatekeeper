@@ -25,10 +25,20 @@ export class ChallengeController {
   @Get()
   servePage(@Req() req: Request, @Res() res: Response) {
     const redirectTo = safeRedirectPath(req.query.redirect);
+    // title/description ตั้งใจใช้ "ชื่อเว็บจริง" ไม่ใช่ "กำลังตรวจสอบ…" — หน้านี้เป็น interstitial
+    // ที่ nginx เด้งมาเมื่อยังไม่มี cookie และ search engine ที่หลุด allowlist ใน
+    // gatekeeper-host.conf จะเก็บ <title> ของหน้านี้ไปขึ้น SERP แทนชื่อเว็บ
+    // (ให้ตรงกับ metadata ใน frontend/src/app/layout.tsx — แก้ที่นั่นแล้วแก้ที่นี่ด้วย)
     res.type('html').send(`<!doctype html>
-<html><head><meta charset="utf-8"><title>กำลังตรวจสอบ...</title></head>
+<html lang="th"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gatekeeper</title>
+  <meta name="description" content="Railway-style deploy platform where every deploy runs through a security scan + risk engine before going live.">
+</head>
 <body>
   <p>กำลังตรวจสอบเบราว์เซอร์ของคุณ กรุณารอสักครู่...</p>
+  <noscript><p>หน้านี้ต้องเปิดใช้งาน JavaScript เพื่อตรวจสอบเบราว์เซอร์ก่อนเข้าใช้งาน</p></noscript>
   <script>
     fetch('/challenge/verify', { method: 'POST', credentials: 'include' })
       .then(() => { window.location.href = ${JSON.stringify(redirectTo)}; })

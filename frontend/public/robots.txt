@@ -1,0 +1,14 @@
+# หน้าเว็บสาธารณะให้ index ได้ ส่วนหลังบ้าน (ต้องล็อกอินอยู่แล้ว) ไม่ต้องเสียโควต้า crawl
+# หมายเหตุ: ตั้งใจ "ไม่" Disallow /challenge — ถ้าบอตตัวไหนหลุดเข้า interstitial ไปแล้วโดน
+# ห้าม crawl ซ้ำ Google จะดร็อปหน้าแรกออกจาก index ทั้งหน้า ซึ่งแย่กว่าการขึ้นชื่อผิด
+User-agent: *
+Allow: /$
+Allow: /login
+Allow: /register
+Disallow: /api/
+Disallow: /apps/
+Disallow: /deploy
+Disallow: /databases
+Disallow: /settings
+Disallow: /audit
+Disallow: /account
