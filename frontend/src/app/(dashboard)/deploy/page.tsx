@@ -67,7 +67,9 @@ function DeployPageInner() {
     <>
       <TopBar variant="title" title={t('deploy.title')} backHref="/" />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6 lg:flex-row">
+      {/* เพดานความกว้างเท่ากับ / และ /audit — ฟอร์มสองคอลัมน์บนจอ 27" ไม่งั้นยืดจนช่องกรอก
+          ยาวเป็นเมตรและระยะจากป้ายไปช่องไกลเกินกวาดตา */}
+      <div className="mx-auto flex w-full min-h-0 max-w-[1400px] flex-1 flex-col gap-5 overflow-auto p-6 lg:flex-row">
         <div className="w-full flex-none lg:w-[640px]">
           {!redeployAppId && (
             <div className="mb-[18px] flex w-fit gap-1 rounded-[9px] bg-page-alt p-1">

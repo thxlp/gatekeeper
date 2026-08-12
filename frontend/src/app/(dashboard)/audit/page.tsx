@@ -49,9 +49,9 @@ function AuditSkeleton({ t }: { t: TFunc }) {
   const rows = Array.from({ length: 7 });
   return (
     <>
-      <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
+      <div className="hidden overflow-clip rounded-[11px] border border-border bg-surface lg:block">
         <div
-          className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
+          className="sticky top-0 z-10 grid border-b border-border bg-surface px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
           style={{ gridTemplateColumns: COLS }}
         >
           <div>{t('audit.colTime')}</div>
@@ -73,7 +73,7 @@ function AuditSkeleton({ t }: { t: TFunc }) {
         ))}
       </div>
 
-      <div className="flex flex-col gap-2.5 sm:hidden">
+      <div className="flex flex-col gap-2.5 lg:hidden">
         {rows.map((_, i) => (
           <div key={i} className="rounded-[10px] border border-border bg-surface p-3">
             <div className="mb-2 flex items-center justify-between">
@@ -186,7 +186,7 @@ export default function AuditPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto p-6">
+      <div className="mx-auto w-full min-h-0 max-w-[1400px] flex-1 overflow-auto p-6">
         {/* ตัวกรอง — log โตขึ้นเรื่อยๆ ไล่หาด้วยตาเปล่าไม่ไหว */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-border bg-surface px-3 py-[7px] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25 sm:max-w-xs">
@@ -289,9 +289,9 @@ export default function AuditPage() {
 
         {rows && rows.length > 0 && (
           <>
-            <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
+            <div className="hidden overflow-clip rounded-[11px] border border-border bg-surface lg:block">
               <div
-                className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
+                className="sticky top-0 z-10 grid border-b border-border bg-surface px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
                 style={{ gridTemplateColumns: COLS }}
               >
                 <div>{t('audit.colTime')}</div><div>{t('audit.colStage')}</div><div>{t('audit.colDetail')}</div><div>{t('audit.colDecision')}</div>
@@ -302,7 +302,7 @@ export default function AuditPage() {
                 return (
                   <div
                     key={row.requestId + i}
-                    className={`grid items-center px-[18px] py-3 text-[14.5px] ${i < rows.length - 1 ? 'border-b border-border' : ''} ${
+                    className={`grid items-center px-[18px] py-3 text-[14.5px] transition-colors hover:bg-page-alt ${i < rows.length - 1 ? 'border-b border-border' : ''} ${
                       kind === 'warn' ? 'bg-[rgba(224,185,118,.05)]' : kind === 'danger' ? 'bg-[rgba(214,109,82,.04)]' : ''
                     }`}
                     style={{ gridTemplateColumns: COLS }}
@@ -318,7 +318,7 @@ export default function AuditPage() {
               })}
             </div>
 
-            <div className="flex flex-col gap-2.5 sm:hidden">
+            <div className="flex flex-col gap-2.5 lg:hidden">
               {rows.map((row, i) => {
                 const badge = stageBadge(row.stage);
                 const kind = decisionKind[row.decision] || 'allow';

@@ -48,6 +48,19 @@
   --color-input-fill: 35 32 25;
 }
 
+/* กรอบโฟกัสกลางของทั้งแอป — เดิมมี focus-visible เขียนเองแค่ 3 ไฟล์ ที่เหลือใช้ outline
+   ดีฟอลต์ของเบราว์เซอร์ซึ่งบนพื้นครีม/พื้นเข้มของธีมนี้แทบมองไม่เห็น (เดสก์ท็อปคือที่ที่คน
+   ไล่ Tab จริง เช่นฟอร์มยาวๆ ใน /deploy)
+   อยู่ใน @layer base โดยตั้งใจ: utility ทับได้ ช่องกรอกที่ออกแบบวงแหวนของตัวเองไว้แล้ว
+   (outline-none + focus:ring-2) จึงยังหน้าตาเหมือนเดิมทุกประการ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #4a90e2;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}
+
 body {
   background: rgb(var(--color-page));
   color: rgb(var(--color-ink));

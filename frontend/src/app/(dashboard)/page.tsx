@@ -142,7 +142,10 @@ function DashboardPageInner() {
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-1.5">
+      {/* จำกัดความกว้างเนื้อหาไว้ที่ 1400px แล้วจัดกลาง — บนจอ 27" ที่ไม่มีเพดาน ชื่อโปรเจกต์
+          จะอยู่ซ้ายสุดของจอส่วนปุ่ม action อยู่ขวาสุด ต้องกวาดตาข้ามจอทั้งใบเพื่ออ่านแถวเดียว
+          (ค่านี้ตั้งใจให้เท่ากันทั้ง /, /audit, /deploy — หน้าอื่นแคปแคบกว่านี้ตามเนื้อหา) */}
+      <div className="mx-auto w-full min-h-0 max-w-[1400px] flex-1 overflow-auto px-6 pb-6 pt-1.5">
         {error && <ErrorBanner className="mb-3" message={error} onRetry={retry} retrying={retrying} />}
 
         {!apps && !error && <ProjectsSkeleton t={t} />}
@@ -168,10 +171,16 @@ function DashboardPageInner() {
 
         {visible && visible.length > 0 && (
           <>
-            {/* table (desktop) */}
-            <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
+            {/* table (desktop) — เปิดที่ lg (1024px) ไม่ใช่ sm: ตาราง 6 คอลัมน์นี้บนหน้าต่าง
+                ~900px เหลือคอลัมน์ละ ~105px ซึ่งแคบกว่าวันที่เต็มรูปแบบในคอลัมน์ "อัปเดตเมื่อ"
+                ช่วง 640–1024px จึงใช้การ์ดข้างล่างแทน (คนที่แบ่งครึ่งจอกับ editor เจอทุกวัน)
+
+                overflow-clip ไม่ใช่ overflow-hidden: hidden สร้าง scroll container ทำให้
+                sticky ของหัวตารางตายสนิท ส่วน clip ยังตัดมุมโค้งให้เหมือนเดิมโดยไม่สร้าง
+                scroll container (Safari < 16 ไม่รู้จัก clip — เสียแค่มุมโค้งไม่ตัด ไม่พัง) */}
+            <div className="hidden overflow-clip rounded-[11px] border border-border bg-surface lg:block">
               <div
-                className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
+                className="sticky top-0 z-10 grid border-b border-border bg-surface px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
                 style={{ gridTemplateColumns: COLS }}
               >
                 <div>{t('projects.colApp')}</div>
@@ -192,7 +201,9 @@ function DashboardPageInner() {
                 return (
                   <div key={app.id}>
                     <div
-                      className={`grid items-center px-[18px] py-[13px] text-[14.5px] ${
+                      // hover: ยืนยันว่ากำลังชี้แถวไหนอยู่ก่อนกดปุ่มในคอลัมน์ขวาสุด — บนจอกว้าง
+                      // ชื่อโปรเจกต์กับปุ่มลบอยู่คนละฝั่งจอ ไม่มีอะไรโยงสองอย่างเข้าด้วยกันเลย
+                      className={`grid items-center px-[18px] py-[13px] text-[14.5px] transition-colors hover:bg-page-alt ${
                         i < visible.length - 1 && !editing ? 'border-b border-border' : ''
                       } ${rowTintByKind[meta.kind]}`}
                       style={{ gridTemplateColumns: COLS }}
@@ -243,8 +254,8 @@ function DashboardPageInner() {
               })}
             </div>
 
-            {/* card list (mobile) */}
-            <div className="flex flex-col gap-2.5 sm:hidden">
+            {/* card list — มือถือ + จอแคบกว่า lg (ดูเหตุผลที่ breakpoint ของตารางด้านบน) */}
+            <div className="flex flex-col gap-2.5 lg:hidden">
               {visible.map((app) => {
                 const meta = STATUS_META[app.pipelineStatus || 'idle'] || STATUS_META.idle;
                 const name = app.projectName || app.repoFullName || app.id;
@@ -281,7 +292,7 @@ function ProjectsSkeleton({ t }: { t: TFunc }) {
   const rows = Array.from({ length: 4 });
   return (
     <>
-      <div className="hidden overflow-hidden rounded-[11px] border border-border bg-surface sm:block">
+      <div className="hidden overflow-clip rounded-[11px] border border-border bg-surface lg:block">
         <div
           className="grid border-b border-border px-[18px] py-2.5 text-[12.5px] font-semibold uppercase tracking-[.6px] text-muted-3"
           style={{ gridTemplateColumns: COLS }}
@@ -317,7 +328,7 @@ function ProjectsSkeleton({ t }: { t: TFunc }) {
         ))}
       </div>
 
-      <div className="flex flex-col gap-2.5 sm:hidden">
+      <div className="flex flex-col gap-2.5 lg:hidden">
         {rows.map((_, i) => (
           <div key={i} className="flex items-center gap-3 rounded-[10px] border border-border bg-surface p-3">
             <Skeleton className="h-2 w-2 rounded-full" />
