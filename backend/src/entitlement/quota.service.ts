@@ -3,11 +3,14 @@ import { GitApp } from '../common/types';
 import { GitAppStore } from '../apps/git-app.store';
 import { ADDON_CPU, ADDON_MEMORY_MB, appResources } from '../deploy/docker-runtime.service';
 
-// โควต้าทรัพยากรรวมต่อ user — ค่า default มาจากการเฉลี่ยเครื่อง (1 CPU / 2GB, กัน ~20 user)
+// โควต้าทรัพยากรรวมต่อ user — หารพูลรวมเท่าๆ กันตามจำนวน user ที่ตั้งใจรองรับ
+// พูลรวมเดิม (ฐาน 30 user × 256 MB / 0.5 CPU) = 7680 MB / 15 CPU
+// แบ่งใหม่ให้ 15 user เท่าๆ กัน → 7680/15 = 512 MB, 15/15 = 1 CPU ต่อคน
 // แบบ overcommit: เป็นเพดานของ "ผลรวม limit" ไม่ใช่การจองจริง (app ส่วนใหญ่ idle ต่ำกว่า limit มาก)
+// เครื่องจริงมีแค่ 1 CPU / 2GB — ตัวเลขนี้จึงเป็นเพดานกันคนเดียวกินหมด ไม่ใช่การรับประกันทรัพยากร
 // จำนวน app ไม่จำกัด — จำกัดแค่ผลรวมทรัพยากร ใครอยากได้หลาย app ให้ตั้ง memoryMb ต่อ app เล็กลง
-const USER_QUOTA_MEMORY_MB = Number(process.env.USER_QUOTA_MEMORY_MB || 256);
-const USER_QUOTA_CPU = Number(process.env.USER_QUOTA_CPU || 0.5);
+const USER_QUOTA_MEMORY_MB = Number(process.env.USER_QUOTA_MEMORY_MB || 512);
+const USER_QUOTA_CPU = Number(process.env.USER_QUOTA_CPU || 1);
 
 export interface QuotaSummary {
   memoryUsedMb: number; // ผลรวม limit ที่ app+addon ของ user จองไว้ (ไม่ใช่ RAM ที่ใช้จริงขณะนี้)
