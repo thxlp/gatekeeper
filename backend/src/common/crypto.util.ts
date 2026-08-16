@@ -67,7 +67,9 @@ export function decryptSecret(value: string): string {
   if (!isEncryptedSecret(value)) return value;
 
   const [iv, tag, ct] = value.slice(VERSION_PREFIX.length).split(':');
-  if (!iv || !tag || !ct) throw new Error('รูปแบบ ciphertext ไม่ถูกต้อง');
+  // ct ว่างได้ — encryptSecret('') ให้ ciphertext ว่างเป็นเรื่องปกติ (secret ที่ค่าว่างจริงๆ)
+  // ห้ามเช็ค !ct: เคยทำให้ decrypt ทั้ง store พัง -> readAll() throw -> backend crash-loop ทั้งคู่
+  if (!iv || !tag || ct === undefined) throw new Error('รูปแบบ ciphertext ไม่ถูกต้อง');
 
   const decipher = crypto.createDecipheriv(ALGO, loadMasterKey(), Buffer.from(iv, 'base64'));
   decipher.setAuthTag(Buffer.from(tag, 'base64'));

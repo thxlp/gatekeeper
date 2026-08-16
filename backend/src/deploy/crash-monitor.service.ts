@@ -44,7 +44,12 @@ export class CrashMonitorService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('crash-monitor disabled on this instance (CRASH_MONITOR_ENABLED=0)');
       return;
     }
-    this.timer = setInterval(() => void this.tick(), INTERVAL_MS);
+    // .catch() ไม่ใช่ของประดับ: tick() อ่าน store ซึ่ง throw ได้ (decrypt ไม่ผ่าน/ไฟล์เสีย)
+    // ถ้าปล่อยเป็น unhandled rejection = Node ฆ่าทั้ง instance = เว็บล่ม ไม่ใช่แค่ monitor ตาย
+    this.timer = setInterval(
+      () => void this.tick().catch((err) => this.logger.error(`crash-monitor tick ล้มเหลว: ${err?.message || err}`)),
+      INTERVAL_MS,
+    );
     // unref เพื่อไม่ให้ timer ค้าง process ตอน shutdown (test/CLI)
     this.timer.unref?.();
   }

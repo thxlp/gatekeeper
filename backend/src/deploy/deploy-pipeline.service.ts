@@ -52,9 +52,12 @@ export class DeployPipelineService implements OnModuleInit {
   onModuleInit(): void {
     // sweeper ลบ volume ของ addon ที่ retired พ้น retention — รันทั้ง backend-1/2 ได้พร้อมกัน
     // ไม่เป็นไร (ลบซ้ำ = 404 = ถือว่าสำเร็จ) unref กัน timer ค้างตอน shutdown ใน test/CLI
-    const timer = setInterval(() => void this.sweepRetiredAddonVolumes(), ADDON_VOLUME_SWEEP_INTERVAL_MS);
+    // งานเบื้องหลังห้ามล้ม process: reject ที่ไม่ถูก catch = unhandled rejection = Node ฆ่า
+    // ทั้ง instance (เคยเกิดจริง — store มี secret เสียตัวเดียว แล้วเว็บล่มทั้งระบบ)
+    const sweep = () => this.sweepRetiredAddonVolumes().catch((err) => this.logger.error(`sweep addon volume ล้มเหลว: ${err?.message || err}`));
+    const timer = setInterval(sweep, ADDON_VOLUME_SWEEP_INTERVAL_MS);
     timer.unref?.();
-    void this.sweepRetiredAddonVolumes(); // กวาดหนึ่งรอบตอน boot — ของที่ครบกำหนดระหว่าง backend down ไม่ต้องรออีกชั่วโมง
+    void sweep(); // กวาดหนึ่งรอบตอน boot — ของที่ครบกำหนดระหว่าง backend down ไม่ต้องรออีกชั่วโมง
   }
 
   /**
