@@ -22,7 +22,7 @@ export default function MobileTabBar() {
     // h-[60px] คือความสูงของแถวแท็บจริง ส่วน gk-safe-bottom เติมพื้นที่ใต้แถวให้เท่ากับ
     // home indicator (box-content จึงไม่ไปบีบแถวแท็บให้เตี้ยลง) — ระยะรวมนี้ต้องตรงกับ
     // padding-bottom ของ (dashboard)/layout.tsx
-    <nav className="gk-safe-bottom gk-safe-x fixed inset-x-0 bottom-0 z-40 box-content flex h-[60px] items-stretch border-t border-border bg-surface sm:hidden">
+    <nav className="gk-safe-bottom gk-safe-x fixed inset-x-0 bottom-0 z-40 box-content flex h-[60px] items-stretch border-t border-border bg-surface lg:hidden">
       {tabs.map((tab) => {
         const active = tab.match(pathname);
         return (

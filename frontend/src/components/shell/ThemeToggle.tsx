@@ -5,9 +5,9 @@ import { useLang, type MsgKey } from '@/lib/i18n';
 
 // Compact icon button for the icon rail — always sets an explicit
 // light/dark preference (ignores "system"), for a quick one-click switch.
-// `label`, when passed, renders as a fade-in span next to the icon (for the
-// rail's hover-to-expand state) — pass a group-hover opacity class via
-// `labelClassName` to control when it reveals.
+// `label`, when passed, renders as a span next to the icon (the rail is
+// permanently expanded now) — `labelClassName` styles it to match the rail's
+// other rows.
 export function ThemeToggleButton({
   className = '',
   label,

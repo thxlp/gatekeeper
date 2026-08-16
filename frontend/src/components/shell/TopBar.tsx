@@ -32,8 +32,10 @@ export default function TopBar({
   const searchable = variant === 'actions' && !!onSearchChange;
   const [startersOpen, setStartersOpen] = useState(false);
 
-  // มือถือไม่มี IconRail (ซ่อนที่ <sm) ของที่อยู่แต่ใน rail จึงเข้าไม่ถึงเลยบนจอเล็ก
-  // ย้ายมาไว้แถบบนแทน วางทั้งสอง variant เพื่อให้กดได้ทุกหน้าเหมือน rail ฝั่ง desktop
+  // จอแคบกว่า lg ไม่มี IconRail (แถบซ้ายกางค้าง 208px จึงเปิดเฉพาะ lg ขึ้นไป) ของที่อยู่
+  // แต่ใน rail จึงเข้าไม่ถึงเลย ย้ายมาไว้แถบบนแทน วางทั้งสอง variant เพื่อให้กดได้ทุกหน้า
+  // ⚠️ ปุ่มพวกนี้ต้องเป็น lg:hidden ให้ตรงกับ breakpoint ของ IconRail เสมอ ถ้าเลื่อนอันใด
+  // อันหนึ่งแล้วลืมอีกอัน จะมีช่วงความกว้างที่เข้าหน้าบัญชี/ออกจากระบบไม่ได้เลย
   //
   // ปุ่มบัญชีสำคัญเป็นพิเศษ: /account ถูกลิงก์จาก IconRail ที่เดียว และปุ่ม "ออกจากระบบ"
   // อยู่ในหน้านั้น — ก่อนหน้านี้ผู้ใช้มือถือจึงออกจากระบบไม่ได้เลย
@@ -42,14 +44,14 @@ export default function TopBar({
       <button
         onClick={() => setStartersOpen(true)}
         aria-label={t('nav.starterFiles')}
-        className="gk-tap flex-none rounded-[7px] p-1.5 text-muted transition-colors hover:bg-page-alt hover:text-ink sm:hidden"
+        className="gk-tap flex-none rounded-[7px] p-1.5 text-muted transition-colors hover:bg-page-alt hover:text-ink lg:hidden"
       >
         <i className="ph ph-download-simple text-xl" />
       </button>
       <Link
         href="/account"
         aria-label={t('nav.account')}
-        className="gk-tap h-8 w-8 flex-none rounded-full bg-primary text-white sm:hidden"
+        className="gk-tap h-8 w-8 flex-none rounded-full bg-primary text-white lg:hidden"
       >
         <i className="ph-fill ph-user text-sm" />
       </Link>
@@ -119,15 +121,15 @@ export default function TopBar({
             {/* ?tab=manual — ไม่งั้นไปตกแท็บ GitHub Repo ซึ่งไม่ตรงกับชื่อปุ่ม */}
             <Link
               href="/deploy?tab=manual"
-              className="hidden items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[15px] font-medium text-ink-soft hover:bg-page-alt sm:flex"
+              className="hidden items-center gap-1.5 rounded-[7px] border border-border bg-surface px-3.5 py-2 text-[15px] font-medium text-ink-soft hover:bg-page-alt lg:flex"
             >
               <i className="ph ph-upload-simple" /> {t('nav.manualDeploy')}
             </Link>
-            {/* มือถือซ่อนปุ่มนี้ — ปุ่มลอย (FAB) ใน MobileTabBar พาไป /deploy อยู่แล้ว
+            {/* จอแคบกว่า lg ซ่อนปุ่มนี้ — แท็บ "ดีพลอย" ในแถบล่างพาไป /deploy อยู่แล้ว
                 และคืนที่ให้ช่องค้นหาซึ่งเดิมถูกซ่อนทั้งแถบบนจอเล็ก */}
             <Link
               href="/deploy"
-              className="hidden items-center gap-1.5 rounded-[7px] bg-primary px-4 py-2 text-[15px] font-semibold text-white hover:bg-primary-hover sm:flex"
+              className="hidden items-center gap-1.5 rounded-[7px] bg-primary px-4 py-2 text-[15px] font-semibold text-white hover:bg-primary-hover lg:flex"
             >
               <i className="ph-fill ph-github-logo" /> {t('nav.deployFromGithub')}
             </Link>

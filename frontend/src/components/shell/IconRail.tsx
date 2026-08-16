@@ -47,13 +47,9 @@ const items: RailItem[] = [
   },
 ];
 
-// Label fades in once the rail has mostly finished expanding, so text
-// doesn't smear across the collapsed width mid-transition.
-// group-focus-within คู่กับ group-hover เสมอ: คนที่ไล่ Tab เข้ามาในแถบต้องเห็นป้ายกำกับด้วย
-// ไม่ใช่เห็นแค่กรอบโฟกัสวิ่งอยู่บนไอคอนเปล่าๆ (aria-label มีครบอยู่แล้ว แต่ช่วยเฉพาะ
-// screen reader — คนตาดีที่ใช้คีย์บอร์ดไม่ได้อะไรเลย)
-const LABEL_CLASS =
-  'truncate text-[14px] font-medium opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-hover:delay-100 group-focus-within:opacity-100 group-focus-within:delay-100';
+// แถบกางค้างตลอด ป้ายกำกับจึงแสดงตรงๆ ไม่มี opacity/transition แล้ว (เดิมแถบหุบอยู่ที่
+// 58px แล้วกางตอน hover — ป้ายต้อง fade เข้าทีหลังกันตัวหนังสือเลอะระหว่างแถบกำลังกาง)
+const LABEL_CLASS = 'truncate text-[14px] font-medium';
 
 // ช่อง icon กว้างคงที่ = footprint ของกล่องโลโก้ (34px) → glyph เดี่ยวจัดกลางในแถบตอนหุบ
 // และป้าย label เรียงตรงกับป้ายโลโก้ตอนกาง
@@ -73,11 +69,12 @@ export default function IconRail() {
 
   return (
     <>
-      {/* reserves the collapsed width in the layout so content never shifts
-          when the rail expands — the rail itself floats on top as an overlay */}
-      <div className="hidden w-[58px] flex-none sm:block" />
+      {/* แถบกางค้างที่ 208px ตลอด ไม่หุบ ไม่มี hover-to-expand แล้ว — จึงเป็นสมาชิกปกติของ
+          flex ใน layout ไม่ต้องลอยทับแล้วมี div เปล่าจองที่ไว้ให้เหมือนเดิมอีก
 
-      <nav className="group absolute inset-y-0 left-0 z-30 hidden w-[58px] bg-rail py-3.5 transition-[width] duration-150 ease-out hover:w-[208px] hover:shadow-2xl focus-within:w-[208px] focus-within:shadow-2xl sm:block">
+          เปิดที่ lg (1024px) ไม่ใช่ sm: 208px บนหน้าต่าง 640px คือกินพื้นที่ไปหนึ่งในสาม
+          ช่วง 640–1024px จึงใช้แถบแท็บล่างแทน (breakpoint เดียวกับที่ตาราง/การ์ดสลับกัน) */}
+      <nav className="hidden w-[208px] flex-none bg-rail py-3.5 lg:block">
         <div className="flex h-full flex-col overflow-hidden">
           <Link href="/" aria-label={t('nav.home')} className="mb-3 flex h-[38px] w-full flex-none items-center gap-3 pl-[10px] text-white">
             <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] bg-primary">

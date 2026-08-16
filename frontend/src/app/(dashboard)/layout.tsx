@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <IconRail />
       {/* เว้นที่ให้แถบแท็บล่าง (60px) + safe area ของ home indicator — ต้องตรงกับความสูงจริง
           ของ nav ใน MobileTabBar ถ้าแก้ที่นั่นต้องแก้ที่นี่ด้วย */}
-      <div className="flex min-w-0 flex-1 flex-col pb-[calc(60px_+_env(safe-area-inset-bottom,0px))] sm:pb-0">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(60px_+_env(safe-area-inset-bottom,0px))] lg:pb-0">
         {children}
       </div>
       <MobileTabBar />
