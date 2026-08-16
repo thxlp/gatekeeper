@@ -97,7 +97,15 @@ export class AuditService {
    */
   queryByAccount(
     accountId: string,
-    opts: { decision?: string; q?: string; from?: string; to?: string; offset?: number; limit?: number } = {},
+    opts: {
+      decision?: string;
+      stage?: string;
+      q?: string;
+      from?: string;
+      to?: string;
+      offset?: number;
+      limit?: number;
+    } = {},
   ): { rows: AuditEntry[]; total: number; hasMore: boolean } {
     const offset = Math.max(0, opts.offset ?? 0);
     const limit = Math.min(500, Math.max(1, opts.limit ?? 100));
@@ -110,6 +118,9 @@ export class AuditService {
 
     const matched = this.readByAccount(accountId)
       .filter((e) => !opts.decision || e.decision === opts.decision)
+      // stage เทียบตรงๆ (ไม่ใช่ substring) — ใช้แยกสตรีมย่อยเช่นประวัติ managed-db ออกจาก
+      // audit รวมของทั้งบัญชี โดยไม่พึ่งการค้นข้อความที่อาจ false-positive กับ reason ของ stage อื่น
+      .filter((e) => !opts.stage || e.stage === opts.stage)
       .filter((e) => !needle || this.haystack(e).includes(needle))
       .filter((e) => {
         if (fromMs === undefined && toMs === undefined) return true;

@@ -313,6 +313,18 @@ export const th = {
   'db.attachNeedsRedeploy': 'แอปที่เชื่อมไว้ต้องดีพลอยใหม่ค่าถึงจะมีผล (ค่า env ผูกตอนสร้าง container)',
   'db.internalOnly':
     'connection เป็น internal เท่านั้น (host คือชื่อ container) — ต่อได้จากแอปของคุณในเครือข่ายเดียวกัน ไม่เปิดออกอินเทอร์เน็ต',
+  'db.historyTitle': 'ประวัติการใช้งาน',
+  'db.historyEmpty': 'ยังไม่มีการเปลี่ยนแปลง',
+  'db.historyLoadError': 'โหลดประวัติไม่สำเร็จ',
+  'db.historyColTime': 'เวลา',
+  'db.historyColEvent': 'เหตุการณ์',
+  'db.historyColDetail': 'รายละเอียด',
+  'db.eventCreate': 'สร้างฐานข้อมูล',
+  'db.eventDelete': 'ลบฐานข้อมูล',
+  'db.eventAttach': 'เชื่อมกับแอป',
+  'db.eventDetach': 'ถอดออกจากแอป',
+  'db.historyDetailPlain': '{name} ({engine})',
+  'db.historyDetailLink': '{name} ↔ {app}',
 
   // ===== หน้า Settings =====
   'settings.title': 'ตั้งค่า',

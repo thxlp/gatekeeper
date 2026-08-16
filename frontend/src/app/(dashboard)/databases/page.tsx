@@ -6,8 +6,8 @@ import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
-import { GitAppSummary, ManagedDbSummary } from '@/types';
-import { useLang } from '@/lib/i18n';
+import { AuditEntry, GitAppSummary, ManagedDbSummary } from '@/types';
+import { useLang, localeTag, type TFunc } from '@/lib/i18n';
 
 const POLL_MS = 2500;
 
@@ -17,6 +17,39 @@ const ENGINES: { key: 'postgres' | 'redis' | 'mysql'; label: string; icon: strin
   { key: 'mysql', label: 'MySQL', icon: 'ph-hard-drives' },
 ];
 const engineMeta = (e: string) => ENGINES.find((x) => x.key === e) ?? ENGINES[0];
+
+const HISTORY_COLS = '150px 150px 1fr';
+
+/**
+ * แปลง AuditEntry ของ managed-db (เขียนโดย ManagedDbService.auditLog — reason เป็น
+ * "db:<action>: <detail>" เสมอ) เป็นข้อความอ่านง่ายสำหรับตารางประวัติ ไม่ใช่ audit trail
+ * ระดับ query จริงในตัว DB (backend ไม่ได้เห็นทราฟฟิกข้างใน container) แค่เหตุการณ์
+ * สร้าง/ลบ/เชื่อม/ถอด ที่ผ่าน UI นี้เท่านั้น
+ */
+function describeDbEvent(
+  e: AuditEntry,
+  t: TFunc,
+  appName: (id: string) => string,
+): { eventLabel: string; detail: string } {
+  const m = (e.reason || '').match(/^db:(create|delete|attach|detach):\s*(.*)$/);
+  if (!m) return { eventLabel: e.stage, detail: e.reason || '—' };
+  const [, action, rest] = m;
+  if (action === 'create' || action === 'delete') {
+    const [engine, ...nameParts] = rest.split(' ');
+    return {
+      eventLabel: t(action === 'create' ? 'db.eventCreate' : 'db.eventDelete'),
+      detail: t('db.historyDetailPlain', { name: nameParts.join(' ') || rest, engine: engineMeta(engine).label }),
+    };
+  }
+  const sep = action === 'attach' ? ' → app ' : ' ✕ app ';
+  const idx = rest.indexOf(sep);
+  const label = t(action === 'attach' ? 'db.eventAttach' : 'db.eventDetach');
+  if (idx === -1) return { eventLabel: label, detail: rest };
+  return {
+    eventLabel: label,
+    detail: t('db.historyDetailLink', { name: rest.slice(0, idx), app: appName(rest.slice(idx + sep.length)) }),
+  };
+}
 
 function StatusBadge({ db }: { db: ManagedDbSummary }) {
   if (db.status === 'running')
@@ -45,11 +78,13 @@ function StatusBadge({ db }: { db: ManagedDbSummary }) {
 }
 
 export default function DatabasesPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const toast = useToast();
   const confirm = useConfirm();
   const [dbs, setDbs] = useState<ManagedDbSummary[] | null>(null);
   const [apps, setApps] = useState<GitAppSummary[]>([]);
+  const [history, setHistory] = useState<AuditEntry[] | null>(null);
+  const [historyError, setHistoryError] = useState('');
   // แยก error ของ "โหลดรายการ" (กดลองใหม่ได้) ออกจาก error ของการกดปุ่ม (เด้ง toast)
   // ปุ่มลองใหม่ที่ไปโหลดรายการซ้ำไม่ตรงกับสิ่งที่ผู้ใช้เพิ่งกดพลาด เช่นลบไม่สำเร็จ
   const [loadError, setLoadError] = useState('');
@@ -80,9 +115,21 @@ export default function DatabasesPage() {
     setRetrying(false);
   };
 
+  // stage='managed-db' กรองเฉพาะเหตุการณ์ของหน้านี้ ไม่ปนกับ audit รวมของทั้งบัญชี (ดู /audit)
+  const loadHistory = async () => {
+    try {
+      const page = await api.getMyAudit({ stage: 'managed-db', limit: 50 });
+      setHistory(page.rows);
+      setHistoryError('');
+    } catch (e: any) {
+      setHistoryError(e.message);
+    }
+  };
+
   useEffect(() => {
     load();
     api.listGitApps().then(setApps).catch((e: any) => toast.error(e.message));
+    loadHistory();
   }, []);
 
   // poll เฉพาะตอนมี DB กำลัง provision อยู่ (ไม่ poll ตลอด)
@@ -116,6 +163,7 @@ export default function DatabasesPage() {
       toast.success(t('toast.dbCreated', { name: dbName }));
       setName('');
       await load();
+      void loadHistory();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -142,6 +190,7 @@ export default function DatabasesPage() {
       const updated = await api.databases.attach(id, appId);
       setDbs((prev) => (prev || []).map((d) => (d.id === id ? updated : d)));
       toast.success(t('toast.dbAttached', { name: appName(appId) }));
+      void loadHistory();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -155,6 +204,7 @@ export default function DatabasesPage() {
       const updated = await api.databases.detach(id, appId);
       setDbs((prev) => (prev || []).map((d) => (d.id === id ? updated : d)));
       toast.success(t('toast.dbDetached', { name: appName(appId) }));
+      void loadHistory();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -176,6 +226,7 @@ export default function DatabasesPage() {
       await api.databases.remove(db.id);
       toast.success(t('toast.dbDeleted', { name: db.name }));
       setDbs((prev) => (prev || []).filter((d) => d.id !== db.id));
+      void loadHistory();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -365,6 +416,68 @@ export default function DatabasesPage() {
           <div className="mt-5 text-[12.5px] text-muted-3">
             <i className="ph ph-lock-simple mr-1" />
             {t('db.internalOnly')}
+          </div>
+
+          {/* ประวัติการใช้งาน — เหตุการณ์สร้าง/ลบ/เชื่อม/ถอด ต่อบัญชี ดึงจาก audit log
+              stage='managed-db' (ดู describeDbEvent) ไม่ใช่ query log ของตัว DB */}
+          <div className="mt-6">
+            <div className="mb-2 text-[15px] font-bold">{t('db.historyTitle')}</div>
+
+            {historyError && <ErrorBanner className="mb-3" message={historyError} onRetry={loadHistory} />}
+            {!history && !historyError && <p className="text-[14.5px] text-muted">{t('common.loading')}</p>}
+            {history && history.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border-alt bg-surface p-4 text-center text-[13.5px] text-muted-3">
+                {t('db.historyEmpty')}
+              </p>
+            )}
+
+            {history && history.length > 0 && (
+              <>
+                <div className="hidden overflow-clip rounded-[11px] border border-border-alt bg-surface lg:block">
+                  <div
+                    className="grid border-b border-border-alt px-4 py-2 text-[12px] font-semibold uppercase tracking-[.6px] text-muted-3"
+                    style={{ gridTemplateColumns: HISTORY_COLS }}
+                  >
+                    <div>{t('db.historyColTime')}</div>
+                    <div>{t('db.historyColEvent')}</div>
+                    <div>{t('db.historyColDetail')}</div>
+                  </div>
+                  {history.map((row, i) => {
+                    const { eventLabel, detail } = describeDbEvent(row, t, appName);
+                    return (
+                      <div
+                        key={row.requestId + i}
+                        className={`grid items-center px-4 py-2.5 text-[13.5px] ${i < history.length - 1 ? 'border-b border-border-alt' : ''}`}
+                        style={{ gridTemplateColumns: HISTORY_COLS }}
+                      >
+                        <div className="font-mono text-[12.5px] text-muted">
+                          {new Date(row.ts).toLocaleString(localeTag(lang))}
+                        </div>
+                        <div className="text-ink-soft">{eventLabel}</div>
+                        <div className="truncate text-ink-soft" title={detail}>
+                          {detail}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-col gap-2 lg:hidden">
+                  {history.map((row, i) => {
+                    const { eventLabel, detail } = describeDbEvent(row, t, appName);
+                    return (
+                      <div key={row.requestId + i} className="rounded-[10px] border border-border-alt bg-surface p-3">
+                        <div className="text-[13.5px] font-semibold text-ink-soft">{eventLabel}</div>
+                        <div className="mt-0.5 text-[13px] text-ink-soft">{detail}</div>
+                        <div className="mt-1 font-mono text-[12px] text-muted-3">
+                          {new Date(row.ts).toLocaleString(localeTag(lang))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

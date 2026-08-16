@@ -18,6 +18,7 @@ export class AuditController {
   getMyLogs(
     @Req() req: any,
     @Query('decision') decision?: string,
+    @Query('stage') stage?: string,
     @Query('q') q?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -28,6 +29,9 @@ export class AuditController {
     return this.svc.queryByAccount(getAccount(req).id, {
       // ค่าที่ไม่รู้จักถือว่าไม่กรอง — ดีกว่าตอบ 400 ให้หน้าเว็บพังเพราะ query เพี้ยน
       decision: decision && DECISIONS.includes(decision) ? decision : undefined,
+      // stage เป็น free-form string ฝั่ง backend (ดู AuditEntry) — ไม่มี enum ตายตัวให้เช็ค
+      // เหมือน decision จึงส่งผ่านตรงๆ (แค่ตัดว่างทิ้งกัน query string เพี้ยน)
+      stage: stage?.trim() || undefined,
       q,
       // from/to เป็น ISO instant (frontend คำนวณขอบวันตาม timezone ของผู้ใช้มาให้แล้ว)
       // ค่าที่ parse ไม่ได้ถูกมองข้ามใน service

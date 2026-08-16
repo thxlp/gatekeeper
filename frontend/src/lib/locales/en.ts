@@ -317,6 +317,18 @@ export const en: Record<keyof typeof th, string> = {
   'db.attachNeedsRedeploy': 'Connected apps need a redeploy for this to take effect (env values are baked in at container creation)',
   'db.internalOnly':
     'Connections are internal only (the host is a container name) — reachable from your apps on the same network, never exposed to the internet',
+  'db.historyTitle': 'Activity history',
+  'db.historyEmpty': 'No activity yet',
+  'db.historyLoadError': 'Could not load history',
+  'db.historyColTime': 'Time',
+  'db.historyColEvent': 'Event',
+  'db.historyColDetail': 'Detail',
+  'db.eventCreate': 'Created database',
+  'db.eventDelete': 'Deleted database',
+  'db.eventAttach': 'Connected to app',
+  'db.eventDetach': 'Disconnected from app',
+  'db.historyDetailPlain': '{name} ({engine})',
+  'db.historyDetailLink': '{name} ↔ {app}',
 
   // ===== settings page =====
   'settings.title': 'Settings',
