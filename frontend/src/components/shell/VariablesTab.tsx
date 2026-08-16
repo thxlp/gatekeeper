@@ -89,6 +89,9 @@ export default function VariablesTab({
   };
 
   const saveEdit = async (key: string) => {
+    // ค่าเดิมถูก mask ไว้ ผู้ใช้มองไม่เห็นว่าตอนนี้มีค่าอะไรอยู่ — กันเผลอกด Save/Enter
+    // ตอนช่องยังว่าง (สถานะเริ่มต้นทันทีที่กดแก้) ซึ่งจะทับค่าจริงเป็นสตริงว่างแบบเงียบๆ
+    if (!editValue.trim()) return;
     const ok = await run(() => api.env.set(appId, key, editValue));
     if (ok) {
       toast.success(t('toast.varSaved', { key }));
@@ -230,7 +233,7 @@ export default function VariablesTab({
                   <div className="flex flex-none items-center justify-end gap-1.5">
                     <button
                       onClick={() => saveEdit(v.key)}
-                      disabled={busy}
+                      disabled={busy || !editValue.trim()}
                       className="rounded-md bg-primary px-2.5 py-1 text-[13px] font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                     >
                       {t('common.save')}
