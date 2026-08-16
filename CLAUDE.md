@@ -8,3 +8,9 @@
   ใน docker เหลือแค่ postgres + docker-socket-proxy (127.0.0.1) กับ tenant apps ของลูกค้า
 - ทุก service บน host ต้อง bind 127.0.0.1 เท่านั้น (ยกเว้น nginx) — กัน tenant container
   ยิงเข้า host ผ่าน bridge gateway IP
+- build ได้ทางเดียวคือ `bash deployments/host/deploy.sh` และต้องรันโดย user dup (ห้าม sudo, ห้าม claudebot)
+  ห้ามสั่ง `pnpm build` เดี่ยวๆ — NEXT_PUBLIC_* หายตอน build แล้ว prerender พังทุกหน้า เว็บล่ม
+- ตรวจสุขภาพระบบ: `bash deployments/host/healthcheck.sh` (ไม่ต้อง sudo/docker — unit, healthz,
+  เส้นทางผ่าน nginx, disk/RAM, วันหมดอายุ cert) ดูวิธีดูแลช่วงปล่อยรันยาวที่ deployments/host/OPS-PRESENTATION.md
+- claudebot อ่าน journalctl ไม่ได้ (ไม่อยู่ใน group adm) — verify หลัง deploy ให้ยิง HTTP probe ผ่าน nginx
+  (challenge cookie → /api/healthz) แทนการอ่าน log
