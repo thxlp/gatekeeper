@@ -20,8 +20,10 @@ const TITLE_KEYS: Array<[prefix: string, key: MsgKey]> = [
 
 function titleKeyFor(pathname: string): MsgKey | null {
   if (pathname === '/') return 'nav.projects';
-  // /apps/[id] ตั้งชื่อเอง (ใช้ชื่อแอปจริงที่โหลดมา) — คืน null ไม่ให้ layout ไปทับ
+  // /apps/[id] และ /databases/[id] ตั้งชื่อเอง (ใช้ชื่อจริงที่โหลดมา) — คืน null ไม่ให้ layout ไปทับ
+  // (effect ของ layout ทำงานหลัง effect ของหน้าลูก ถ้าไม่กันตรงนี้ชื่อของหน้าลูกจะโดนเขียนทับทันที)
   if (pathname.startsWith('/apps')) return null;
+  if (/^\/databases\/[^/]+/.test(pathname)) return null;
   return TITLE_KEYS.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? null;
 }
 

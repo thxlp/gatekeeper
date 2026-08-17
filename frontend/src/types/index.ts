@@ -144,6 +144,63 @@ export interface DbConnection {
   dbName: string;
 }
 
+// ===== SQL console / table browser (หน้า /databases/[id]) =====
+
+// รายชื่อตาราง — rows เป็นค่าประมาณจาก statistics ของ engine (reltuples / table_rows)
+// ไม่ใช่ COUNT(*) จริง เพราะนับจริงบนตารางใหญ่คือ full scan
+export interface DbTableInfo {
+  name: string;
+  schema?: string;
+  rows: number;
+}
+
+// ผลของ POST /databases/:id/query
+// rows เป็นอาเรย์เรียงตาม columns (ไม่ใช่ object) — คอลัมน์ชื่อซ้ำกันได้ในผล join
+export interface DbQueryResult {
+  kind: 'read' | 'write';
+  verb: string;
+  columns: string[];
+  rows: unknown[][];
+  rowCount: number;
+  truncated: boolean;
+  durationMs: number;
+  // write ที่ยังไม่ส่ง confirm — backend rollback ให้แล้ว บอกแค่ว่าจะกระทบกี่แถว
+  preview?: boolean;
+  affectedRows?: number;
+}
+
+// ===== Redis console =====
+// ttl: -1 = ไม่หมดอายุ, -2 = ไม่มี key แล้ว
+export interface RedisKeyRow {
+  key: string;
+  type: string;
+  ttl: number;
+}
+
+export interface RedisKeyPage {
+  keys: RedisKeyRow[];
+  cursor: string;
+  done: boolean;
+}
+
+export interface RedisKeyValue {
+  key: string;
+  type: string;
+  ttl: number;
+  value: unknown;
+  truncated: boolean;
+}
+
+// คำสั่งที่เขียนข้อมูลรอบแรกได้ preview (สถานะ key ปัจจุบัน) รอบสองที่ส่ง confirm ถึงรันจริง
+export type RedisCommandResult =
+  | {
+      preview: true;
+      command: string;
+      key: string | null;
+      current: { exists: boolean; type?: string; ttl?: number; value?: unknown } | null;
+    }
+  | { preview: false; command: string; result: unknown };
+
 export interface DeployOutcome {
   id?: string;
   // manual deploy ตอบ { id, status: 'deploying' } ทันที (pipeline วิ่ง background) —

@@ -1,22 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import TopBar from '@/components/shell/TopBar';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
 import { AuditEntry, GitAppSummary, ManagedDbSummary } from '@/types';
+import { ENGINES, engineMeta } from '@/lib/db-engines';
 import { useLang, localeTag, type TFunc } from '@/lib/i18n';
 
 const POLL_MS = 2500;
-
-const ENGINES: { key: 'postgres' | 'redis' | 'mysql'; label: string; icon: string }[] = [
-  { key: 'postgres', label: 'PostgreSQL', icon: 'ph-database' },
-  { key: 'redis', label: 'Redis', icon: 'ph-lightning' },
-  { key: 'mysql', label: 'MySQL', icon: 'ph-hard-drives' },
-];
-const engineMeta = (e: string) => ENGINES.find((x) => x.key === e) ?? ENGINES[0];
 
 const HISTORY_COLS = '150px 150px 1fr';
 
@@ -337,6 +332,22 @@ export default function DatabasesPage() {
                       </div>
                     </div>
                     <div className="flex flex-none items-center justify-end gap-1.5">
+                      {/* ทางเข้า console (ดูตาราง/รันคิวรี) — เปิดได้เฉพาะตอน container รันอยู่
+                          เพราะ backend ต่อเข้า container ตรงๆ ไม่มีอะไรให้ต่อถ้ามันหยุด */}
+                      <Link
+                        href={`/databases/${db.id}`}
+                        aria-disabled={db.status !== 'running'}
+                        onClick={(e) => db.status !== 'running' && e.preventDefault()}
+                        title={t('dbc.open')}
+                        className={`gk-tap gap-1.5 rounded-lg border border-border-alt px-2.5 py-1.5 text-[13px] font-semibold ${
+                          db.status === 'running'
+                            ? 'text-ink-soft hover:border-primary hover:text-primary'
+                            : 'pointer-events-none opacity-40'
+                        }`}
+                      >
+                        <i className="ph ph-terminal-window" />
+                        {t('dbc.open')}
+                      </Link>
                       <button
                         onClick={() => copyConnection(db.id)}
                         disabled={db.status !== 'running'}

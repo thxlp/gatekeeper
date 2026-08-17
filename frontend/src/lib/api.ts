@@ -3,6 +3,8 @@ import {
   AuditPage,
   CustomDomain,
   DbConnection,
+  DbQueryResult,
+  DbTableInfo,
   DeployOutcome,
   EnvListResponse,
   GitAppDetail,
@@ -17,6 +19,9 @@ import {
   LogSnapshot,
   ManagedDbSummary,
   NotificationFeed,
+  RedisCommandResult,
+  RedisKeyPage,
+  RedisKeyValue,
   UsageSummary,
 } from '@/types';
 import { ApiError } from './errors';
@@ -294,5 +299,31 @@ export const api = {
     detach: (id: string, appId: string) =>
       request<ManagedDbSummary>(API_BASE, `/databases/${id}/detach`, { method: 'POST', body: JSON.stringify({ appId }) }),
     remove: (id: string) => request<{ ok: boolean }>(API_BASE, `/databases/${id}`, { method: 'DELETE' }),
+
+    // ===== SQL console / table browser (หน้า /databases/[id]) =====
+    // คิวรีอ่านรันใน read-only transaction ฝั่ง DB · คิวรีเขียนต้องยิงสองรอบ: รอบแรก
+    // (confirm=false) backend rollback แล้วตอบ { preview: true, affectedRows } มาให้ยืนยัน
+    // รอบสอง (confirm=true) ถึง commit จริง — UI ต้องส่ง SQL ก้อนเดิมเป๊ะทั้งสองรอบ
+    tables: (id: string) => request<DbTableInfo[]>(API_BASE, `/databases/${id}/tables`),
+    query: (id: string, sql: string, confirm = false) =>
+      request<DbQueryResult>(API_BASE, `/databases/${id}/query`, {
+        method: 'POST',
+        body: JSON.stringify({ sql, confirm }),
+      }),
+
+    // ===== Redis console =====
+    // cursor ของ SCAN — '0' คือเริ่มใหม่ และ done=true เมื่อวนครบรอบแล้ว
+    redisKeys: (id: string, cursor = '0', match = '*') =>
+      request<RedisKeyPage>(
+        API_BASE,
+        `/databases/${id}/keys?cursor=${encodeURIComponent(cursor)}&match=${encodeURIComponent(match)}`,
+      ),
+    redisKey: (id: string, key: string) =>
+      request<RedisKeyValue>(API_BASE, `/databases/${id}/key?key=${encodeURIComponent(key)}`),
+    redisCommand: (id: string, command: string, confirm = false) =>
+      request<RedisCommandResult>(API_BASE, `/databases/${id}/redis`, {
+        method: 'POST',
+        body: JSON.stringify({ command, confirm }),
+      }),
   },
 };
