@@ -124,6 +124,54 @@
 - [ ] **branch `feat/domain-suggestions`** — deploy แยกไว้แล้ว รอเทสก่อน merge เข้า main
       (ปุ่ม Manual Deploy เข้าแท็บอัปโหลดตรง + ตัวแนะนำโดเมนในแท็บ Domains)
 
+## B2. คอนโซลฐานข้อมูล `/databases/[id]` (โค้ดเสร็จ 2026-08-17 — backend ขึ้น prod แล้ว หน้าจอยังไม่ได้ build)
+
+backend อยู่บน prod ตั้งแต่ build 16 ส.ค. 16:03 · หน้าจอ (commit `096f93f`) ต้อง
+`bash deployments/host/deploy.sh` ก่อนถึงจะเทสได้ และต้อง `pnpm install` ใน `backend/`
+ก่อน ไม่งั้น MySQL/Redis จะตอบ 503 `driver_not_installed` (PostgreSQL ใช้ได้อยู่แล้ว)
+
+- [ ] **ทางเข้า** — `/databases` → ปุ่ม "เปิดคอนโซล" บนการ์ด กดได้เฉพาะ DB ที่ RUNNING
+      (ตัวที่หยุดอยู่ต้องกดไม่ได้) เข้าแล้วชื่อบนแท็บเบราว์เซอร์ต้องเป็น**ชื่อ DB จริง**
+- [ ] **แท็บตาราง (PG/MySQL)** — เห็นรายชื่อตาราง + จำนวนแถวโดยประมาณ · กดชื่อตาราง
+      ต้องได้ 100 แถวแรก · ไอคอนคอนโซลท้ายแถวต้องพาไปแท็บคิวรีพร้อม SQL เติมให้แล้ว
+      *(ตารางชื่อแปลกๆ เช่นมีตัวพิมพ์ใหญ่/เว้นวรรค ต้องเปิดได้ด้วย — เป็นจุดที่ quote พังบ่อย)*
+- [ ] **แท็บคิวรี — อ่าน** — `SELECT` ปกติได้ผล · Ctrl/⌘+Enter รันได้ · พิมพ์ SQL ค้างไว้
+      แล้วสลับไปแท็บตารางกลับมา ข้อความต้องยังอยู่
+- [ ] **แท็บคิวรี — เขียน** ⚠️ ใช้ตารางของ tenant เท่านั้น ห้ามยิงใส่ DB ของแพลตฟอร์ม
+      - `UPDATE ... WHERE ...` → ต้องขึ้นกล่องยืนยันที่บอก**จำนวนแถวที่จะโดน** และตอนนั้น
+        ข้อมูลต้อง**ยังไม่เปลี่ยน** (ยกเลิกแล้ว SELECT ซ้ำต้องได้ค่าเดิม)
+      - ยืนยันแล้วค่าถึงเปลี่ยนจริง + toast บอกจำนวนแถว + มีแถวใหม่ใน `/audit` (stage `db-console`)
+      - คำสั่งที่กระทบ ≥10 แถว ต้องกดยืนยัน**สองครั้ง**
+      - แก้ข้อความ SQL ในช่องระหว่างที่กล่องยืนยันเปิดค้างอยู่ → ที่รันจริงต้องเป็นก้อนที่พรีวิวไว้
+- [ ] **ด่านกัน** — `DROP TABLE x` / `SELECT 1; DROP TABLE x` / `COPY x FROM PROGRAM 'id'`
+      ต้องถูกบล็อกพร้อมข้อความภาษาไทย และต้องมีแถว BLOCK ใน `/audit`
+      *(`SELECT id, password FROM users` ต้อง **ไม่** ถูกบล็อก — เคยพลาดตอนเขียน guard)*
+- [ ] **Redis** — SCAN ตามรูปแบบ key, "โหลดเพิ่ม", ดูค่าตาม type (string/hash/list/set/zset),
+      `SET k v` ต้องเด้งยืนยันพร้อมบอกค่าเดิม · `FLUSHALL` / `CONFIG SET` / `EVAL` / `KEYS *`
+      ต้องถูกบล็อก
+- [ ] **สลับภาษา EN** ทั้งหน้า (รวมข้อความ error ของคิวรี) ต้องไม่มีไทยหลุด
+- [ ] ⚠️ **พิสูจน์ชั้น read-only transaction กับตารางจริง — ยังไม่เคยพิสูจน์**
+      ทำผ่าน UI ไม่ได้ (ตัว guard ดักคำสั่งเขียนไปก่อนแล้ว) ข้อนี้เทสตัว **engine** ตรงๆ
+      ว่าปฏิเสธการเขียนจริงถ้า guard ถูกหลอก — ต้องรันจากเครื่อง host ด้วย user ที่ใช้ docker ได้
+      (claudebot ทำไม่ได้) **ห้ามใช้ temp table เทส** — postgres ยอมให้เขียน temp table
+      ใน read-only transaction ได้ตามสเปก ผลจะออกมาลวงว่าไม่มีด่านกัน:
+      ```bash
+      # PostgreSQL — ใช้ managed DB ของ tenant (ไม่ใช่ DB ของแพลตฟอร์ม)
+      # ชื่อ container = gatekeeper-db-<id ที่เห็นบน URL ของหน้าคอนโซล> · user/db คงที่ appuser/appdb
+      docker exec -i gatekeeper-db-db_b610ba6c6d113a56 psql -U appuser -d appdb <<'SQL'
+      CREATE TABLE IF NOT EXISTS gk_ro_probe(id int);
+      INSERT INTO gk_ro_probe VALUES (1);
+      BEGIN TRANSACTION READ ONLY;
+        INSERT INTO gk_ro_probe VALUES (2);   -- ต้อง ERROR 25006 read_only_sql_transaction
+        CREATE TEMP TABLE t(x int);           -- อันนี้ "ผ่าน" ได้ ไม่ใช่บั๊ก
+      ROLLBACK;
+      SELECT count(*) FROM gk_ro_probe;       -- ต้องได้ 1
+      DROP TABLE gk_ro_probe;
+      SQL
+      ```
+      ผ่าน = บรรทัด INSERT ขึ้น ERROR และ count เหลือ 1 · MySQL ทำแบบเดียวกันด้วย
+      `START TRANSACTION READ ONLY` (ต้องได้ ERROR 1792)
+
 ## C. เทสแล้วผ่าน — ไม่ต้องทำซ้ำ
 
 - [x] i18n ไทย/อังกฤษ ทั้งแดชบอร์ด (2026-08-08)
