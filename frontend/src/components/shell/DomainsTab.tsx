@@ -5,11 +5,20 @@ import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { EmptyState, ErrorBanner } from '@/components/ui/states';
 import { api } from '@/lib/api';
-import { guessDomain } from '@/lib/domain-suggest';
+import { DomainWarningCode, guessDomain } from '@/lib/domain-suggest';
 import { CustomDomain } from '@/types';
-import { useLang } from '@/lib/i18n';
+import { MsgKey, useLang } from '@/lib/i18n';
 
 const POLL_MS = 4000;
+
+// คำเตือนจาก guessDomain() มาเป็น code ล้วน (ไฟล์นั้นไม่ผูกภาษา) — แปลเป็นข้อความที่นี่
+const WARNING_KEY: Record<DomainWarningCode, MsgKey> = {
+  invalidShape: 'domains.warnInvalidShape',
+  notFqdn: 'domains.warnNotFqdn',
+  reserved: 'domains.warnReserved',
+  apex: 'domains.warnApex',
+  duplicate: 'domains.warnDuplicate',
+};
 
 function DomainStatus({ status }: { status: CustomDomain['status'] }) {
   if (status === 'active')
@@ -98,7 +107,14 @@ export default function DomainsTab({
   );
 
   const duplicate = (domains || []).some((d) => d.domain === guess.normalized);
-  const canAdd = guess.valid && !duplicate && !guess.warning.includes('โดเมนของระบบ');
+  // โดเมนของระบบเองเป็นเคสเดียวที่หน้าตาถูกต้องแล้วแต่ยังกดเพิ่มไม่ได้ (apex แค่เตือน)
+  const canAdd = guess.valid && !duplicate && guess.warning?.code !== 'reserved';
+  // duplicate ที่คำนวณจากรายการจริงมาก่อนเสมอ — เคส apex ที่เพิ่มไปแล้ว lib จะรายงานเป็น 'apex'
+  const warningText = duplicate
+    ? t('domains.warnDuplicate')
+    : guess.warning
+      ? t(WARNING_KEY[guess.warning.code], guess.warning.params)
+      : '';
 
   const add = async (domain?: string) => {
     const target = domain ?? guess.normalized;
@@ -175,11 +191,12 @@ export default function DomainsTab({
         {/* ถ้าแปะ URL มาทั้งดุ้น บอกให้เห็นว่าจะเพิ่มโดเมนไหนจริงๆ */}
         {guess.normalized && guess.normalized !== input.trim().toLowerCase() && (
           <div className="mt-2 text-[12.5px] text-muted">
-            จะเพิ่มเป็น <code className="font-mono font-semibold text-ink">{guess.normalized}</code>
+            {t('domains.willAddPrefix')}{' '}
+            <code className="font-mono font-semibold text-ink">{guess.normalized}</code>
           </div>
         )}
 
-        {(guess.warning || duplicate) && (
+        {warningText && (
           <div
             className={`mt-2 flex items-start gap-1.5 rounded-lg px-3 py-2 text-[12.5px] ${
               canAdd ? 'bg-[rgba(214,158,82,.1)] text-ink-soft' : 'bg-[rgba(214,109,82,.06)] text-danger-text'
@@ -190,14 +207,14 @@ export default function DomainsTab({
                 canAdd ? 'ph-warning-circle text-[#A97B2F] dark:text-[#D9A653]' : 'ph-x-circle'
               }`}
             />
-            <span>{duplicate ? 'โดเมนนี้เพิ่มไว้แล้ว' : guess.warning}</span>
+            <span>{warningText}</span>
           </div>
         )}
 
         {guess.suggestions.length > 0 && (
           <div className="mt-2.5">
             <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-soft">
-              <i className="ph ph-lightbulb text-primary" /> แนะนำ — กดเพื่อใช้โดเมนนี้
+              <i className="ph ph-lightbulb text-primary" /> {t('domains.suggestHint')}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {guess.suggestions.map((s) => (

@@ -14,6 +14,25 @@ const MULTI_PART_SUFFIXES = [
   'com.br', 'com.mx', 'co.nz', 'co.za',
 ];
 
+/** เหตุผลของคำเตือน — ไฟล์นี้ไม่ผูกกับภาษา ฝั่ง UI เอา code ไปแปลเองผ่าน t() */
+export type DomainWarningCode =
+  /** มีจุดแต่มีอักขระที่ใช้ไม่ได้ เช่น เว้นวรรค/อักษรไทย */
+  | 'invalidShape'
+  /** ไม่ใช่โดเมนเต็ม (ไม่มีจุด) */
+  | 'notFqdn'
+  /** โดเมนของระบบเอง — เคลมไม่ได้ (เป็นเคสเดียวที่ valid แล้วยังกดเพิ่มไม่ได้) */
+  | 'reserved'
+  /** apex/naked domain — CNAME ที่ระดับนี้ไม่ได้ตาม RFC 1034 (เตือนเฉยๆ ยังกดเพิ่มได้) */
+  | 'apex'
+  /** เพิ่มโดเมนนี้ไปแล้ว */
+  | 'duplicate';
+
+export interface DomainWarning {
+  code: DomainWarningCode;
+  /** ค่าที่ต้องเสียบใน {placeholder} ของข้อความแปล */
+  params?: Record<string, string>;
+}
+
 export interface DomainGuess {
   /** โดเมนที่ normalize แล้ว (พร้อมส่งเข้า API) — '' ถ้าว่าง */
   normalized: string;
@@ -23,8 +42,8 @@ export interface DomainGuess {
   isApex: boolean;
   /** ส่วนโดเมนที่จดทะเบียน เช่น app.customer.co.th → customer.co.th */
   registrable: string;
-  /** คำเตือน/คำอธิบายที่ควรโชว์ใต้ช่อง input ('' = ไม่มี) */
-  warning: string;
+  /** คำเตือนที่ควรโชว์ใต้ช่อง input (null = ไม่มี) */
+  warning: DomainWarning | null;
   /** subdomain ที่แนะนำให้กดเติม (ไม่ซ้ำกับที่เพิ่มไปแล้ว) */
   suggestions: string[];
 }
@@ -94,7 +113,7 @@ export function guessDomain(raw: string, opts: GuessOptions = {}): DomainGuess {
     valid: false,
     isApex: false,
     registrable: '',
-    warning: '',
+    warning: null,
     suggestions: [],
   };
   if (!normalized) return empty;
@@ -107,21 +126,15 @@ export function guessDomain(raw: string, opts: GuessOptions = {}): DomainGuess {
   const reservedBase = opts.liveOriginHost ? registrableDomain(normalizeDomainInput(opts.liveOriginHost)) : '';
   const isReserved = !!reservedBase && (normalized === reservedBase || normalized.endsWith('.' + reservedBase));
 
-  let warning = '';
+  let warning: DomainWarning | null = null;
   if (!valid) {
-    warning =
-      normalized.includes('.')
-        ? 'รูปแบบโดเมนไม่ถูกต้อง — ใช้ได้เฉพาะ a-z, 0-9 และ - เท่านั้น (ห้ามเว้นวรรค/อักษรไทย)'
-        : 'ต้องเป็นโดเมนเต็ม เช่น app.yourdomain.com';
+    warning = { code: normalized.includes('.') ? 'invalidShape' : 'notFqdn' };
   } else if (isReserved) {
-    warning = `${reservedBase} เป็นโดเมนของระบบ ใช้เป็น custom domain ไม่ได้ — ต้องเป็นโดเมนที่คุณจดเอง`;
+    warning = { code: 'reserved', params: { base: reservedBase } };
   } else if (isApex) {
-    warning =
-      `${normalized} เป็นโดเมนหลัก (apex) — DNS ส่วนใหญ่ตั้ง CNAME ที่ระดับนี้ไม่ได้ ` +
-      `แนะนำให้ใช้ subdomain แทน หรือถ้าจะใช้โดเมนหลักจริงๆ ต้องใช้ A record ชี้ IP ของเซิร์ฟเวอร์ ` +
-      `(หรือ ALIAS/CNAME flattening ถ้าผู้ให้บริการ DNS รองรับ)`;
+    warning = { code: 'apex', params: { domain: normalized } };
   } else if (existing.has(normalized)) {
-    warning = 'โดเมนนี้เพิ่มไว้แล้ว';
+    warning = { code: 'duplicate' };
   }
 
   // แนะนำเฉพาะตอนที่พิมพ์เป็น apex — ถ้าพิมพ์ subdomain มาแล้วก็ไม่ต้องเดาให้

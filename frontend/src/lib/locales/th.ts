@@ -174,6 +174,15 @@ export const th = {
   'domains.deleteTitle': 'ลบโดเมน',
   'domains.deleteConfirm': 'ลบโดเมน {domain}? (จะลบ cert + vhost ทิ้ง)',
   'domains.pendingHint': 'กำลังเช็ค DNS + ออก cert… ถ้า DNS เพิ่งตั้งอาจใช้เวลาสักครู่ให้แพร่ก่อนกดตรวจสอบ',
+  'domains.willAddPrefix': 'จะเพิ่มเป็น',
+  'domains.suggestHint': 'แนะนำ — กดเพื่อใช้โดเมนนี้',
+  'domains.warnInvalidShape': 'รูปแบบโดเมนไม่ถูกต้อง — ใช้ได้เฉพาะ a-z, 0-9 และ - เท่านั้น (ห้ามเว้นวรรค/อักษรไทย)',
+  'domains.warnNotFqdn': 'ต้องเป็นโดเมนเต็ม เช่น app.yourdomain.com',
+  'domains.warnReserved': '{base} เป็นโดเมนของระบบ ใช้เป็น custom domain ไม่ได้ — ต้องเป็นโดเมนที่คุณจดเอง',
+  'domains.warnApex':
+    '{domain} เป็นโดเมนหลัก (apex) — DNS ส่วนใหญ่ตั้ง CNAME ที่ระดับนี้ไม่ได้ แนะนำให้ใช้ subdomain แทน ' +
+    'หรือถ้าจะใช้โดเมนหลักจริงๆ ต้องใช้ A record ชี้ IP ของเซิร์ฟเวอร์ (หรือ ALIAS/CNAME flattening ถ้าผู้ให้บริการ DNS รองรับ)',
+  'domains.warnDuplicate': 'โดเมนนี้เพิ่มไว้แล้ว',
 
   // ===== แท็บ Deploy settings (webhook / auto-deploy) =====
   'deploySettings.notGit': 'แอปนี้ดีพลอยแบบอัปโหลด .zip — ไม่มี auto-deploy จาก git push',

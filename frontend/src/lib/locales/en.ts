@@ -176,6 +176,16 @@ export const en: Record<keyof typeof th, string> = {
   'domains.deleteConfirm': 'Remove {domain}? (its certificate + vhost will be deleted)',
   'domains.pendingHint':
     'Checking DNS and issuing a certificate… if you just changed DNS, give it a moment to propagate before hitting Verify',
+  'domains.willAddPrefix': 'Will be added as',
+  'domains.suggestHint': 'Suggestions — tap one to use it',
+  'domains.warnInvalidShape':
+    'That domain looks wrong — only a-z, 0-9 and - are allowed (no spaces or non-Latin characters)',
+  'domains.warnNotFqdn': 'Enter the full domain, e.g. app.yourdomain.com',
+  'domains.warnReserved': '{base} is our own domain — you can only add a domain you registered yourself',
+  'domains.warnApex':
+    '{domain} is a root (apex) domain — most DNS providers cannot set a CNAME at this level. Use a subdomain instead, ' +
+    'or point an A record at the server IP if you really want the root domain (or ALIAS/CNAME flattening, if your DNS provider supports it)',
+  'domains.warnDuplicate': 'That domain is already on the list',
 
   // ===== deploy settings tab (webhook / auto-deploy) =====
   'deploySettings.notGit': 'This app deploys from a .zip upload — no auto-deploy from git push',
