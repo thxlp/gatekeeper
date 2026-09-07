@@ -24,8 +24,11 @@ export class DomainProxyController {
     });
   }
 
-  @All()
-  @All('*')
+  // ⚠️ ต้องเป็น array ใน @All ตัวเดียว ห้ามซ้อน @All สองอันบนเมธอดเดียว — Nest เก็บ
+  // PATH_METADATA ได้ค่าเดียว ตัวหลังทับตัวแรกเงียบๆ (ไม่ error ไม่ warn) ของเดิมเขียน
+  // @All() + @All('*') เลยเหลือแต่ route '*' ทำให้ path ราก '/__domain' ตกหล่น
+  // (กับดักเดียวกับที่เคยทำ sub-path ของ /live/<id> ตอบ 404 ทั้งหมด — ดู live.controller.ts:59)
+  @All(['', '*'])
   async handle(@Req() req: Request, @Res() res: Response) {
     const host = String(req.headers.host || '').split(':')[0].toLowerCase();
     const app = host ? this.store.findByCustomDomain(host) : undefined;

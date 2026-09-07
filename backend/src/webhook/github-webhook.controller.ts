@@ -1,32 +1,30 @@
 import { Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { GithubWebhookService } from './github-webhook.service';
-import { GitAppStore } from '../apps/git-app.store';
 import { GitProvider } from '../common/types';
-import { renderGreetingPage, renderNotFoundPage, renderDashboardPage } from './webhook-dashboard.html';
+import { renderGreetingPage } from './webhook-dashboard.html';
 
 @Controller('webhooks')
 export class GithubWebhookController {
-  constructor(
-    private svc: GithubWebhookService,
-    private gitAppStore: GitAppStore,
-  ) {}
+  constructor(private svc: GithubWebhookService) {}
 
-  // เผื่อมีคนเปิดลิงก์ webhook ตรงๆ ในเบราว์เซอร์ (GET) แทน 404 เฉยๆ — ใส่ ?app=<id> เพื่อดู
-  // Deployment & Pipeline Dashboard ของ app นั้น (id สุ่มมา ไม่ guess ง่าย — endpoint นี้ไม่มี auth
-  // เพราะ provider ส่ง request แบบไม่มี cookie/token) ถ้าไม่ใส่ ?app= ได้แค่หน้าทักทาย ไม่ leak repo
+  // เผื่อมีคนเปิดลิงก์ webhook ตรงๆ ในเบราว์เซอร์ (GET) แทน 404 เฉยๆ — ได้แค่หน้าทักทาย
+  //
+  // ⚠️ endpoint นี้ไม่มี auth (ตั้งใจ — provider ยิงมาแบบไม่มี cookie/Bearer) ห้ามให้มัน
+  // ตอบข้อมูลของ app กลับไปเด็ดขาด ของเดิม ?app=<id> เคย render dashboard ที่โชว์
+  // repoFullName (repo private ก็โชว์) + branch + runtime + timeline ทุก stage ให้ทุกคนที่รู้
+  // app id ซึ่งไม่ใช่ความลับเลย มันอยู่ใน URL live.<domain>/live/<app-id> ที่ลูกค้าแชร์กันอยู่แล้ว
+  // (พบ 2026-09-06) → ตอนนี้เด้งไปหน้า /apps/<id> ของ dashboard ซึ่งมี AuthGuard + เช็คเจ้าของ
+  // จริงแทน และเด้งโดยไม่แตะ store เลย = ไม่ยืนยันด้วยซ้ำว่า app id นั้นมีอยู่จริงไหม
   @Get('github')
   serveInfoPage(@Query('app') appId: string | undefined, @Res() res: Response) {
-    if (!appId) {
-      res.type('html').send(renderGreetingPage());
+    if (appId && /^[A-Za-z0-9_-]{1,64}$/.test(appId)) {
+      // จำกัด charset ของ appId ก่อนต่อเป็น URL — กัน open redirect / header injection
+      const base = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+      res.redirect(302, `${base}/apps/${encodeURIComponent(appId)}`);
       return;
     }
-    const app = this.gitAppStore.findById(appId);
-    if (!app) {
-      res.status(404).type('html').send(renderNotFoundPage());
-      return;
-    }
-    res.type('html').send(renderDashboardPage(app));
+    res.type('html').send(renderGreetingPage());
   }
 
   // ไม่ใส่ AuthGuard/CookieChallengeGuard — provider ส่ง request แบบไม่มี cookie/Bearer
