@@ -58,6 +58,8 @@ export function Field({
   error,
   name,
   autoComplete,
+  numeric,
+  maxLength,
 }: {
   label: string;
   type?: string;
@@ -68,6 +70,13 @@ export function Field({
   name?: string;
   /** บอกเบราว์เซอร์ว่าช่องนี้คืออะไร (email / current-password / new-password …) */
   autoComplete?: string;
+  /**
+   * ช่องที่รับได้เฉพาะตัวเลข (เช่น รหัส OTP) — กรองอักขระที่ไม่ใช่ 0-9 ทิ้งตั้งแต่ onChange
+   * จึงครอบคลุมการ "วาง" ด้วย ไม่ใช่แค่ดักการพิมพ์ (ดักที่ keydown อย่างเดียวเลี่ยงได้ง่าย)
+   * และเปิดแป้นตัวเลขบนมือถือให้ด้วย
+   */
+  numeric?: boolean;
+  maxLength?: number;
 }) {
   // ผูก label เข้ากับ input จริงๆ — เดิม label เป็น <div> ลอยๆ screen reader อ่านไม่รู้ว่าคู่กัน
   // และคลิกที่ข้อความก็ไม่โฟกัสช่องกรอก
@@ -84,7 +93,10 @@ export function Field({
         autoComplete={autoComplete}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange?.(e.target.value)}
+        inputMode={numeric ? 'numeric' : undefined}
+        pattern={numeric ? '[0-9]*' : undefined}
+        maxLength={maxLength}
+        onChange={(e) => onChange?.(numeric ? e.target.value.replace(/\D/g, '') : e.target.value)}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-err` : undefined}
         className={`w-full rounded-md border bg-input-fill px-3 py-2.5 text-sm text-ink placeholder:text-muted-3 focus:outline-none focus:ring-2 focus:ring-primary/40 ${

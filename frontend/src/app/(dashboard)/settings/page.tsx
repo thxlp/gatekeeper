@@ -339,10 +339,13 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
           <div className="flex items-center gap-2">
             <input
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              // กรองที่ onChange ไม่ใช่ keydown — ครอบคลุมการวาง (paste) และ autofill ด้วย
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
               onKeyDown={(e) => e.key === 'Enter' && confirmCode()}
               placeholder="000000"
               inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
               autoComplete="one-time-code"
               aria-label={t('auth.mfaCodeLabel')}
               className="w-[120px] rounded-[7px] border border-border bg-page-alt px-3 py-2 font-mono text-[15px] tabular-nums outline-none focus:border-primary"

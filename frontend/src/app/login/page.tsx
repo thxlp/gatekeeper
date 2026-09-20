@@ -153,6 +153,8 @@ export default function LoginPage() {
             placeholder="000000"
             value={otp}
             onChange={setOtp}
+            numeric
+            maxLength={6}
           />
 
           {error && (
