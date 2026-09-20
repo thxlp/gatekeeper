@@ -10,9 +10,9 @@ set -uo pipefail
 QUIET=0
 [ "${1:-}" = "--quiet" ] && QUIET=1
 
-API_HOST=gatekeeper.studiodup.com   # โดเมน origin (API/challenge ยิงตรงได้ ไม่โดน 301)
+API_HOST=studiodup.com              # โดเมน origin ของ dashboard (API/challenge ยิงตรงได้)
 UI_HOST=studiodup.com               # โดเมนหลักที่ user เข้าจริง (ผ่าน Cloudflare)
-CERT_DOMAINS=(gatekeeper.studiodup.com live.studiodup.com)
+CERT_DOMAINS=(studiodup.com live.studiodup.com)
 
 DISK_WARN=85; DISK_FAIL=92          # % ของ /
 MEM_WARN_MB=250                     # available ต่ำกว่านี้ = เสี่ยง OOM

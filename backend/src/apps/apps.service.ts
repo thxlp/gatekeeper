@@ -64,9 +64,12 @@ function parseDotenv(raw: string): { key: string; value: string }[] {
 }
 
 // URL สาธารณะของ webhook endpoint (ผ่าน nginx, มี /api prefix) — ตั้งผ่าน env ได้
-// ค่า default อิงจากโดเมนจริงที่ตั้งไว้ใน deployments/host/gatekeeper-host.conf
+// ค่า default อิงจาก FRONTEND_URL (โดเมน dashboard เดียวกัน) เพื่อให้มีแหล่งความจริงเดียว —
+// เดิมฮาร์ดโค้ด gatekeeper.studiodup.com ไว้ พอโดเมนนั้นถูกปิด (ลบ DNS) 2026-09 webhook URL
+// ที่ระบบบอกผู้ใช้/ไปลงทะเบียนกับ GitHub ก็ชี้ไปโดเมนที่ resolve ไม่ได้ทั้งหมด
 const PUBLIC_WEBHOOK_URL =
-  process.env.PUBLIC_WEBHOOK_URL || 'https://gatekeeper.studiodup.com/api/webhooks/github';
+  process.env.PUBLIC_WEBHOOK_URL ||
+  `${(process.env.FRONTEND_URL || 'https://studiodup.com').replace(/\/+$/, '')}/api/webhooks/github`;
 
 // หน้า Pipeline Dashboard (GET เดียวกับ webhook endpoint แต่มี ?app= ระบุตัว) — public แต่
 // ต้องรู้ id ที่สุ่มมา (unguessable) เท่านั้นถึงจะเห็นได้ ไม่ list ทุก app แบบไม่ auth
