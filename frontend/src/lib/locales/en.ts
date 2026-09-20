@@ -55,6 +55,7 @@ export const en: Record<keyof typeof th, string> = {
   'auth.errEmailRequired': 'Enter your email',
   'auth.errPasswordWeak': 'Password must be at least 8 characters and include a number',
   'auth.errPasswordMismatch': 'Passwords do not match',
+  'auth.errEmailNotConfirmed': 'Email not confirmed yet — click the confirmation link in your inbox before signing in',
   'auth.passwordHint': 'At least 8 characters, including a number',
   // sign-in notices (?reason=)
   'auth.noticeIdle': 'Signed out automatically after 15 minutes of inactivity — please sign in again',

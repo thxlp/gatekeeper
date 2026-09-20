@@ -96,6 +96,10 @@ export default function LoginPage() {
         password,
       });
       if (err) throw err;
+      // Supabase คืน session ว่างได้ทั้งที่ไม่มี error (โปรเจกต์เปิด "Confirm email" ไว้แล้ว
+      // บัญชีนี้ยังไม่กดยืนยันในอีเมล) — หน้า register กันเคสนี้ไว้แล้ว ที่นี่เคยตกหล่นจึง
+      // กลายเป็น TypeError ดิบขึ้นหน้าจอแทนเหตุผลจริง
+      if (!data.session) throw new Error(t('auth.errEmailNotConfirmed'));
       await syncAndEnter(data.session.access_token);
     } catch (e: any) {
       setError(e.message || t('common.error'));

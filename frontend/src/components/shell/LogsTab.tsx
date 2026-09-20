@@ -96,8 +96,13 @@ export default function LogsTab({ appId }: { appId: string }) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `${appId}-logs.txt`;
+    // Firefox คลิกให้เฉพาะ <a> ที่อยู่ใน DOM จริง และการ revoke ทันทีหลัง click จะไปยกเลิก
+    // ดาวน์โหลดที่เพิ่งเริ่ม — ต้องแขวนลิงก์ไว้ก่อนแล้วค่อยเก็บกวาดในรอบ event ถัดไป
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return (

@@ -630,8 +630,12 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DeployOutcome | null>(null);
 
+  // เลือกของ "ชิ้นเดิม" ซ้ำอีกครั้งต้องยิง onChange ได้เสมอ — ถ้าไม่ล้าง input.value
+  // เบราว์เซอร์ถือว่าค่าไม่เปลี่ยนจึงไม่ยิง event เลย (เจอตอนโดน BLOCK เพราะไฟล์ใหญ่เกิน
+  // /ไม่ใช่ zip แล้วผู้ใช้ไปแก้ของนอกเบราว์เซอร์แล้วเลือกชื่อเดิมกลับมา = กดแล้วเงียบสนิท)
   const handleFolderPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
+    const input = e.target;
+    const fileList = input.files;
     if (!fileList || fileList.length === 0) return;
     try {
       const entries = await filesToZipEntries(fileList);
@@ -640,11 +644,14 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
       setPendingLabel(t('deploy.filesFromFolder', { count: Object.keys(entries).length }));
     } catch (err: any) {
       setResult({ decision: 'BLOCK', requestId: '', reason: t('deploy.errZipFolder', { reason: err?.message || err }) });
+    } finally {
+      input.value = '';
     }
   };
 
   const handleZipPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
+    e.target.value = ''; // ดูเหตุผลที่ handleFolderPick
     if (!f) return;
     setPendingArchive(f);
     setPendingLabel(f.name);
@@ -773,7 +780,10 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center ${
+            // sr-only ของ input ข้างในทำให้ Tab เข้ามาถึงช่องเลือกไฟล์ได้ (เดิม hidden =
+            // display:none โฟกัสไม่ได้เลย → แท็บนี้ใช้ได้เฉพาะเมาส์) focus-within จึงเป็น
+            // ตัวเดียวที่บอกสายตาว่าโฟกัสอยู่ที่กล่องไหน เพราะตัว input มองไม่เห็น
+            className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${
               dragActive
                 ? 'border-primary bg-[rgba(91,157,255,.08)]'
                 : pendingArchive
@@ -784,13 +794,16 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
             <i className={`ph ph-cloud-arrow-up text-3xl ${pendingArchive ? 'text-allow-text' : 'text-primary'}`} />
             <div className="text-[15px] font-semibold">{t('deploy.dropZip')}</div>
             <div className="text-[13px] text-muted">{t('deploy.dropZipHint')}</div>
-            <input type="file" accept=".zip" className="hidden" onChange={handleZipPick} />
+            <input type="file" accept=".zip" className="sr-only" onChange={handleZipPick} />
           </label>
           <label
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center ${
+            // sr-only ของ input ข้างในทำให้ Tab เข้ามาถึงช่องเลือกไฟล์ได้ (เดิม hidden =
+            // display:none โฟกัสไม่ได้เลย → แท็บนี้ใช้ได้เฉพาะเมาส์) focus-within จึงเป็น
+            // ตัวเดียวที่บอกสายตาว่าโฟกัสอยู่ที่กล่องไหน เพราะตัว input มองไม่เห็น
+            className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${
               dragActive
                 ? 'border-primary bg-[rgba(91,157,255,.08)]'
                 : pendingArchive
@@ -807,7 +820,7 @@ function ManualTab({ redeployAppId, redeployDetail }: { redeployAppId?: string; 
               webkitdirectory=""
               directory=""
               multiple
-              className="hidden"
+              className="sr-only"
               onChange={handleFolderPick}
             />
           </label>
