@@ -55,6 +55,11 @@ export class AccountController {
    *
    * ส่งได้เฉพาะถึงอีเมลของบัญชีที่ login อยู่เท่านั้น (ไม่รับ to จาก body) + cooldown กันกดรัว
    * เผาโควตาของ provider
+   *
+   * **ไม่มีปุ่มในหน้าเว็บแล้ว** (ถอดออก 2026-09-20 หลังยืนยันว่าเมลส่งได้) — endpoint คงไว้เป็น
+   * เครื่องมือ ops เพราะวันที่เมลพังอีก การเปิด 2FA ทิ้งไว้แล้วลองล็อกอินคือวิธีทดสอบที่แพงที่สุด
+   * เรียกด้วย session cookie ของบัญชีตัวเอง:
+   *   curl -X POST https://<โดเมน>/api/account/mail-test -b <cookiejar>
    */
   @Post('mail-test')
   async mailTest(@Req() req: any) {

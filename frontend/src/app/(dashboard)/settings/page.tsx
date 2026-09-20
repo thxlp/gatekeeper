@@ -445,21 +445,6 @@ export default function SettingsPage() {
     }
   };
 
-  // "ตั้งค่าไว้" กับ "ส่งออกได้จริง" คนละเรื่องกัน — ปุ่มนี้คือตัวแยกสองอย่างนั้นออกจากกัน
-  // ก่อนจะไปเปิด 2FA (เปิดทั้งที่เมลไม่ออก = บัญชีที่เปิด 2FA เข้าระบบไม่ได้ทันที)
-  const [mailTesting, setMailTesting] = useState(false);
-  const sendMailTest = async () => {
-    setMailTesting(true);
-    try {
-      const r = await api.account.mailTest();
-      toast.success(t('settings.mailTestSent', { email: r.to }));
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setMailTesting(false);
-    }
-  };
-
   const disconnectGithub = async () => {
     const ok = await confirm({
       title: t('confirm.disconnectGithubTitle'),
@@ -492,23 +477,6 @@ export default function SettingsPage() {
                 hint={me && !me.mailConfigured ? t('settings.smtpMissingToggle') : undefined}
                 onChange={toggleNotifyEmail}
               />
-              {/* ปุ่มทดสอบ — ขึ้นเฉพาะตอนระบบตั้งค่าเมลไว้แล้ว ไม่งั้นกดไปก็ได้แต่ error เดิมทุกครั้ง */}
-              {me?.mailConfigured && (
-                <div className="flex items-center justify-between gap-3 border-t border-border-alt pt-4">
-                  <div className="min-w-0">
-                    <div className="text-[14.5px] font-semibold">{t('settings.mailTest')}</div>
-                    <div className="text-[13px] text-muted">{t('settings.mailTestDesc')}</div>
-                  </div>
-                  <button
-                    onClick={sendMailTest}
-                    disabled={mailTesting}
-                    className="flex-none rounded-lg border border-border-alt px-3 py-2 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-50"
-                  >
-                    <i className={`ph ${mailTesting ? 'ph-circle-notch' : 'ph-paper-plane-tilt'} mr-1.5`} />
-                    {t('settings.mailTestSend')}
-                  </button>
-                </div>
-              )}
               <PrefRow title={t('settings.autoDeployPref')} desc={t('settings.autoDeployPrefDesc')} />
             </div>
           </Card>

@@ -69,8 +69,8 @@ export const en: Record<keyof typeof th, string> = {
   'auth.mfaResend': 'Resend code',
   'auth.mfaResendIn': 'Resend code ({n}s)',
   // email confirmation after sign-up
-  'auth.checkEmailTitle': 'Check your email',
-  'auth.checkEmailBody': 'We sent a confirmation link to {email} — confirm it before signing in',
+  'auth.checkEmailTitle': 'Please check your email',
+  'auth.checkEmailBody': 'A confirmation link has been sent to {email}. Please confirm it before signing in.',
   // forgot password
   'auth.forgotTitle': 'Forgot password',
   'auth.forgotSubtitle': "Enter the email you signed up with and we'll send a reset link",
@@ -148,7 +148,7 @@ export const en: Record<keyof typeof th, string> = {
   'vars.importMerge': 'Import (merge)',
   'vars.importHint': 'Overwrites keys with the same name · leaves the rest alone',
   'vars.emptyTitle': 'No variables yet',
-  'vars.emptyBody': 'Add them one at a time below, or import a whole .env file at once.',
+  'vars.emptyBody': 'Add them one at a time below, or import an entire .env file at once.',
   'vars.emptyAction': 'Add your first variable',
   'vars.newValuePlaceholder': 'New value (type over it — the old value is never shown)',
   'vars.editValue': 'Edit value',
@@ -165,7 +165,7 @@ export const en: Record<keyof typeof th, string> = {
   'domains.stepsTitle': 'How it works',
   'domains.step1': '1. Point DNS: CNAME your domain → {host} (DNS-only, not proxied through Cloudflare)',
   'domains.step2':
-    '2. Hit "Add" — we check DNS and issue a TLS certificate automatically (Let\'s Encrypt) · status turns ACTIVE when ready',
+    '2. Select "Add" — DNS is verified and a TLS certificate is issued automatically (Let\'s Encrypt) · the status becomes ACTIVE once ready',
   'domains.emptyTitle': 'No custom domains yet',
   'domains.emptyBody':
     'This app is on the URL we generated for it — point your own domain at it and we issue the TLS certificate automatically.',
@@ -175,7 +175,7 @@ export const en: Record<keyof typeof th, string> = {
   'domains.deleteTitle': 'Remove domain',
   'domains.deleteConfirm': 'Remove {domain}? (its certificate + vhost will be deleted)',
   'domains.pendingHint':
-    'Checking DNS and issuing a certificate… if you just changed DNS, give it a moment to propagate before hitting Verify',
+    'Verifying DNS and issuing a certificate… if DNS was changed recently, please allow time for it to propagate before selecting Verify',
   'domains.willAddPrefix': 'Will be added as',
   'domains.suggestHint': 'Suggestions — tap one to use it',
   'domains.warnInvalidShape':
@@ -315,7 +315,7 @@ export const en: Record<keyof typeof th, string> = {
   'db.nameLabel': 'Database name',
   'db.create': 'Create',
   'db.emptyTitle': 'No databases yet',
-  'db.emptyBody': 'Spin up PostgreSQL / Redis / MySQL for this account, then connect it to any of your apps.',
+  'db.emptyBody': 'Create a PostgreSQL / Redis / MySQL instance for this account, then connect it to any of your applications.',
   'db.emptyAction': 'Create your first database',
   'db.copyConnection': 'Copy connection string',
   'db.connection': 'Connection',
@@ -390,7 +390,7 @@ export const en: Record<keyof typeof th, string> = {
   'dbc.commandLabel': 'Redis command',
   'dbc.commandPlaceholder': 'GET mykey',
   'dbc.redisGuardHint':
-    'Reads run straight away · writes need confirmation · FLUSHALL/CONFIG/EVAL/KEYS are blocked',
+    'Read commands run immediately · commands that modify data require confirmation · FLUSHALL/CONFIG/EVAL/KEYS are blocked',
   'dbc.confirmRedisTitle': 'Confirm data change',
   'dbc.confirmRedisBody': 'This will run {command} on key "{key}"',
   'dbc.confirmRedisNew': 'That key does not exist yet — this command will create it',
@@ -407,10 +407,6 @@ export const en: Record<keyof typeof th, string> = {
   'settings.emailNotif': 'Email notifications',
   'settings.emailNotifDesc': 'Get an email when a pipeline fails or is blocked (in-app alerts are always sent)',
   'settings.smtpMissingToggle': 'SMTP is not configured on the server — this cannot be enabled',
-  'settings.mailTest': 'Test email delivery',
-  'settings.mailTestDesc': "Send a test email to this account's address — proves mail actually goes out, not just that it is configured",
-  'settings.mailTestSend': 'Send test email',
-  'settings.mailTestSent': 'Sent — check the inbox for {email} (look in spam too)',
   'settings.autoDeployPref': 'Auto-deploy (GitHub)',
   'settings.autoDeployPrefDesc': 'Always on for repos connected through the picker — no separate switch yet',
   'settings.currentPlan': 'Current plan',
@@ -567,7 +563,7 @@ export const en: Record<keyof typeof th, string> = {
   // ===== confirm dialog (replaces window.confirm) =====
   'confirm.defaultTitle': 'Please confirm',
   'confirm.pressAgain': 'Click again to confirm',
-  'confirm.pressAgainHint': 'Are you sure? Click the red button again to confirm — this cannot be undone.',
+  'confirm.pressAgainHint': 'Please confirm by selecting the red button again — this action cannot be undone.',
   'confirm.deleteProjectTitle': 'Delete project',
   'confirm.deleteProjectNote': 'The running app is stopped and removed immediately — this cannot be undone.',
   'confirm.deleteVarTitle': 'Delete variable',
