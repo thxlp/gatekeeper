@@ -327,7 +327,6 @@ export const th = {
     'connection เป็น internal เท่านั้น (host คือชื่อ container) — ต่อได้จากแอปของคุณในเครือข่ายเดียวกัน ไม่เปิดออกอินเทอร์เน็ต',
   'db.historyTitle': 'ประวัติการใช้งาน',
   'db.historyEmpty': 'ยังไม่มีการเปลี่ยนแปลง',
-  'db.historyLoadError': 'โหลดประวัติไม่สำเร็จ',
   'db.historyColTime': 'เวลา',
   'db.historyColEvent': 'เหตุการณ์',
   'db.historyColDetail': 'รายละเอียด',
@@ -414,7 +413,6 @@ export const th = {
   'settings.notConnected': 'ยังไม่ได้เชื่อมต่อ',
   'settings.disconnect': 'ยกเลิกการเชื่อมต่อ',
   'settings.connect': 'เชื่อมต่อ',
-  'settings.disconnectGithubConfirm': 'ยกเลิกการเชื่อมต่อ GitHub?',
 
   // การ์ด Usage
   'usage.title': 'การใช้งาน',
@@ -482,7 +480,6 @@ export const th = {
   'deploy.tokenNote': 'token เข้ารหัส AES-256-GCM · ใช้แค่ list repo / webhook / clone',
   'deploy.connectedSuffix': '· เชื่อมต่อแล้ว',
   'deploy.disconnect': 'ยกเลิกการเชื่อมต่อ',
-  'deploy.disconnectConfirm': 'ยกเลิกการเชื่อมต่อ GitHub?',
   'deploy.searchRepo': 'ค้นหา repo…',
   'deploy.noRepo': 'ไม่พบ repo',
   'deploy.changeRepo': 'เปลี่ยน repo',

@@ -4,10 +4,11 @@
   "private": true,
   "description": "Pre-deploy Security & Management Gatekeeper - admission control สำหรับ deployment stage",
   "scripts": {
-    "start:backend": "cd backend && npm run start:dev",
-    "start:fe": "cd frontend && npm run dev",
-    "build:backend": "cd backend && npm run build",
-    "build:fe": "cd frontend && npm run build"
+    "//": "build/deploy ของจริงมีทางเดียวคือ deployments/host/deploy.sh (รันเป็น user dup) — สคริปต์ build แยกส่วนถูกถอดออกโดยตั้งใจ เพราะ `next build` ที่ไม่มี NEXT_PUBLIC_* จะ prerender พังทุกหน้า",
+    "deploy": "bash deployments/host/deploy.sh",
+    "healthcheck": "bash deployments/host/healthcheck.sh",
+    "dev:backend": "pnpm --dir backend start:dev",
+    "dev:frontend": "pnpm --dir frontend dev"
   },
   "engines": {
     "node": ">=18"

@@ -26,7 +26,7 @@
 - **risk engine** (`decision/risk-engine.service.ts`): LOW 5 / MEDIUM 20 / HIGH 40 / CRITICAL 100,
   ≥100 หรือมี CRITICAL = BLOCK, ≥50 = QUARANTINE; กฎ scan เป็น regex ใน `configs/detection-rules/`
 - **SCA (`scanner/dependency-audit.service.ts`) ยังเป็น stub** ตรวจแค่ว่ามีไฟล์ manifest ไหม
-  ห้ามเคลมว่าทำ dependency scanning จริงทั้งในโค้ด เอกสาร และรูปเล่ม (ดู NOTES_PENTEST.md)
+  ห้ามเคลมว่าทำ dependency scanning จริงทั้งในโค้ด เอกสาร และรูปเล่ม (ดู docs/research/NOTES_PENTEST.md)
 - **GitAppStore** (`apps/git-app.store.ts`) เป็น source of truth ของ app + secret ทั้งหมด
   secret ทุกตัวถูกเข้ารหัส AES-256-GCM ผ่าน `common/crypto.util.ts` ตอน save
 - **backend ไม่แตะ docker.sock ตรง** — คุยผ่าน docker-socket-proxy ที่ 127.0.0.1:2375 เท่านั้น

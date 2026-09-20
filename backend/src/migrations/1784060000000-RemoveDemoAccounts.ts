@@ -17,7 +17,8 @@ export class RemoveDemoAccounts1784060000000 implements MigrationInterface {
     `);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- พารามิเตอร์ที่ MigrationInterface บังคับ
+  public async down(_queryRunner: QueryRunner): Promise<void> {
     // คืน rows ไม่ได้ (ไม่รู้ hash key เดิมและไม่ควรคืน) — ปล่อยว่างโดยตั้งใจ
     // ถ้าต้องการบัญชีทดสอบใหม่ให้สมัครผ่าน flow ปกติ
   }

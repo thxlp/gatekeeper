@@ -7,3 +7,7 @@ frontend/.next/
 frontend/tsconfig.tsbuildinfo
 .env
 .DS_Store
+
+# build artifact ของเครื่องมือประกอบรูปเล่ม (tools/report-generator)
+__pycache__/
+*.pyc

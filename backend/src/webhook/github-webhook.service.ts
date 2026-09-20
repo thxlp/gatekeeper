@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { GitAppRegistryService } from './git-app-registry.service';
 import { GitAutomatorService } from './git-automator.service';
@@ -11,8 +11,6 @@ import { parseWebhook, verifyWebhook } from './providers';
 
 @Injectable()
 export class GithubWebhookService {
-  private readonly logger = new Logger(GithubWebhookService.name);
-
   constructor(
     private registry: GitAppRegistryService,
     private automator: GitAutomatorService,

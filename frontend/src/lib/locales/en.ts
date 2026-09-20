@@ -332,7 +332,6 @@ export const en: Record<keyof typeof th, string> = {
     'Connections are internal only (the host is a container name) — reachable from your apps on the same network, never exposed to the internet',
   'db.historyTitle': 'Activity history',
   'db.historyEmpty': 'No activity yet',
-  'db.historyLoadError': 'Could not load history',
   'db.historyColTime': 'Time',
   'db.historyColEvent': 'Event',
   'db.historyColDetail': 'Detail',
@@ -419,7 +418,6 @@ export const en: Record<keyof typeof th, string> = {
   'settings.notConnected': 'Not connected',
   'settings.disconnect': 'Disconnect',
   'settings.connect': 'Connect',
-  'settings.disconnectGithubConfirm': 'Disconnect GitHub?',
 
   // usage card
   'usage.title': 'Usage',
@@ -487,7 +485,6 @@ export const en: Record<keyof typeof th, string> = {
   'deploy.tokenNote': 'Token encrypted with AES-256-GCM · used only to list repos / create webhooks / clone',
   'deploy.connectedSuffix': '· connected',
   'deploy.disconnect': 'Disconnect',
-  'deploy.disconnectConfirm': 'Disconnect GitHub?',
   'deploy.searchRepo': 'Search repos…',
   'deploy.noRepo': 'No repos found',
   'deploy.changeRepo': 'Change repo',

@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -50,8 +49,6 @@ export interface QueryOutcome {
  */
 @Injectable()
 export class DbQueryService {
-  private readonly logger = new Logger(DbQueryService.name);
-
   constructor(
     private store: ManagedDbStore,
     private docker: DockerRuntimeService,
