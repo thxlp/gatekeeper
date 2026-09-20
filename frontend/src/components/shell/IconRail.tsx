@@ -77,9 +77,16 @@ export default function IconRail() {
       <nav className="hidden w-[208px] flex-none bg-rail py-3.5 lg:block">
         <div className="flex h-full flex-col overflow-hidden">
           <Link href="/" aria-label={t('nav.home')} className="mb-3 flex h-[38px] w-full flex-none items-center gap-3 pl-[10px] text-white">
-            <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] bg-primary">
-              <i className="ph-fill ph-lock-key text-lg" />
-            </span>
+            {/* โลโก้วางบนพื้นแถบตรงๆ ไม่มีกล่องสีครอบ — โทนเขียว/cyan ของโลโก้ตีกับ bg-primary
+                (#4A90E2) ของเดิม ส่วนพื้นแถบสีเข้ม (bg-rail #21201C) เข้ากับขอบหกเหลี่ยมพอดี
+                ไฟล์ถูกครอปมาพอดีเนื้อรูปแล้ววางกลางผืนจัตุรัส object-contain จึงพอดีช่องเป๊ะ */}
+            <img
+              src="/gk-logo.png"
+              alt=""
+              width={34}
+              height={34}
+              className="h-[34px] w-[34px] flex-none object-contain"
+            />
             <span className={`${LABEL_CLASS} font-bold`}>Gatekeeper</span>
           </Link>
 

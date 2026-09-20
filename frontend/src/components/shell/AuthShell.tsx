@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ReactNode, useState } from 'react';
 import { useLang } from '@/lib/i18n';
 
-// Full-bleed dark auth background with teal aura + tech photo composite,
+// Full-bleed dark auth background with teal aura + local 3D desk render (public/computer login.png),
 // centered white card. Shared by login / register / forgot-password.
 export default function AuthShell({ children }: { children: ReactNode }) {
   return (
@@ -13,13 +13,14 @@ export default function AuthShell({ children }: { children: ReactNode }) {
       style={{
         backgroundColor: '#0a0f14',
         backgroundImage:
-          "radial-gradient(circle at 50% -20%,rgba(45,212,191,.25) 0%,transparent 60%),linear-gradient(rgba(10,15,20,.6),rgba(10,15,20,.95)),url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2000&auto=format&fit=crop')",
+          "radial-gradient(circle at 50% -20%,rgba(45,212,191,.25) 0%,transparent 60%),linear-gradient(rgba(10,15,20,.45),rgba(10,15,20,.85)),url('/computer%20login.png')",
         backgroundSize: 'cover',
-        backgroundPosition: 'center bottom',
+        // จอภาพอยู่ฝั่งขวาของรูป — จอแคบ (มือถือ) crop แล้วยังเห็นจอ
+        backgroundPosition: '70% center',
       }}
     >
       <Link href="/" className="absolute left-6 top-5 flex items-center gap-2 text-base font-bold text-white">
-        <i className="ph-fill ph-lock-key text-xl text-primary" /> Gatekeeper
+        <img src="/gk-logo.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" /> Gatekeeper
       </Link>
       <div className="w-[380px] max-w-full rounded-xl border border-input-border bg-surface p-8 shadow-auth">
         {children}
