@@ -59,6 +59,7 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
   const [autoDeploy, setAutoDeploy] = useState(detail.autoDeploy !== false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [resynced, setResynced] = useState(false);
 
   const provider = detail.provider || 'github';
   const isGit = (detail.sourceType ?? 'git') === 'git';
@@ -78,6 +79,22 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
     } catch (e: any) {
       setError(e.message);
       setAutoDeploy(!next); // revert
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // hook ถูกตั้งครั้งเดียวตอนสร้างแอปแล้วไม่มีอะไรตรวจซ้ำ — โดเมนของระบบเปลี่ยนเมื่อไหร่ hook เดิม
+  // ก็ชี้ของเก่าค้างอยู่ auto-deploy เงียบไปโดยไม่มี error ให้เห็น ปุ่มนี้คือทางแก้ของ user เอง
+  const resync = async () => {
+    setBusy(true);
+    setError('');
+    setResynced(false);
+    try {
+      await api.resyncWebhook(appId);
+      setResynced(true);
+    } catch (e: any) {
+      setError(e.message);
     } finally {
       setBusy(false);
     }
@@ -156,6 +173,26 @@ export default function DeploySettingsTab({ appId, detail }: { appId: string; de
             <CopyRow label={provider === 'gitlab' ? 'Secret token' : 'Secret'} value={detail.webhookSecret} sensitive />
           )}
         </div>
+        {/* ซิงก์ hook ฝั่ง GitHub ใหม่ — เฉพาะแอปที่ระบบสร้าง hook ให้เอง (GitHub + มี secret ของเรา);
+            GitLab/Bitbucket ผู้ใช้ตั้ง webhook เองในรีโป จึงต้องไปแก้ URL เองจาก CopyRow ข้างบน */}
+        {provider === 'github' && detail.webhookSecret && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-alt pt-3">
+            <div className="min-w-0 text-[12.5px] text-muted-3">{t('deploySettings.resyncDesc')}</div>
+            <button
+              onClick={resync}
+              disabled={busy}
+              className="flex-none rounded-lg border border-border-alt px-3 py-2 text-[13px] font-semibold text-ink-soft hover:border-primary hover:text-primary disabled:opacity-50"
+            >
+              <i className={`ph ${busy ? 'ph-circle-notch' : 'ph-arrows-clockwise'} mr-1.5`} />
+              {t('deploySettings.resync')}
+            </button>
+          </div>
+        )}
+        {resynced && (
+          <div role="status" className="mt-2 text-[12.5px] font-semibold text-primary">
+            {t('deploySettings.resyncDone')}
+          </div>
+        )}
         {!detail.webhookSecret && (
           <div className="mt-2 text-[12.5px] text-muted-3">
             {t('deploySettings.githubManaged')}

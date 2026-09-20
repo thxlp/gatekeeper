@@ -108,9 +108,44 @@ export class GithubApiService {
   }
 
   /**
-   * สร้าง push webhook ชี้กลับมาที่ gatekeeper ให้อัตโนมัติ — ถ้ามี hook ที่ชี้ URL เดียวกันอยู่แล้ว
-   * (GitHub ตอบ 422 "Hook already exists") จะอัปเดต secret ของ hook เดิมแทน เพื่อให้ secret
-   * ที่เก็บฝั่งเรากับฝั่ง GitHub ตรงกันเสมอ
+   * hook นี้เป็นของ gatekeeper หรือเปล่า — เทียบที่ **pathname** ไม่ใช่ URL เต็ม
+   * เพราะ hook ที่ลงทะเบียนไว้ตอนสร้างแอปจะค้างชี้โดเมนเดิมตลอดไปเมื่อโดเมนของระบบเปลี่ยน
+   * (เกิดจริงตอนเลิกใช้ subdomain เดิม 2026-09) — จับด้วย path จึงตามไปแก้ hook เดิมได้
+   * new URL() throw กับค่าที่ไม่ใช่ URL ได้ (hook เก่าที่คนตั้งมือ) → กันไว้ ไม่ให้ทั้ง flow พัง
+   */
+  private isManagedHookUrl(url: unknown, webhookUrl: string): boolean {
+    if (typeof url !== 'string' || !url) return false;
+    if (url === webhookUrl) return true;
+    try {
+      return new URL(url).pathname === new URL(webhookUrl).pathname;
+    } catch {
+      return false;
+    }
+  }
+
+  /** หา hook ของ gatekeeper ใน repo (id ที่ให้มาก่อน ถ้ายังอยู่จริง) — คืน id หรือ null */
+  private async findManagedHook(
+    token: string,
+    base: string,
+    webhookUrl: string,
+    preferHookId?: number,
+  ): Promise<number | null> {
+    const listRes = await this.request(token, 'GET', `${base}?per_page=100`);
+    if (!listRes.ok) return null;
+    const hooks = (await listRes.json().catch(() => [])) as any[];
+    if (!Array.isArray(hooks)) return null;
+    if (preferHookId && hooks.some((h) => h?.id === preferHookId)) return preferHookId;
+    const found = hooks.find((h) => this.isManagedHookUrl(h?.config?.url, webhookUrl));
+    return found ? found.id : null;
+  }
+
+  /**
+   * สร้าง push webhook ชี้กลับมาที่ gatekeeper ให้อัตโนมัติ — ถ้ามี hook ของเราอยู่แล้วจะ PATCH
+   * ทับ (url + secret) แทนการสร้างใหม่ เพื่อให้ secret สองฝั่งตรงกันเสมอและไม่มี hook ซ้ำค้าง
+   *
+   * ⚠️ ต้อง list ก่อนเสมอ ห้ามพึ่ง 422 อย่างเดียว — GitHub ตอบ 422 "Hook already exists"
+   * เฉพาะตอน URL ซ้ำ**เป๊ะ** ถ้าโดเมนของระบบเปลี่ยนไป POST จะสำเร็จแล้วได้ hook สองอัน
+   * อันเก่าชี้โดเมนที่ตายแล้วค้างอยู่ใน repo ของลูกค้าตลอดไป
    */
   async createOrUpdatePushWebhook(
     token: string,
@@ -118,9 +153,21 @@ export class GithubApiService {
     repo: string,
     webhookUrl: string,
     secret: string,
+    preferHookId?: number,
   ): Promise<number> {
     const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/hooks`;
     const config = { url: webhookUrl, content_type: 'json', secret, insecure_ssl: '0' };
+
+    const managed = await this.findManagedHook(token, base, webhookUrl, preferHookId);
+    if (managed) {
+      const patchRes = await this.request(token, 'PATCH', `${base}/${managed}`, {
+        active: true,
+        events: ['push'],
+        config,
+      });
+      if (patchRes.ok) return managed;
+      // PATCH ไม่ผ่าน (hook เพิ่งถูกลบ / สิทธิ์ไม่พอ) → ตกไปสร้างใหม่ข้างล่าง
+    }
 
     const res = await this.request(token, 'POST', base, {
       name: 'web',
@@ -134,19 +181,15 @@ export class GithubApiService {
     }
 
     if (res.status === 422) {
-      // hook เดิมมีอยู่แล้ว — หา hook ที่ URL ตรงกันแล้วอัปเดต secret ทับ
-      const listRes = await this.request(token, 'GET', `${base}?per_page=100`);
-      if (listRes.ok) {
-        const hooks = (await listRes.json()) as any[];
-        const existing = hooks.find((h) => h.config?.url === webhookUrl);
-        if (existing) {
-          const patchRes = await this.request(token, 'PATCH', `${base}/${existing.id}`, {
-            active: true,
-            events: ['push'],
-            config,
-          });
-          if (patchRes.ok) return existing.id;
-        }
+      // แข่งกันสร้างพอดี (หรือ list ไม่ติดด้วยเหตุอื่น) — หาอีกรอบแล้วอัปเดตทับ
+      const again = await this.findManagedHook(token, base, webhookUrl);
+      if (again) {
+        const patchRes = await this.request(token, 'PATCH', `${base}/${again}`, {
+          active: true,
+          events: ['push'],
+          config,
+        });
+        if (patchRes.ok) return again;
       }
     }
 

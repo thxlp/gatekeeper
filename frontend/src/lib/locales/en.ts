@@ -196,6 +196,9 @@ export const en: Record<keyof typeof th, string> = {
   'deploySettings.webhookSetup': 'Webhook setup',
   'deploySettings.githubManaged':
     'This app is connected through GitHub (auto webhook) — the webhook is created in the repo for you',
+  'deploySettings.resync': 'Re-sync webhook',
+  'deploySettings.resyncDesc': 'Pushed but nothing deployed? Point the repo webhook at the current URL.',
+  'deploySettings.resyncDone': 'Webhook re-synced — the next push will deploy automatically',
   'deploySettings.gitlabStep1': 'GitLab repo → Settings → Webhooks',
   'deploySettings.gitlabStep2': 'Paste the URL + secret token below',
   'deploySettings.gitlabStep3': 'Tick Trigger = "Push events", then Add webhook',

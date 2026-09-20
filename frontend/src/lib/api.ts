@@ -239,6 +239,13 @@ export const api = {
     body: { branch?: string; runtime?: string; port?: number; enabled?: boolean; autoDeploy?: boolean } & AppConfigBody,
   ) => request<GitAppSummary>(API_BASE, `/apps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
+  // แก้ webhook ฝั่ง GitHub ให้ชี้โดเมนปัจจุบัน (เฉพาะแอปที่ระบบสร้าง hook ให้อัตโนมัติ) —
+  // ใช้ตอน push แล้วไม่ deploy เพราะ hook เดิมยังชี้โดเมนเก่าของระบบ
+  resyncWebhook: (id: string) =>
+    request<{ ok: boolean; hookId: number; webhookUrl: string }>(API_BASE, `/apps/${id}/webhook/resync`, {
+      method: 'POST',
+    }),
+
   // ===== custom domains ต่อแอป (แท็บ Domains) =====
   domains: {
     list: (appId: string) => request<CustomDomain[]>(API_BASE, `/apps/${appId}/domains`),

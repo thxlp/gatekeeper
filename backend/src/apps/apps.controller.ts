@@ -102,6 +102,12 @@ export class AppsController {
     return this.svc.removeGitApp(id, getAccount(req));
   }
 
+  // แก้ webhook ฝั่ง GitHub ให้ชี้โดเมนปัจจุบัน — ใช้ตอน auto-deploy เงียบเพราะโดเมนระบบเปลี่ยน
+  @Post(':id/webhook/resync')
+  resyncWebhook(@Param('id') id: string, @Req() req: any) {
+    return this.svc.resyncGithubWebhook(id, getAccount(req));
+  }
+
   // ===== Environment variables / secrets manager =====
   // คืนแค่ key (+updatedAt) ไม่เคยส่งค่าจริงกลับ — ค่าเข้ารหัสเก็บใน store, มีผลตอน deploy ถัดไป
 

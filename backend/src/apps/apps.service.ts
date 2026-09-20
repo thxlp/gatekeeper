@@ -515,6 +515,55 @@ export class AppsService {
     };
   }
 
+  /**
+   * ซิงก์ webhook ฝั่ง GitHub ให้ชี้ PUBLIC_WEBHOOK_URL ปัจจุบัน (owner-only)
+   *
+   * จำเป็นเพราะ hook ถูกลงทะเบียนครั้งเดียวตอนสร้างแอป แล้วไม่มีอะไรตรวจซ้ำอีกเลย — พอโดเมนของ
+   * ระบบเปลี่ยน (เกิดจริงตอนเลิกใช้ subdomain เดิม 2026-09) hook เดิมยังชี้โดเมนที่ตายแล้ว
+   * GitHub ยิง push มาไม่ถึง auto-deploy จึงเงียบไปเฉยๆ โดยไม่มี error ให้เห็นทั้งสองฝั่ง
+   * createOrUpdatePushWebhook จับ hook เดิมจาก path ได้ จึงแก้ URL ของอันเดิมแทนการสร้างเพิ่ม
+   */
+  async resyncGithubWebhook(id: string, account: Account) {
+    const app = this.getOwnedOrThrow(id, account.id);
+    if ((app.sourceType ?? 'git') !== 'git' || !app.repoFullName) {
+      throw new BadRequestException('รองรับเฉพาะแอปที่ต่อกับ git repo');
+    }
+    if ((app.provider || 'github') !== 'github') {
+      throw new BadRequestException(
+        'ซิงก์อัตโนมัติรองรับเฉพาะ GitHub — GitLab/Bitbucket ต้องแก้ URL ใน repo เอง (ดู Payload URL ในหน้านี้)',
+      );
+    }
+    if (!app.webhookSecret) {
+      throw new BadRequestException('แอปนี้ตั้ง webhook เองแบบ ops-managed ระบบไม่มี secret ให้ซิงก์');
+    }
+    const conn = this.githubTokens.get(account.id);
+    if (!conn) throw new BadRequestException('github_not_connected — เชื่อมบัญชี GitHub ก่อน');
+    const parsed = parseGithubRepoUrl(`https://github.com/${app.repoFullName}`);
+    if (!parsed) throw new BadRequestException('repoFullName ของแอปนี้ไม่ถูกต้อง');
+
+    const hookId = await this.githubApi.createOrUpdatePushWebhook(
+      conn.token,
+      parsed.owner,
+      parsed.repo,
+      PUBLIC_WEBHOOK_URL,
+      app.webhookSecret,
+      app.githubHookId,
+    );
+    app.githubHookId = hookId;
+    app.updatedAt = new Date().toISOString();
+    this.store.save(app);
+
+    this.audit.append({
+      requestId: uuidv4(),
+      accountId: account.id,
+      stage: 'gitapp:resync-webhook',
+      decision: 'INFO',
+      reason: `resynced:${app.repoFullName}#${hookId}`,
+    });
+
+    return { ok: true, hookId, webhookUrl: PUBLIC_WEBHOOK_URL };
+  }
+
   removeGitApp(id: string, account: Account): { ok: boolean } {
     const app = this.getOwnedOrThrow(id, account.id);
     this.store.delete(app.id);
