@@ -1,0 +1,5 @@
+filename,rule_id,category
+negative/neg_aws_03.md,AWS-ACCESS-KEY,negative
+negative/neg_dynfunc_03.md,DYNAMIC-FUNC-CREATE,negative
+negative/neg_generic_05.md,GENERIC-HARDCODED-SECRET,negative
+negative/neg_slack_02.md,SLACK-TOKEN,negative

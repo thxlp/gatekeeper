@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  worker:
+    image: node:20-alpine
+    environment:
+      AWS_REGION: ap-southeast-1
+      AWS_ACCESS_KEY_ID: AKIAIOSFODNN7EXAMPLE
+    command: node worker.js

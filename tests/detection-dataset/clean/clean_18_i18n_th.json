@@ -1,0 +1,13 @@
+{
+  "nav": {
+    "dashboard": "แดชบอร์ด",
+    "apps": "แอปพลิเคชัน",
+    "databases": "ฐานข้อมูล",
+    "settings": "ตั้งค่า"
+  },
+  "actions": {
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "delete": "ลบ"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "reports-service",
+  "version": "1.4.2",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "express": "4.19.2",
+    "pino": "9.2.0"
+  }
+}

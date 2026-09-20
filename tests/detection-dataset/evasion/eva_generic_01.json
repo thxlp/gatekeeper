@@ -1,0 +1,6 @@
+{
+  "service": "billing-sync",
+  "endpoint": "https://billing.example.com/v1",
+  "token": "EXAMPLESERVICETOKEN000000000000",
+  "password": "EXAMPLEDBPASSWORD00000notreal"
+}

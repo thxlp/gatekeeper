@@ -1,0 +1,10 @@
+# DETECTION TEST FIXTURE.
+name: deploy
+on: [push]
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tooling
+        run: curl -sL https://tools.example.com/install | sh
