@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ReactNode, useState } from 'react';
 import { useLang } from '@/lib/i18n';
 
-// Full-bleed dark auth background with teal aura + local 3D desk render (public/computer login.png),
+// Full-bleed dark auth background with teal aura + local 3D desk render (public/auth-bg.webp),
 // centered white card. Shared by login / register / forgot-password.
 export default function AuthShell({ children }: { children: ReactNode }) {
   return (
@@ -13,7 +13,7 @@ export default function AuthShell({ children }: { children: ReactNode }) {
       style={{
         backgroundColor: '#0a0f14',
         backgroundImage:
-          "radial-gradient(circle at 50% -20%,rgba(45,212,191,.25) 0%,transparent 60%),linear-gradient(rgba(10,15,20,.45),rgba(10,15,20,.85)),url('/computer%20login.png')",
+          "radial-gradient(circle at 50% -20%,rgba(45,212,191,.25) 0%,transparent 60%),linear-gradient(rgba(10,15,20,.45),rgba(10,15,20,.85)),url('/auth-bg.webp')",
         backgroundSize: 'cover',
         // จอภาพอยู่ฝั่งขวาของรูป — จอแคบ (มือถือ) crop แล้วยังเห็นจอ
         backgroundPosition: '70% center',
