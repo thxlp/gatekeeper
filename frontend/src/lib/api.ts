@@ -172,6 +172,13 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+
+    // ส่งเมลทดสอบถึงอีเมลของบัญชีตัวเอง (backend ไม่รับปลายทางจาก client) — ใช้ยืนยันว่า
+    // ช่องทางส่งเมล "ออกได้จริง" ไม่ใช่แค่ตั้งค่าไว้ ก่อนจะเปิด 2FA
+    mailTest: () =>
+      request<{ ok: boolean; to: string; transport: string }>(API_BASE, '/account/mail-test', {
+        method: 'POST',
+      }),
   },
 
   // GitHub connection (repo picker + auto webhook แบบ Railway)

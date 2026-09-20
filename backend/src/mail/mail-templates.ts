@@ -44,3 +44,18 @@ export function otpEmail(code: string, purposeLabel: string): MailContent {
     ].join('\n'),
   };
 }
+
+/** เมลทดสอบช่องทางส่ง — ตั้งใจไม่มีลิงก์/ปุ่มใดๆ กันโดน spam filter ตอนทดสอบครั้งแรก */
+export function mailTestEmail(transport: string): MailContent {
+  return {
+    subject: '[Gatekeeper] ทดสอบการส่งอีเมล',
+    text: [
+      'ถ้าคุณได้รับอีเมลฉบับนี้ แปลว่าช่องทางส่งอีเมลของ Gatekeeper ทำงานแล้ว',
+      '',
+      `ช่องทางที่ใช้: ${transport}`,
+      `เวลาที่ส่ง: ${new Date().toISOString()}`,
+      '',
+      'อีเมลฉบับนี้ถูกส่งเพราะมีคนกดปุ่ม "ส่งเมลทดสอบ" ในหน้า Settings ของบัญชีนี้',
+    ].join('\n'),
+  };
+}

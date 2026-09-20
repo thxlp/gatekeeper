@@ -97,18 +97,37 @@ export class MailService {
    * @returns true = ส่งออกจริงแล้ว, false = ข้าม (ไม่ได้ตั้งค่า) หรือส่งไม่สำเร็จ
    */
   async send(to: string, subject: string, text: string): Promise<boolean> {
+    return (await this.sendWithResult(to, subject, text)).ok;
+  }
+
+  /**
+   * เหมือน send() แต่คืนเหตุผลที่ล้มเหลวมาด้วย — ใช้กับ "ส่งเมลทดสอบ" ในหน้า Settings
+   *
+   * มีเพราะ error ตัวจริงอยู่แค่ใน log ของ service ซึ่งคนดูแลระบบอาจอ่านไม่ได้ (สิทธิ์ journalctl)
+   * เวลาเมลไม่ออกจึงไม่มีอะไรบอกเลยว่าเพราะ key ผิด โดเมนยังไม่ verify หรือพอร์ตถูกบล็อก
+   * เหตุผลมาจากฝั่ง provider ไม่มี key/รหัสผ่านปนอยู่ (sendViaHttp ตัด body ไว้ที่ 300 ตัวแล้ว)
+   */
+  async sendWithResult(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
     if (!this.isConfigured()) {
       this.logger.warn(`ยังไม่ได้ตั้งค่าช่องทางส่งเมล — ข้าม email "${subject}" ถึง ${to}`);
-      return false;
+      return { ok: false, error: 'mail_not_configured' };
     }
     try {
       if (this.http) await this.sendViaHttp(to, subject, text);
       else await this.transporter.sendMail({ from: this.from, to, subject, text });
-      return true;
+      return { ok: true };
     } catch (err: any) {
-      this.logger.warn(`ส่งเมล "${subject}" ถึง ${to} ไม่สำเร็จ: ${err?.message}`);
-      return false;
+      const detail = String(err?.message ?? err).slice(0, 300);
+      this.logger.warn(`ส่งเมล "${subject}" ถึง ${to} ไม่สำเร็จ: ${detail}`);
+      return { ok: false, error: detail };
     }
+  }
+
+  /** ช่องทางที่ใช้อยู่จริงตอนนี้ — โชว์ในหน้า Settings ให้รู้ว่ากำลังส่งผ่านอะไร */
+  describeTransport(): string {
+    if (!this.isConfigured()) return 'ไม่ได้ตั้งค่า';
+    if (this.http) return `http:${this.http.provider}`;
+    return `smtp:${process.env.SMTP_HOST || '?'}:${Number(process.env.SMTP_PORT) || 587}`;
   }
 
   /** ยิง REST API ของ provider ผ่าน 443 — มี timeout เองเพราะ fetch ไม่มี default */
