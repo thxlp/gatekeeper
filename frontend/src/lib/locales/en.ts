@@ -69,6 +69,7 @@ export const en: Record<keyof typeof th, string> = {
   'auth.mfaErrCodeRequired': 'Enter the 6-digit code from your email',
   'auth.mfaResend': 'Resend code',
   'auth.mfaResendIn': 'Resend code ({n}s)',
+  'auth.mfaRememberDevice': "Remember this device for 30 days (skip the email code)",
   // email confirmation after sign-up
   'auth.checkEmailTitle': 'Please check your email',
   'auth.checkEmailBody': 'A confirmation link has been sent to {email}. Please confirm it before signing in.',
@@ -442,7 +443,7 @@ export const en: Record<keyof typeof th, string> = {
   'twofa.name': 'Two-factor authentication (2FA)',
   'twofa.badgeOn': 'On',
   'twofa.badgeMaintenance': 'Under maintenance',
-  'twofa.descOn': 'Every sign-in also requires the code sent to your email',
+  'twofa.descOn': 'Signing in also requires the code sent to your email, except on devices you chose to remember (30 days)',
   'twofa.descOff': 'Blocks unauthorised access even if your password leaks — confirm with a code by email',
   'twofa.smtpMissing': 'SMTP is not configured on the server — 2FA is unavailable',
   'twofa.maintenanceNote': 'Temporarily under maintenance — not available yet. Signing in does not require a verification code in the meantime.',
@@ -451,6 +452,8 @@ export const en: Record<keyof typeof th, string> = {
   'twofa.enable': 'Turn on',
   'twofa.codeSentEnable': 'We sent a 6-digit code to your email — enter it to confirm turning 2FA on',
   'twofa.codeSentDisable': 'We sent a 6-digit code to your email — enter it to confirm turning 2FA off',
+  'twofa.forgetDevices': 'Forget all remembered devices',
+  'twofa.forgetDevicesDone': 'All devices forgotten — every device will need the email code on its next sign-in',
 
   // ===== deploy page =====
   'deploy.title': 'New deploy',

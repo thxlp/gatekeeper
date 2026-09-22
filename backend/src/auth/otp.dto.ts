@@ -1,4 +1,4 @@
-import { IsIn, IsString, Length, Matches } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class OtpVerifyDto {
   // รหัส 6 หลักจากอีเมล — เผื่อช่วงกว้างไว้เล็กน้อยกัน edge (เว้นวรรค/รูปแบบอนาคต)
@@ -8,6 +8,13 @@ export class OtpVerifyDto {
   @Length(4, 10)
   @Matches(/^[0-9]+$/, { message: 'code ต้องเป็นตัวเลขเท่านั้น' })
   code: string;
+}
+
+/** ขั้นกรอกรหัสตอน login เท่านั้น — เปิด/ปิด 2FA ใช้ OtpVerifyDto เดิม (ไม่มีตัวเลือกจดจำเครื่อง) */
+export class LoginOtpVerifyDto extends OtpVerifyDto {
+  @IsOptional()
+  @IsBoolean()
+  rememberDevice?: boolean;
 }
 
 export class TwoFaOtpRequestDto {

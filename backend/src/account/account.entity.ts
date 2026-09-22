@@ -63,6 +63,10 @@ export class Account {
   @Column({ name: 'otp_purpose', type: 'varchar', nullable: true })
   otpPurpose: string | null;
 
+  // รุ่นของ cookie "จดจำเครื่องนี้" (auth/trusted-device.ts) — เพิ่มเลข = เพิกถอนทุกเครื่องทันที
+  @Column({ name: 'trusted_device_epoch', type: 'int', default: 0 })
+  trustedDeviceEpoch: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

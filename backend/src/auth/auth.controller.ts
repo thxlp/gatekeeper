@@ -19,9 +19,15 @@ import { AuthGuard, getAccount } from './auth.guard';
 import { MailService } from '../mail/mail.service';
 import { otpEmail } from '../mail/mail-templates';
 import { NotificationsService } from '../notification/notifications.service';
-import { OtpVerifyDto, TwoFaOtpRequestDto } from './otp.dto';
+import { LoginOtpVerifyDto, OtpVerifyDto, TwoFaOtpRequestDto } from './otp.dto';
 import { SESSION_COOKIE_NAME } from './session.constants';
 import { isTwoFactorAvailable, TWO_FACTOR_MAINTENANCE_MSG } from './two-factor.flag';
+import {
+  clearTrustedDeviceCookie,
+  isTrustedDevice,
+  setTrustedDeviceCookie,
+  TRUSTED_DEVICE_COOKIE_NAME,
+} from './trusted-device';
 
 // เก็บ api_key จริงใน httpOnly cookie เท่านั้น (ไม่ echo กลับใน JSON body) — JS บน dashboard
 // origin อ่านไม่ได้แม้เกิด XSS ก็ตาม ใช้ maxAge ยาว (30 วัน) เพราะตัวบังคับอายุจริงคือ idle
@@ -95,6 +101,8 @@ export class AuthController {
    * ที่ไม่มีวันมีรหัสมาถึง — ทางหนีไฟ ops: UPDATE accounts SET two_factor_enabled=false
    * ทั้งท่อนนี้ทำงานเฉพาะตอน FEATURE_2FA เปิดเท่านั้น ปิดปรับปรุงอยู่ = ออก cookie ให้เลย
    * ตั้งแต่ first factor (ดู two-factor.flag.ts)
+   * เครื่องที่เคยติ๊ก "จดจำเครื่องนี้" ไว้ (cookie ยังไม่หมดอายุ/ไม่ถูกเพิกถอน) ข้ามรหัสจากอีเมลได้
+   * — ตรวจก่อนออก OTP เสมอ จะได้ไม่มีเมลรหัสส่งไปทั้งที่ไม่ได้ใช้
    *
    * key จริงส่งผ่าน Set-Cookie เท่านั้น — response body มีแค่ keyPrefix (8 ตัวแรก) ไว้โชว์ผล
    * ที่ UI (เช่น "API Key: a1b2c3d4…") โดยไม่ต้องมี plaintext เต็มอยู่ที่ไหนที่ JS แตะถึงได้
@@ -102,6 +110,7 @@ export class AuthController {
   @Post('session')
   async session(
     @Headers('authorization') authHeader: string | undefined,
+    @Req() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const account = await this.accountFromSupabaseToken(authHeader);
@@ -110,6 +119,10 @@ export class AuthController {
     // (ไม่แตะค่าใน DB — เปิดฟีเจอร์กลับมาเมื่อไหร่ก็กลับมาบังคับเหมือนเดิม) ถ้าไม่ทำแบบนี้
     // บัญชีที่เปิด 2FA ไว้จะค้างอยู่หน้ากรอกรหัสตลอดกาลระหว่างที่ฟีเจอร์ปิด
     if (account.twoFactorEnabled && isTwoFactorAvailable()) {
+      const trustedCookie = req.cookies?.[TRUSTED_DEVICE_COOKIE_NAME];
+      if (isTrustedDevice(trustedCookie, account)) return this.issueSessionCookie(account, res);
+      // มี cookie แต่ใช้ไม่ได้แล้ว (หมดอายุ/ถูกเพิกถอน/เป็นของบัญชีอื่น) — ล้างทิ้ง ไม่ให้ค้างในเบราว์เซอร์
+      if (trustedCookie) clearTrustedDeviceCookie(res);
       if (!this.mail.isConfigured()) throw new ServiceUnavailableException('mail_unavailable');
       if (!this.accounts.hasActiveOtp(account, 'login')) {
         let code: string | null = null;
@@ -132,7 +145,7 @@ export class AuthController {
   @Post('session/verify')
   async sessionVerify(
     @Headers('authorization') authHeader: string | undefined,
-    @Body() dto: OtpVerifyDto,
+    @Body() dto: LoginOtpVerifyDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     const account = await this.accountFromSupabaseToken(authHeader);
@@ -144,6 +157,9 @@ export class AuthController {
 
     const ok = await this.accounts.verifyOtp(account, dto.code, 'login');
     if (!ok) throw new UnauthorizedException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
+    // ออกได้เฉพาะตรงนี้ = หลังผ่านรหัสจากอีเมลจริงเท่านั้น (ไม่ออกตอนข้ามด้วย cookie เดิม — อายุ
+    // 30 วันนับจากครั้งล่าสุดที่กรอกรหัส ไม่ต่ออายุตัวเองไปเรื่อยๆ)
+    if (dto.rememberDevice) setTrustedDeviceCookie(res, account);
     return this.issueSessionCookie(account, res);
   }
 
@@ -205,7 +221,11 @@ export class AuthController {
 
   @Post('2fa/disable')
   @UseGuards(AuthGuard)
-  async disable2fa(@Body() dto: OtpVerifyDto, @Req() req: any) {
+  async disable2fa(
+    @Body() dto: OtpVerifyDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const account = await this.accounts.findById(getAccount(req).id);
     if (!account) throw new UnauthorizedException('invalid_api_key');
 
@@ -215,12 +235,28 @@ export class AuthController {
     const ok = await this.accounts.verifyOtp(account, dto.code, 'disable');
     if (!ok) throw new BadRequestException('invalid_otp — รหัสผิด หมดอายุ หรือพลาดครบ 5 ครั้ง');
     await this.accounts.setTwoFactor(account.id, false);
+    // เปิด 2FA กลับมาเมื่อไหร่ต้องเริ่มกรอกรหัสใหม่ทุกเครื่อง ไม่ใช่เครื่องเก่ากลับมาข้ามได้เอง
+    await this.accounts.revokeTrustedDevices(account.id);
+    clearTrustedDeviceCookie(res);
     void this.notifications.notify(account.id, {
       type: 'twofa_changed',
       title: 'ปิดใช้ Two-Factor Authentication แล้ว',
       body: 'ถ้าคุณไม่ได้เป็นคนปิดเอง ให้เปลี่ยนรหัสผ่านทันที',
     });
     return { ok: true, twoFactorEnabled: false };
+  }
+
+  /**
+   * "ลืมทุกเครื่องที่จดจำไว้" — login ครั้งถัดไปทุกเครื่องต้องกรอกรหัสจากอีเมลอีกครั้ง
+   * ไม่ต้องยืนยันรหัส: มีแต่ลดความเชื่อใจลง ไม่มีทางใช้ทำร้ายเจ้าของบัญชีได้
+   * (session ที่ login ค้างอยู่ไม่ถูกเตะออก — ตัวนี้คุมแค่ขั้น 2FA ตอน login ครั้งหน้า)
+   */
+  @Post('2fa/forget-devices')
+  @UseGuards(AuthGuard)
+  async forgetTrustedDevices(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    await this.accounts.revokeTrustedDevices(getAccount(req).id);
+    clearTrustedDeviceCookie(res);
+    return { ok: true };
   }
 
   /** ล้าง session cookie ฝั่ง server — JS อ่าน/ลบ httpOnly cookie เองไม่ได้ ต้องมี endpoint นี้ */

@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [stage, setStage] = useState<'credentials' | 'otp'>('credentials');
   const [accessToken, setAccessToken] = useState('');
   const [otp, setOtp] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(false);
   const [resendLeft, setResendLeft] = useState(0);
 
   // อ่าน ?reason= จาก URL ตรงๆ ใน effect แทน useSearchParams — เลี่ยงข้อบังคับ Suspense
@@ -116,7 +117,7 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      finishLogin(await api.auth.verifyOtp(accessToken, otp.trim()));
+      finishLogin(await api.auth.verifyOtp(accessToken, otp.trim(), rememberDevice));
     } catch (e: any) {
       setError(e.message || t('common.error'));
     } finally {
@@ -160,6 +161,16 @@ export default function LoginPage() {
             numeric
             maxLength={6}
           />
+
+          <label className="mb-4 flex cursor-pointer items-center gap-2 text-[14.5px] text-ink-soft">
+            <input
+              type="checkbox"
+              checked={rememberDevice}
+              onChange={(e) => setRememberDevice(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            {t('auth.mfaRememberDevice')}
+          </label>
 
           {error && (
             <div className="mb-4 rounded-md border border-danger-text/30 bg-[rgba(214,109,82,.08)] px-3 py-2 text-[14.5px] text-danger-text">

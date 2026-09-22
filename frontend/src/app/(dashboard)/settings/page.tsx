@@ -245,6 +245,7 @@ function ToggleRow({
  */
 function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: AccountMe) => void }) {
   const { t } = useLang();
+  const toast = useToast();
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -265,6 +266,20 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
       setCode('');
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // เพิกถอน cookie "จดจำเครื่องนี้" ทุกเครื่อง (รวมเครื่องนี้) — ไม่ต้องใช้รหัส เพราะมีแต่ทำให้เข้มขึ้น
+  const forgetDevices = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      await api.auth.forgetTrustedDevices();
+      toast.success(t('twofa.forgetDevicesDone'));
+    } catch (e: any) {
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
@@ -368,6 +383,16 @@ function TwoFactorCard({ me, setMe }: { me: AccountMe | null; setMe: (m: Account
             </button>
           </div>
         </div>
+      )}
+
+      {enabled && !codeSent && (
+        <button
+          onClick={forgetDevices}
+          disabled={busy}
+          className="mt-2 text-[13px] font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {t('twofa.forgetDevices')}
+        </button>
       )}
 
       {error && (

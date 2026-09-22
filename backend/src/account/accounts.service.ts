@@ -190,6 +190,11 @@ export class AccountsService {
     await this.repo.update(id, { twoFactorEnabled: enabled });
   }
 
+  /** เพิกถอน cookie "จดจำเครื่องนี้" ทุกใบของบัญชี (ดู auth/trusted-device.ts) — atomic ข้าม instance */
+  async revokeTrustedDevices(id: string): Promise<void> {
+    await this.repo.increment({ id }, 'trustedDeviceEpoch', 1);
+  }
+
   /** อัปเดต preference ของบัญชี (ตอนนี้มีแค่ notifyEmail — toggle ในหน้า Settings) */
   async updatePrefs(id: string, prefs: { notifyEmail?: boolean }): Promise<void> {
     if (prefs.notifyEmail !== undefined) {

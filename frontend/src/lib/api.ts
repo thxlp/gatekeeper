@@ -105,11 +105,12 @@ export const api = {
         headers: { Authorization: `Bearer ${supabaseAccessToken}` },
       }),
     // step 2 ของบัญชีที่เปิด 2FA — Supabase token เดิม + รหัส 6 หลักจากอีเมล แลก cookie จริง
-    verifyOtp: (supabaseAccessToken: string, code: string) =>
+    // rememberDevice = ติ๊ก "จดจำเครื่องนี้ 30 วัน" — backend ออก cookie httpOnly แยกให้ ข้ามรหัสตอน login ครั้งหน้า
+    verifyOtp: (supabaseAccessToken: string, code: string, rememberDevice: boolean) =>
       request<AuthResult>(API_BASE, '/auth/session/verify', {
         method: 'POST',
         headers: { Authorization: `Bearer ${supabaseAccessToken}` },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, rememberDevice }),
       }),
     resendOtp: (supabaseAccessToken: string) =>
       request<{ ok: boolean }>(API_BASE, '/auth/session/resend', {
@@ -129,6 +130,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ code }),
       }),
+    forgetTrustedDevices: () =>
+      request<{ ok: boolean }>(API_BASE, '/auth/2fa/forget-devices', { method: 'POST' }),
     logout: () => request<{ ok: boolean }>(API_BASE, '/auth/logout', { method: 'POST' }),
   },
 
