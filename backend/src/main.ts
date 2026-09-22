@@ -19,8 +19,18 @@ async function bootstrap() {
   const captureRawBody = (req: any, _res: any, buf: Buffer) => {
     req.rawBody = buf;
   };
-  app.use(express.json({ limit: '25mb', verify: captureRawBody }));
-  app.use(express.urlencoded({ extended: true, limit: '25mb', verify: captureRawBody }));
+  // ห้าม parse body ของ route ที่เป็น reverse proxy เข้าแอปลูกค้า (/live/<id>, /__domain) —
+  // parser อ่าน request stream จนหมดไปแล้ว http-proxy เลยส่งต่อได้แค่ header (มี Content-Length)
+  // โดยไม่มี body ตามไป แอปลูกค้ารอ body ที่ไม่มีวันมาจนหมดเวลา = POST แบบ JSON/ฟอร์มของ
+  // ทุกแอปใช้ไม่ได้เลย ส่วน body ชนิดอื่น (text, multipart) ผ่านได้เพราะไม่มี parser แตะ (พบ 2026-09-22)
+  // regex ไม่สนตัวพิมพ์ — router ของ Express case-insensitive (/Live/<id> ก็ถึง controller เดียวกัน)
+  const PROXY_PATH_RE = /^\/(live|__domain)(\/|$)/i;
+  const skipOnProxyPaths =
+    (parser: express.RequestHandler): express.RequestHandler =>
+    (req, res, next) =>
+      PROXY_PATH_RE.test(req.path) ? next() : parser(req, res, next);
+  app.use(skipOnProxyPaths(express.json({ limit: '25mb', verify: captureRawBody })));
+  app.use(skipOnProxyPaths(express.urlencoded({ extended: true, limit: '25mb', verify: captureRawBody })));
   app.use(cookieParser());
   app.enableCors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
