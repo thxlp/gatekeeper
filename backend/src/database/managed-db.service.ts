@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Account, ManagedDatabase } from '../common/types';
@@ -92,7 +99,20 @@ export class ManagedDbService {
       );
     }
 
-    // setEnvVar เช็ค ownership ของแอปด้วย account เดียวกัน (โยน 403/404 ถ้าไม่ใช่ของ user)
+    // ยืนยันว่าแอปเป็นของ user ก่อนแตะ docker (โยน 403/404 ถ้าไม่ใช่)
+    this.apps.getAppDetail(appId, account);
+
+    // DB ต้องอยู่ network เดียวกับแอป ไม่งั้น env ถูกต้องแต่ต่อไม่ติด (CONNECTION_TIMEOUT) —
+    // ซ่อมให้ทุกครั้งที่ attach เผื่อ DB หลุด network ไปแล้ว (ดู cleanupTenantNetwork)
+    try {
+      await this.docker.ensureManagedDbOnNetwork(db);
+    } catch (err: any) {
+      this.logger.warn(`managed db ${db.id} network connect failed: ${err?.message}`);
+      throw new ServiceUnavailableException(
+        'db_network_failed — ต่อฐานข้อมูลเข้า network ของแอปไม่สำเร็จ ลองใหม่อีกครั้ง หรือแจ้งผู้ดูแลระบบ',
+      );
+    }
+
     this.apps.setEnvVar(appId, info.envKey, info.url, account);
 
     const set = new Set(db.attachedAppIds || []);

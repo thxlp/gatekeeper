@@ -156,7 +156,8 @@ const ADDON_SPEC: Record<
 
 // ===== Managed database (ต่อ user) — spec แยกจาก addon (per-app) แต่โครง provisioning เดียวกัน =====
 export const MANAGED_DB_ENGINES: DbEngine[] = ['postgres', 'redis', 'mysql'];
-export const managedDbContainerName = (id: string) => `gatekeeper-db-${id}`;
+const MANAGED_DB_CONTAINER_PREFIX = 'gatekeeper-db-';
+export const managedDbContainerName = (id: string) => `${MANAGED_DB_CONTAINER_PREFIX}${id}`;
 const managedDbVolumeName = (id: string) => `gatekeeper-db-${id}-data`;
 
 interface ManagedDbSpecEntry {
@@ -1081,6 +1082,23 @@ export class DockerRuntimeService {
     }
   }
 
+  /**
+   * ต่อ container ของ managed DB เข้า tenant network ของเจ้าของ (idempotent) — เรียกตอน attach
+   * เพื่อซ่อม DB ที่หลุด network ไปแล้ว (เช่น network เคยถูกลบตอนลบแอปตัวสุดท้าย แล้วแอปใหม่
+   * ได้ network วงใหม่) ไม่ต้องให้ ops มาสั่ง `docker network connect` เอง
+   * 403/"already exists" = ต่ออยู่แล้ว ถือว่าสำเร็จ; error อื่น throw ให้ caller บอก user
+   */
+  async ensureManagedDbOnNetwork(db: Pick<ManagedDatabase, 'id' | 'accountId'>): Promise<void> {
+    const network = tenantNetworkFor({ accountId: db.accountId });
+    await this.ensureTenantNetwork(network);
+    try {
+      await this.docker.getNetwork(network).connect({ Container: managedDbContainerName(db.id) });
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (err?.statusCode !== 403 && !msg.includes('already exists')) throw err;
+    }
+  }
+
   /** ensure image มีอยู่ในเครื่อง — pull ถ้ายังไม่มี (managed DB บาง engine ยังไม่เคยดึง) */
   private async ensureImage(image: string): Promise<void> {
     try {
@@ -1140,6 +1158,10 @@ export class DockerRuntimeService {
    * ลบ network ของ tenant เมื่อไม่เหลือ container ของแอปสักตัว (app สุดท้ายของ user ถูกลบ) —
    * default address pool ของ Docker มี subnet จำกัด (~30 วง) ปล่อย network เปล่าค้างไว้ไม่ได้
    * endpoint ที่เหลือได้มีแค่ backend-1/2 ที่ต่อตัวเองเข้าไป ต้อง disconnect ก่อนถึงจะ remove ผ่าน
+   *
+   * managed DB (`gatekeeper-db-*`) นับเป็นผู้อยู่อาศัยด้วย — มันผูกกับบัญชี ไม่ใช่กับแอป จึงยังอยู่
+   * หลังลบแอปตัวสุดท้าย เดิมเช็คแค่ gatekeeper-app-* แล้ว force-disconnect ทุกตัวที่เหลือ ทำให้ DB
+   * รันต่อแบบไม่มี network แอปที่สร้างใหม่ได้ network วงใหม่ที่ไม่มี DB = ต่อ DB ไม่ติด (พบ 2026-09-22)
    */
   private async cleanupTenantNetwork(networkName: string): Promise<void> {
     if (networkName === APPS_NETWORK) return;
@@ -1147,8 +1169,11 @@ export class DockerRuntimeService {
       const network = this.docker.getNetwork(networkName);
       const info = await network.inspect();
       const endpoints: Record<string, { Name?: string }> = info?.Containers || {};
-      const hasAppContainers = Object.values(endpoints).some((c) => (c.Name || '').startsWith('gatekeeper-app-'));
-      if (hasAppContainers) return;
+      const hasTenantContainers = Object.values(endpoints).some((c) => {
+        const name = c.Name || '';
+        return name.startsWith('gatekeeper-app-') || name.startsWith(MANAGED_DB_CONTAINER_PREFIX);
+      });
+      if (hasTenantContainers) return;
       for (const id of Object.keys(endpoints)) {
         await network.disconnect({ Container: id, Force: true }).catch(() => undefined);
       }
