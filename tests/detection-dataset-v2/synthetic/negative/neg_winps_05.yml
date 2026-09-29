@@ -1,0 +1,12 @@
+name: windows-ci
+on: [push]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: powershell
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore

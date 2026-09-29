@@ -1,0 +1,4 @@
+# กอง malicious ถูกดึงชั่วคราวลง /tmp เท่านั้น — ห้าม commit เข้าเรโป
+# (ดู malicious-remote/README ก่อนรัน fetch-malicious.sh)
+gk-detect-malicious-*/
+ground_truth.malicious.csv

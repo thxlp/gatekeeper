@@ -1,0 +1,16 @@
+group_id,target_rule,origin_repo,commit,license,selection,note
+tennc-phpspy,PHP-SYSTEM-FROM-REQUEST,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,ทั้งโฟลเดอร์ php/phpspy/,PHP webshell ตระกูล phpspy — เอาทุกไฟล์ไม่คัดด้วย regex
+tennc-wso,PHP-EVAL-BASE64,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,ทั้งโฟลเดอร์ php/wso/ + php/wso-ng/,PHP webshell ตระกูล WSO — เอาทุกไฟล์
+tennc-b374k,DYNAMIC-FUNC-CREATE,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,ทั้งโฟลเดอร์ php/b374k/,PHP webshell ตระกูล b374k — เอาทุกไฟล์
+tennc-twitter,PHP-EVAL-BASE64,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,ทั้งโฟลเดอร์ php/twitter/,ชุด webshell รวม — เอาทุกไฟล์
+tennc-phpshell,PHP-SYSTEM-FROM-REQUEST,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,ทั้งโฟลเดอร์ php/PHPshell/,ชุด webshell รวม — เอาทุกไฟล์
+tennc-oneliners-2020,PHP-EVAL-BASE64,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,glob php/2020.08.20.*.php,"ชุด one-liner ลงวันที่เดียวกัน (รวมตัวที่หลบกฎได้ เช่น @eval($_POST[c])) — เลือกทั้ง batch เพื่อไม่ให้ recall สวยเกินจริง"
+tennc-oneliners-2022,PHP-SYSTEM-FROM-REQUEST,tennc/webshell,6b17eae4a0bc792f996a38ce32772e4db9c7c799,MIT,glob php/2022-08-26-*.php,ชุด one-liner ลงวันที่เดียวกัน — เลือกทั้ง batch
+atomic-t1027,WIN-ENCODED-PS,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1027/T1027.yaml,ATT&CK Obfuscated Files — encoded PowerShell
+atomic-t1059001,WIN-ENCODED-PS,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1059.001/T1059.001.yaml,ATT&CK PowerShell
+atomic-t1140,CERTUTIL-DECODE,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1140/T1140.yaml,ATT&CK Deobfuscate/Decode — certutil -decode
+atomic-t1105,CERTUTIL-DECODE,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1105/T1105.yaml,ATT&CK Ingress Tool Transfer — certutil/curl download
+atomic-t1102002,SUSPICIOUS-CURL-PIPE-SH,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1102.002/T1102.002.yaml,ATT&CK Web Service — curl | sh
+atomic-t1059004,SUSPICIOUS-CURL-PIPE-SH,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1059.004/T1059.004.yaml,ATT&CK Unix Shell — curl | bash
+atomic-t1110001,SUSPICIOUS-CURL-PIPE-SH,redcanaryco/atomic-red-team,388942adbd9641f4dfdcf079d7efe9a75ec0ac43,MIT,ทั้งไฟล์ atomics/T1110.001/T1110.001.yaml,ATT&CK Brute Force — curl | bash
+patt-xss,JS-EVAL-ATOB,swisskyrepo/PayloadsAllTheThings,3ac27901c711bdf3f5b65a7b1d1820a1f65bd09a,MIT,ทั้งโฟลเดอร์ "XSS Injection/",payload ฝั่ง browser รวม eval(atob(...)) — เอาทุกไฟล์

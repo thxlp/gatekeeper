@@ -1,0 +1,60 @@
+filename,origin_repo,commit,upstream_path,license,note
+real/clean/clean_boto3_session.py,boto/boto3,378d6705ec7cf1ef1f790a55965fac498e8b2035,boto3/session.py,Apache-2.0,
+real/clean/clean_boto3_utils.py,boto/boto3,378d6705ec7cf1ef1f790a55965fac498e8b2035,boto3/utils.py,Apache-2.0,
+real/clean/clean_detectsecrets_aws_plugin.py,Yelp/detect-secrets,5e141933554a0b74e7341841f318be21e895339c,detect_secrets/plugins/aws.py,Apache-2.0,ซอร์ส 'ตัวตรวจ' AWS ของ detect-secrets — regex เป็น string ไม่ match ตัวเอง
+real/clean/clean_detectsecrets_keyword_plugin.py,Yelp/detect-secrets,5e141933554a0b74e7341841f318be21e895339c,detect_secrets/plugins/keyword.py,Apache-2.0,ซอร์สตัวตรวจ keyword
+real/clean/clean_detectsecrets_privkey_plugin.py,Yelp/detect-secrets,5e141933554a0b74e7341841f318be21e895339c,detect_secrets/plugins/private_key.py,Apache-2.0,ซอร์สตัวตรวจ private key
+real/clean/clean_detectsecrets_slack_plugin.py,Yelp/detect-secrets,5e141933554a0b74e7341841f318be21e895339c,detect_secrets/plugins/slack.py,Apache-2.0,ซอร์สตัวตรวจ Slack
+real/clean/clean_express_app.js,expressjs/express,9a34acf03cb818ff3f8bc40e44176e277a25cbb9,lib/express.js,MIT,
+real/clean/clean_express_auth.js,expressjs/express,9a34acf03cb818ff3f8bc40e44176e277a25cbb9,examples/auth/index.js,MIT,ตัวอย่าง auth ของ express (มี hash/session แต่ไม่มี secret hardcode)
+real/clean/clean_express_utils.js,expressjs/express,9a34acf03cb818ff3f8bc40e44176e277a25cbb9,lib/utils.js,MIT,
+real/clean/clean_express_view.js,expressjs/express,9a34acf03cb818ff3f8bc40e44176e277a25cbb9,lib/view.js,MIT,
+real/clean/clean_got_linkheader.ts,sindresorhus/got,e1d87d2ced01d5b7d855a7dc8b091bf7b014a1e4,source/core/parse-link-header.ts,MIT,
+real/clean/clean_got_retry.ts,sindresorhus/got,e1d87d2ced01d5b7d855a7dc8b091bf7b014a1e4,source/core/calculate-retry-delay.ts,MIT,
+real/clean/clean_got_timedout.ts,sindresorhus/got,e1d87d2ced01d5b7d855a7dc8b091bf7b014a1e4,source/core/timed-out.ts,MIT,
+real/clean/clean_jwtdecode.ts,auth0/jwt-decode,1ac937f39daf9bc8cbdeade8748cc901f11fee4a,lib/index.ts,MIT,ใช้ atob() แต่ไม่มี eval(atob()) — ทดสอบความจำเพาะของ JS-EVAL-ATOB
+real/clean/clean_laravel_binarycodec.php,laravel/framework,bddd0646678a127f75623339236e75b4939070e5,src/Illuminate/Support/BinaryCodec.php,MIT,
+real/clean/clean_laravel_onceable.php,laravel/framework,bddd0646678a127f75623339236e75b4939070e5,src/Illuminate/Support/Onceable.php,MIT,
+real/clean/clean_laravel_time.php,laravel/framework,bddd0646678a127f75623339236e75b4939070e5,src/Illuminate/Support/InteractsWithTime.php,MIT,
+real/clean/clean_ohmyzsh_readme.md,ohmyzsh/ohmyzsh,74965c96098134b192f00084f966b4b02438a739,README.md,MIT,"ติดตั้งด้วย sh -c ""$(curl ...)"" (ไม่ใช่ curl|sh) — ทดสอบความจำเพาะ curl-pipe-sh"
+real/clean/clean_requests_auth.py,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,src/requests/auth.py,Apache-2.0,โค้ด auth ของ requests (จัดการ password แบบ runtime ไม่ hardcode)
+real/clean/clean_requests_hooks.py,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,src/requests/hooks.py,Apache-2.0,
+real/clean/clean_requests_server_cert.pem,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,tests/certs/valid/server/server.pem,Apache-2.0,เป็น CERTIFICATE (public) ไม่ใช่ private key
+real/clean/clean_requests_status.py,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,src/requests/status_codes.py,Apache-2.0,
+real/clean/clean_requests_structures.py,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,src/requests/structures.py,Apache-2.0,
+real/clean/clean_rustup_readme.md,rust-lang/rustup,b32adec5ab613c26d7f35e398c8a54f4a46f585b,README.md,Apache-2.0,
+real/clean/clean_symfony_pipes.php,symfony/process,df7cd19281696e082ba41d035d5de534ead60279,Pipes/UnixPipes.php,MIT,
+real/negative/real_aws_boto3_doc.rst,boto/boto3,378d6705ec7cf1ef1f790a55965fac498e8b2035,boto3/examples/cloudfront.rst,Apache-2.0,เอกสาร AWS SDK ใช้ค่า official example AKIAIOSFODNN7EXAMPLE — คาดว่าเป็น FP
+real/negative/real_aws_gitleaks_allowlist.toml,gitleaks/gitleaks,b58d3f102cf3a2c84cb7f923d05c25c9b1aed84b,testdata/config/valid/allowlist_rule_regex.toml,MIT,ไฟล์ config ที่ 'allowlist' ค่า AKIA — โค้ดที่พูดถึง pattern เอง (FP)
+real/negative/real_certutil_sigma_decode.yml,SigmaHQ/sigma,07ec293a51695cb1131a2e05260247872b31e1e1,rules/windows/process_creation/proc_creation_win_certutil_decode.yml,DRL-1.1,กฎ Sigma ตรวจ certutil -decode (อ้าง pattern เอง) — FP
+real/negative/real_certutil_sigma_encode.yml,SigmaHQ/sigma,07ec293a51695cb1131a2e05260247872b31e1e1,rules/windows/process_creation/proc_creation_win_certutil_encode.yml,DRL-1.1,กฎ Sigma ตรวจ certutil encode/decode — FP
+real/negative/real_curlsh_devcontainer.Dockerfile,devcontainers/images,638a7d03aaf428cef5a6e2ff332a77e8cd9bc3eb,src/universal/.devcontainer/Dockerfile,MIT,Dockerfile ทางการของ devcontainers ใช้ curl ... | bash ติดตั้ง vsdbg — FP
+real/negative/real_curlsh_nvm_readme.md,nvm-sh/nvm,a885b885fef16fac4bc544188fb25e9e37ae83e8,README.md,MIT,คำสั่งติดตั้ง nvm ใช้ curl ... | bash จริงแต่เป็น install script ที่เชื่อถือได้ — FP (ตั้งใจ ยิงจริง)
+real/negative/real_curlsh_sigma_lnx.yml,SigmaHQ/sigma,07ec293a51695cb1131a2e05260247872b31e1e1,rules/linux/process_creation/proc_creation_lnx_curl_wget_exec_tmp.yml,DRL-1.1,กฎ Sigma ตรวจ curl|bash เอง — FP
+real/negative/real_dynfunc_ajv_compile.ts,ajv-validator/ajv,f177fe323420ccb23e1a79445fd470cbf80aee7c,lib/compile/index.ts,MIT,ajv คอมไพล์ schema เป็นฟังก์ชันด้วย new Function() โดยชอบ — FP
+real/negative/real_dynfunc_ajv_serialize.ts,ajv-validator/ajv,f177fe323420ccb23e1a79445fd470cbf80aee7c,lib/compile/jtd/serialize.ts,MIT,ajv codegen ด้วย new Function() — FP
+real/negative/real_dynfunc_underscore_template.js,jashkenas/underscore,db2025c3c55b3e0cac2b46dd01ee103d4c9e7b1a,modules/template.js,MIT,underscore _.template ใช้ new Function() — FP
+real/negative/real_dynfunc_vue_tofunction.ts,vuejs/vue,9e88707940088cb1f4cd7dd210c9168a50dc347c,src/compiler/to-function.ts,MIT,Vue คอมไพล์ template ด้วย new Function() — FP
+real/negative/real_generic_bolt_receiver.spec.ts,slackapi/bolt-js,7567b38be32e0efb3c0f0353c5e1282773ad1ea7,test/unit/receivers/SocketModeReceiver.spec.ts,MIT,unit test มี clientSecret/token literal — FP
+real/negative/real_generic_detectsecrets.php,Yelp/detect-secrets,5e141933554a0b74e7341841f318be21e895339c,test_data/short_files/first_line.php,Apache-2.0,test fixture secret='notHighEnoughEntropy' (ค่า dummy) — FP
+real/negative/real_generic_laravel_encrypter.php,laravel/framework,bddd0646678a127f75623339236e75b4939070e5,src/Illuminate/Encryption/Encrypter.php,MIT,โค้ดจัดการคีย์/เข้ารหัสจริง (adjacency) — ควรเป็น TN ไม่ควรถูกจับ
+real/negative/real_generic_slack_issue829.py,slackapi/python-slack-sdk,1fe0b8e708251fb4d2dc9617a774f64635098e21,tests/slack_sdk/web/test_web_client_issue_829.py,MIT,unit test — FP
+real/negative/real_generic_slack_sample.py,slackapi/python-slack-sdk,1fe0b8e708251fb4d2dc9617a774f64635098e21,integration_tests/samples/socket_mode/bolt_builtin_example.py,MIT,ตัวอย่างโค้ด socket mode — FP
+real/negative/real_phpsys_symfony_finder.php,symfony/process,df7cd19281696e082ba41d035d5de534ead60279,ExecutableFinder.php,MIT,Symfony Process หา executable — adjacency ควรเป็น TN
+real/negative/real_phpsys_symfony_utils.php,symfony/process,df7cd19281696e082ba41d035d5de534ead60279,ProcessUtils.php,MIT,ไลบรารี Symfony Process — รันคำสั่งระบบแต่ไม่ได้เอา $_GET/$_POST มาตรงๆ ควรเป็น TN
+real/negative/real_privkey_gitleaks_ruledef.go,gitleaks/gitleaks,b58d3f102cf3a2c84cb7f923d05c25c9b1aed84b,cmd/generate/config/rules/privatekey.go,MIT,ซอร์สนิยาม 'กฎ' ของ gitleaks เอง มี BEGIN PRIVATE KEY เป็น test string (FP)
+real/negative/real_slack_bolt_env.sample,slackapi/bolt-js,7567b38be32e0efb3c0f0353c5e1282773ad1ea7,examples/getting-started-typescript/.env.sample,MIT,.env.sample placeholder xoxb-your-bot-token — FP
+real/negative/real_slack_bolt_tutorial.md,slackapi/bolt-js,7567b38be32e0efb3c0f0353c5e1282773ad1ea7,docs/english/tutorials/ai-assistant.md,MIT,tutorial ใช้ xoxb-example-token — FP
+real/negative/real_slack_sdk_installdoc.md,slackapi/python-slack-sdk,1fe0b8e708251fb4d2dc9617a774f64635098e21,docs/english/installation.md,MIT,เอกสารติดตั้ง Slack SDK มี xoxb-111-222-xxxxx (ค่า example) — FP
+real/negative/real_slack_sdk_scimtest.py,slackapi/python-slack-sdk,1fe0b8e708251fb4d2dc9617a774f64635098e21,tests/slack_sdk/scim/test_client_http_retry.py,MIT,unit test ใช้ literal token='xoxp-ratelimited' — FP
+real/negative/real_slack_sdk_webtest.py,slackapi/python-slack-sdk,1fe0b8e708251fb4d2dc9617a774f64635098e21,tests/slack_sdk/web/test_web_client_http_retry.py,MIT,unit test ใช้ literal token='xoxb-ratelimited' (ไม่ใช่ token จริง) — FP
+real/negative/real_winps_msdocs_powershell.md,MicrosoftDocs/PowerShell-Docs,a3de8f22552170e70852470d46cd52cd9ca471ec,reference/5.1/Microsoft.PowerShell.Core/About/about_PowerShell_exe.md,CC-BY-4.0,เอกสาร Microsoft อธิบาย -EncodedCommand — FP
+real/negative/real_winps_msdocs_pwsh.md,MicrosoftDocs/PowerShell-Docs,a3de8f22552170e70852470d46cd52cd9ca471ec,reference/7.5/Microsoft.PowerShell.Core/About/about_Pwsh.md,CC-BY-4.0,เอกสาร pwsh -EncodedCommand — FP
+real/negative/real_winps_sigma_b64cmd.yml,SigmaHQ/sigma,07ec293a51695cb1131a2e05260247872b31e1e1,rules/windows/process_creation/proc_creation_win_powershell_base64_encoded_cmd.yml,DRL-1.1,กฎ Sigma อ้างถึง encoded command — FP
+real/negative/real_winps_sigma_encode.yml,SigmaHQ/sigma,07ec293a51695cb1131a2e05260247872b31e1e1,rules/windows/process_creation/proc_creation_win_powershell_encode.yml,DRL-1.1,กฎ detection ของ Sigma ที่อ้างถึง -enc เอง — FP
+real/positive/real_aws_gitleaks_ignorecommit.go,gitleaks/gitleaks,b58d3f102cf3a2c84cb7f923d05c25c9b1aed84b,testdata/repos/small/api/ignoreCommit.go,MIT,test fixture ของ gitleaks — token ตัวอย่าง AKIALALEMEL33243OLIA (ไม่ใช่คีย์จริง)
+real/positive/real_aws_gitleaks_staged.go,gitleaks/gitleaks,b58d3f102cf3a2c84cb7f923d05c25c9b1aed84b,testdata/repos/staged/api/api.go,MIT,test fixture ของ gitleaks — token ตัวอย่าง
+real/positive/real_privkey_detectsecrets.key,Yelp/detect-secrets,5e141933554a0b74e7341841f318be21e895339c,test_data/files/private_key,Apache-2.0,test fixture — body เป็นข้อความ dummy ไม่ใช่คีย์จริงอยู่แล้ว
+real/positive/real_privkey_gitleaks_ed25519.key,gitleaks/gitleaks,b58d3f102cf3a2c84cb7f923d05c25c9b1aed84b,testdata/repos/symlinks/source_file/id_ed25519,MIT,MASKED; test key ของ gitleaks — MASK body แล้ว
+real/positive/real_privkey_requests_client.key,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,tests/certs/mtls/client/client.key,Apache-2.0,MASKED; test cert key ของ requests — MASK body แล้ว
+real/positive/real_privkey_requests_server.key,psf/requests,611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60,tests/certs/valid/server/server.key,Apache-2.0,MASKED; test cert key ของ requests — MASK body แล้ว เหลือแต่ header/footer

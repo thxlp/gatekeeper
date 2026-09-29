@@ -1,0 +1,8 @@
+{
+  "name": "alerting",
+  "version": "1.0.0",
+  "slack": {
+    "workspace": "example-workspace",
+    "refreshToken": "xoxr-EXAMPLE-NOT-REAL-REFRESH-TOKEN-FOR-DETECTION-TEST"
+  }
+}

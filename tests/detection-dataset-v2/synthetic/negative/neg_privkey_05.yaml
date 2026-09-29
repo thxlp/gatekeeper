@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Deployment
+metadata:
+  name: signer
+spec:
+  template:
+    spec:
+      containers:
+        - name: signer
+          image: registry.example.com/signer:1.4.2
+          env:
+            - name: SIGNING_KEY_PATH
+              value: /run/secrets/signing.key
+          volumeMounts:
+            - name: signing-key
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: signing-key
+          secret:
+            secretName: tls-signing

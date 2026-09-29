@@ -1,0 +1,14 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --accent: #2563eb;
+  --radius: 8px;
+}
+
+.card {
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}

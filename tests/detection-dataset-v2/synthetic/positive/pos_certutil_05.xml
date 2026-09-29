@@ -1,0 +1,9 @@
+<!-- DETECTION TEST FIXTURE. -->
+<Task>
+  <Actions>
+    <Exec>
+      <Command>cmd.exe</Command>
+      <Arguments>/c certutil -decode C:\temp\a.txt C:\temp\a.exe</Arguments>
+    </Exec>
+  </Actions>
+</Task>

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tls-signing
+stringData:
+  tls.key: |
+    -----BEGIN EC PRIVATE KEY-----
+    RVhBTVBMRUVDS0VZTk9UUkVBTEVYQU1QTEVFQ0tFWU5PVFJFQUxFWEFNUExFRUNL
+    RVlOT1RSRUFMRVhBTVBMRU9OTFlGT1JURVNUSU5HCg==
+    -----END EC PRIVATE KEY-----

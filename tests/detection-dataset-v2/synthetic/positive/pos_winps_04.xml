@@ -1,0 +1,9 @@
+<!-- DETECTION TEST FIXTURE -- inert payload. -->
+<Task>
+  <Actions>
+    <Exec>
+      <Command>cmd.exe</Command>
+      <Arguments>/c powershell.exe -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACIAdABhAHMAawAiA</Arguments>
+    </Exec>
+  </Actions>
+</Task>
