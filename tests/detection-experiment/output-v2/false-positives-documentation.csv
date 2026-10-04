@@ -1,0 +1,10 @@
+filename,rule_id,source
+synthetic/negative/neg_aws_03.md,AWS-ACCESS-KEY,synthetic
+synthetic/negative/neg_dynfunc_03.md,DYNAMIC-FUNC-CREATE,synthetic
+synthetic/negative/neg_generic_05.md,GENERIC-HARDCODED-SECRET,synthetic
+synthetic/negative/neg_slack_02.md,SLACK-TOKEN,synthetic
+real/negative/real_slack_sdk_installdoc.md,GENERIC-HARDCODED-SECRET,real
+real/negative/real_slack_sdk_installdoc.md,SLACK-TOKEN,real
+real/negative/real_slack_bolt_tutorial.md,SLACK-TOKEN,real
+real/negative/real_winps_msdocs_powershell.md,WIN-ENCODED-PS,real
+real/negative/real_curlsh_nvm_readme.md,SUSPICIOUS-CURL-PIPE-SH,real
