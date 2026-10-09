@@ -336,6 +336,20 @@ function detectRate(rows: Row[], hitsById: Map<string, string[]>) {
 }
 
 // ---------------------------------------------------------------------------
+// recall ที่ระดับไฟล์: ไฟล์ "ถูกตรวจเจอ" ถ้ากฎเป้าหมาย (row.rule_id) ติดจริง
+// ใช้วัด true-positive recall รวมข้ามกอง (positive plaintext + evasion + malicious) ที่ระดับไฟล์
+// semantics เดียวกับ detectRate/confusionByRule (หนึ่งกฎเป้าหมายต่อไฟล์; 'NONE' = ไม่มีกฎให้จับ)
+// ---------------------------------------------------------------------------
+function recallCoverage(rows: Row[], hitsById: Map<string, string[]>): { detected: number; total: number } {
+  let detected = 0;
+  for (const row of rows) {
+    const hits = hitsById.get(row.id) || [];
+    if (row.rule_id && row.rule_id !== 'NONE' && hits.indexOf(row.rule_id) !== -1) detected += 1;
+  }
+  return { detected, total: rows.length };
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
@@ -493,6 +507,36 @@ function main(): void {
       writeCsv(path.join(OUTPUT_DIR, 'malicious-results.csv'), ['filename', 'target_rule', 'detected_rules', 'verdict', 'cross_hits'], drAll.resultRows);
     }
 
+    // ============ (7) TRUE-POSITIVE RECALL (ความครอบคลุมจริง) ============
+    // recall ในตารางหลักเป็น ~100% เพราะ positive ถูกสร้างเป็น plaintext ตรงกฎ (by construction)
+    // บล็อกนี้วัด recall รวมที่ระดับไฟล์ บน "ตัวอย่างอันตราย/ช่องโหว่จริงทั้งหมด":
+    //   positive (plaintext, in-scope) + evasion (obfuscated) + malicious (ของจริง)
+    const covPos = recallCoverage(mainAll.filter((r) => r.expected === 'yes'), hitsById);
+    const covEva = recallCoverage(evasionRows, hitsById);
+    const covMal = recallCoverage(malAll, hitsById);
+    const covAll = { detected: covPos.detected + covEva.detected + covMal.detected, total: covPos.total + covEva.total + covMal.total };
+    const rr = (c: { detected: number; total: number }) => (c.total ? pct(c.detected / c.total) : '-');
+    const rrCsv = (c: { detected: number; total: number }) => (c.total ? (c.detected / c.total).toFixed(4) : '');
+    console.log('');
+    console.log('='.repeat(70));
+    console.log('(7) TRUE-POSITIVE RECALL — recall จริงที่ระดับไฟล์ บนตัวอย่างอันตรายทั้งหมด');
+    console.log('    (recall 100% ในตารางหลักเป็น by construction: positive = plaintext ตรงกฎ — ตัวเลขนี้คือของจริง)');
+    const Wr = 36;
+    console.log(pad('subset', Wr) + padLeft('detected', 9) + padLeft('total', 7) + padLeft('recall', 9));
+    console.log('-'.repeat(Wr + 25));
+    console.log(pad('positive (plaintext, in-scope)', Wr) + padLeft(String(covPos.detected), 9) + padLeft(String(covPos.total), 7) + padLeft(rr(covPos), 9));
+    console.log(pad('evasion (obfuscated)', Wr) + padLeft(String(covEva.detected), 9) + padLeft(String(covEva.total), 7) + padLeft(rr(covEva), 9));
+    console.log(pad('malicious (real-world)', Wr) + padLeft(String(covMal.detected), 9) + padLeft(String(covMal.total), 7) + padLeft(rr(covMal), 9));
+    console.log('-'.repeat(Wr + 25));
+    console.log(pad('OVERALL true-positive recall', Wr) + padLeft(String(covAll.detected), 9) + padLeft(String(covAll.total), 7) + padLeft(rr(covAll), 9));
+    if (SKIP_MALICIOUS) console.log('    * SKIP_MALICIOUS=1 → OVERALL ไม่รวมกอง malicious (รันบน Kali เพื่อได้ค่าเต็ม)');
+    writeCsv(path.join(OUTPUT_DIR, 'recall-realworld.csv'), ['subset', 'detected', 'total', 'recall'], [
+      ['positive_plaintext_in_scope', String(covPos.detected), String(covPos.total), rrCsv(covPos)],
+      ['evasion_obfuscated', String(covEva.detected), String(covEva.total), rrCsv(covEva)],
+      ['malicious_real_world', String(covMal.detected), String(covMal.total), rrCsv(covMal)],
+      ['overall_true_positive_recall', String(covAll.detected), String(covAll.total), rrCsv(covAll)],
+    ]);
+
     // --- FP/FN สรุป + ไฟล์ FP แยกกลุ่ม ---
     const docFps = fpDetails.filter((d) => d.isDoc);
     const codeFps = fpDetails.filter((d) => !d.isDoc);
@@ -505,12 +549,14 @@ function main(): void {
     console.log('               REAL      prec ' + pct(mReal.precision) + ' / recall ' + pct(mReal.recall) + ' / F1 ' + pct(mReal.f1));
     console.log('               COMBINED  prec ' + pct(mComb.precision) + ' / recall ' + pct(mComb.recall) + ' / F1 ' + pct(mComb.f1));
     console.log('False negative (main): ' + fnDetails.length + '   False positive (main): ' + fpDetails.length + ' (doc ' + docFps.length + ' / code ' + codeFps.length + ')');
+    console.log('TRUE-POSITIVE RECALL (ของจริง): positive ' + rr(covPos) + ' / evasion ' + rr(covEva) + ' / malicious ' + rr(covMal) + ' / OVERALL ' + rr(covAll));
     console.log('');
     console.log('เขียนผลลง ' + OUTPUT_DIR + ' :');
     console.log('  metrics-synthetic.csv / metrics-real.csv / metrics-combined.csv');
     console.log('  results-main.csv / by-source.csv');
     console.log('  false-positives-documentation.csv / false-positives-code.csv');
     console.log('  evasion-results.csv');
+    console.log('  recall-realworld.csv  (true-positive recall รวม positive+evasion+malicious)');
     console.log(SKIP_MALICIOUS ? '  malicious: skipped — ไม่มี malicious-*.csv' : '  malicious-metrics.csv / malicious-results.csv (ถ้าดึงได้)');
   } finally {
     // ลบกอง malicious ทิ้งเสมอ แม้รันพังกลางทาง (ตามเงื่อนไข)
