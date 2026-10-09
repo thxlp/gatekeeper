@@ -1,4 +1,0 @@
-service: billing-sync
-endpoint: https://billing.example.com/v1
-token: "EXAMPLESERVICETOKEN000000000000"
-timeoutMs: 15000
