@@ -16,7 +16,7 @@ U = {
     "sp80063b": "https://pages.nist.gov/800-63-3/sp800-63b.html",
     "saltzer": "https://web.mit.edu/Saltzer/www/publications/protection/",
     "defenseindepth": "https://csrc.nist.gov/glossary/term/defense_in_depth",
-    "owasptop10": "https://owasp.org/www-project-top-ten/",
+    "owasptop10": "https://owasp.org/Top10/2025/",
     "owaspcicd": "https://owasp.org/www-project-top-10-ci-cd-security-risks/",
     "owaspsecrets": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html",
     "cis_docker": "https://www.cisecurity.org/benchmark/docker",

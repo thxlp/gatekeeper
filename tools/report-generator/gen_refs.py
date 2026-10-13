@@ -94,11 +94,10 @@ def build(d):
            L("https://nvd.nist.gov/vuln/detail/CVE-2019-5736", U["cve2019_5736"])])
     d.ref([T("OpenSSF. (2023). "), I("SLSA specification version 1.0"), T(". "),
            L("https://slsa.dev/spec/v1.0/about", U["slsa"])])
-    d.ref([T("OWASP Foundation. (2021). "), I("OWASP Top 10: The ten most critical web "
-                                              "application security risks"), T(". "),
-           L("https://owasp.org/www-project-top-ten/", U["owasptop10"])])
     d.ref([T("OWASP Foundation. (2022). "), I("OWASP Top 10 CI/CD security risks"), T(". "),
            L("https://owasp.org/www-project-top-10-ci-cd-security-risks/", U["owaspcicd"])])
+    d.ref([T("OWASP Foundation. (2025). "), I("OWASP Top 10:2025"), T(". "),
+           L("https://owasp.org/Top10/2025/", U["owasptop10"])])
     d.ref([T("OWASP Foundation. (n.d.). "), I("Secrets management cheat sheet"),
            T(". สืบค้นเมื่อ 27 กรกฎาคม 2569, จาก "),
            L("https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html",
