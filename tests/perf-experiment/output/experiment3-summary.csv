@@ -1,0 +1,34 @@
+metric,value
+node_version,v24.18.0
+platform,linux x64
+cpus,1 × DO-Premium-Intel
+measured_at,2026-10-08T11:10:26.895Z
+dataset_files,152
+dataset_bytes,42488
+dataset_lines,1534
+reps_per_file,50
+warmup_rounds,5
+samples_total,7600
+scan_per_file_median_us,7.175
+scan_per_file_p95_us,14.347
+scan_dataset_median_ms,1.231
+scan_dataset_p95_ms,2.878
+scan_dataset_cv,0.5229
+io_listtextfiles_files,155
+io_listtextfiles_bytes,63770
+io_listtextfiles_median_ms,5.369
+io_listtextfiles_p95_ms,9.262
+scan_stage_total_median_ms,6.600
+throughput_mb_per_s,32.918
+pearson_r_bytes_vs_time,0.9191
+pearson_r_lines_vs_time,0.6393
+fit_us_per_kb,11.5100
+fit_intercept_us,4.3479
+baseline_source,data/usage.jsonl × data/audit.log (join requestId)
+baseline_n,87
+baseline_build_deploy_median_s,6.942
+baseline_build_deploy_min_s,1.573
+baseline_build_deploy_p95_s,48.104
+overhead_pct_median_case,0.0951
+overhead_pct_worst_case,0.7718
+sca_note,scanDependencies() ยังเป็น stub — ตัวเลขนี้ไม่ใช่ต้นทุนของ dependency scanning จริง

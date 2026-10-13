@@ -1,0 +1,15 @@
+seed_file,category,repeat_factor,bytes,median_us,p95_us,us_per_kb_median
+clean/clean_17_cache.py,clean,1,612,7.219,27.636,12.0788
+clean/clean_17_cache.py,clean,2,1224,10.671,14.983,8.9270
+clean/clean_17_cache.py,clean,4,2448,13.344,21.178,5.5816
+clean/clean_17_cache.py,clean,8,4896,23.980,31.364,5.0153
+clean/clean_17_cache.py,clean,16,9792,48.267,59.855,5.0475
+clean/clean_17_cache.py,clean,32,19584,92.487,111.095,4.8359
+clean/clean_17_cache.py,clean,64,39168,205.129,267.123,5.3628
+positive/pos_privkey_04.py,positive,1,481,6.639,12.206,14.1338
+positive/pos_privkey_04.py,positive,2,962,6.867,11.947,7.3101
+positive/pos_privkey_04.py,positive,4,1924,10.866,15.583,5.7829
+positive/pos_privkey_04.py,positive,8,3848,19.321,25.431,5.1416
+positive/pos_privkey_04.py,positive,16,7696,46.324,53.541,6.1637
+positive/pos_privkey_04.py,positive,32,15392,71.263,99.935,4.7410
+positive/pos_privkey_04.py,positive,64,30784,135.542,183.772,4.5087
