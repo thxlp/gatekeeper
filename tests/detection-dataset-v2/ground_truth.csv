@@ -210,3 +210,7 @@ real/clean/clean_detectsecrets_aws_plugin.py,NONE,no,real-clean
 real/clean/clean_detectsecrets_slack_plugin.py,NONE,no,real-clean
 real/clean/clean_detectsecrets_privkey_plugin.py,NONE,no,real-clean
 real/clean/clean_detectsecrets_keyword_plugin.py,NONE,no,real-clean
+synthetic/positive/pos_webshell_01.php,PHP-SYSTEM-FROM-REQUEST,yes,synthetic-positive
+synthetic/evasion/eva_webshell_01.php,PHP-SYSTEM-FROM-REQUEST,detect,synthetic-evasion
+synthetic/positive/pos_dockerproxy_01.js,JS-EVAL-ATOB;DYNAMIC-FUNC-CREATE;SUSPICIOUS-CURL-PIPE-SH,yes,synthetic-positive
+synthetic/evasion/eva_dockerproxy_01.js,NONE,detect,synthetic-evasion

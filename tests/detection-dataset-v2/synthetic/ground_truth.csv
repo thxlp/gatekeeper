@@ -151,3 +151,7 @@ evasion/eva_certutil_01.bat,CERTUTIL-DECODE,detect,evasion
 evasion/eva_certutil_02.bat,CERTUTIL-DECODE,detect,evasion
 evasion/eva_curlsh_01.sh,SUSPICIOUS-CURL-PIPE-SH,detect,evasion
 evasion/eva_curlsh_02.sh,SUSPICIOUS-CURL-PIPE-SH,detect,evasion
+positive/pos_webshell_01.php,PHP-SYSTEM-FROM-REQUEST,yes,positive
+evasion/eva_webshell_01.php,PHP-SYSTEM-FROM-REQUEST,detect,evasion
+positive/pos_dockerproxy_01.js,JS-EVAL-ATOB;DYNAMIC-FUNC-CREATE;SUSPICIOUS-CURL-PIPE-SH,yes,positive
+evasion/eva_dockerproxy_01.js,NONE,detect,evasion

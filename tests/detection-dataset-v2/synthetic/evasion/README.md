@@ -4,7 +4,7 @@
 หลบ regex ของกฎแต่ละข้อใน `configs/detection-rules/` — payload สุดท้ายถูกทำให้ inert
 เท่าที่จำเป็น (เช่น decode ออกมาเป็น `echo "ok";` / `Write-Host "ok"` / `console.log("ok")`)
 
-- กฎละ 2 ไฟล์ × 11 กฎ = **22 ไฟล์**
+- กฎละ 2 ไฟล์ × 11 กฎ = 22 ไฟล์ + คู่ webshell เต็มหน้า 1 + คู่ dockerproxy 1 = **24 ไฟล์**
 - ตั้งชื่อ `eva_<slug>_NN.<ext>` (slug เดียวกับกอง positive)
 - ใน `ground_truth.csv`: `category = evasion`, `expected = detect`
   (แปลว่า *ควร* ถูกจับ แต่คาดว่าจะหลุด — ตัววัดคือ "อัตราการหลบผ่าน")
@@ -37,11 +37,21 @@
 | `eva_certutil_02.bat` | CERTUTIL-DECODE | แทรก caret `cert^util` | หลุด |
 | `eva_curlsh_01.sh` | SUSPICIOUS-CURL-PIPE-SH | pipe เข้า `/bin/sh` (มี `/bin/` คั่น ทำให้ `\|\s*(sh\|bash)` ไม่ติด) | หลุด |
 | `eva_curlsh_02.sh` | SUSPICIOUS-CURL-PIPE-SH | ใช้ `eval "$(curl ...)"` แทน pipe (ไม่มี `\| sh` เลย) | หลุด |
+| `eva_webshell_01.php` | PHP-SYSTEM-FROM-REQUEST | ย้าย `$_POST` เข้าตัวแปรก่อน + ประกอบชื่อ `system` runtime แล้วเรียกผ่านตัวแปร (เว็บแบ็กดอร์เต็มหน้า คู่กับ `pos_webshell_01.php`) | หลุด |
+| `eva_dockerproxy_01.js` | (ไม่มีกฎครอบ) | tenant Node app เปิด socket ไปยัง bridge gateway IP:2375 ด้วย `http.request` ธรรมดา — ไม่มี token ที่กฎจับเลย (คู่กับ `pos_dockerproxy_01.js`) | หลุด |
+
+> **หมายเหตุ `dockerproxy`** — คู่นี้จำลอง threat ที่ตรงกับเครื่องนี้โดยเฉพาะ: tenant escape ผ่านการยิง
+> docker-socket-proxy ที่ host (ดู CLAUDE.md "ทุก service บน host ต้อง bind 127.0.0.1"). ต่างจาก eva ตัวอื่น
+> ตรงที่ **ไม่ได้หลบด้วยการ obfuscate** — มันหลุดเพราะกฎทั้งชุดเป็น regex จับสำนวน webshell/dropper
+> ไม่มีกฎใดโมเดล "แอปเปิด connection ไปหา internal IP" เลย (score 0 → ALLOW). ชั้นที่จับ attack คลาสนี้จริง
+> คือ network isolation (bind 127.0.0.1 + INPUT firewall + per-user network) ไม่ใช่ scanner.
+> ใน ground truth ไฟล์นี้ใช้ `rule_id = NONE` (runner นับว่ากันได้ถ้ามีกฎใดติดก็ตาม) ส่วน `pos_dockerproxy_01.js`
+> ตั้งใจให้ติด 3 กฎ จึงใส่ `rule_id` หลายค่าคั่นด้วย `;`.
 
 ## ผลทำนายแบบ offline (ยังไม่ใช่ผลจริงจาก ScannerService)
 
 รัน regex ชุดเดียวกันด้วย Python `re` อ่านไฟล์ตรงๆ (ไม่ผ่าน scanner service, ไม่ผ่าน pipeline)
-เพื่อยืนยันว่าแต่ละไฟล์ทำงานเป็น "การหลบ" จริง: **ทำนายว่าหลุดทั้ง 22/22 ไฟล์** และ
+เพื่อยืนยันว่าแต่ละไฟล์ทำงานเป็น "การหลบ" จริง: **ทำนายว่าหลุดทั้ง 24/24 ไฟล์** และ
 ไม่มีไฟล์ไหนไปสะดุดกฎอื่นโดยบังเอิญ (ไม่มี cross-hit)
 
 > ระวัง: ระหว่างสร้าง มี 6 ไฟล์ที่ตอนแรก "ถูกจับ" เพราะ **คอมเมนต์อธิบายเทคนิคเผลอเขียน
@@ -50,6 +60,6 @@
 > ไม่ได้เข้าใจ "โครงสร้างโค้ด" จึงไวต่อทั้ง false positive (คอมเมนต์/เอกสาร) และ false
 > negative (โค้ดที่หลบรูปแบบ)
 
-ผลจริงต้องมาจากการรัน `tests/detection-experiment/` ผ่าน `ScannerService.scanText()`
-(ดูวิธีรันใน `tests/detection-experiment/README.md`) — **หมายเหตุ**: runner ปัจจุบันยัง
-ไม่รู้จัก `category = evasion` ต้องอัปเดตตรรกะการนับก่อนรัน (ดูหัวข้อในคำสรุปของ session)
+ผลจริงจาก `ScannerService.scanText()` (runner v2, รัน 2026-10-08 แบบ `SKIP_MALICIOUS=1`):
+**หลุด 24/24 ตรงกับที่ทำนาย** — ดู `tests/detection-experiment/output-v2/evasion-results.csv`
+(วิธีรันอยู่ใน `tests/detection-experiment/README-v2.md`)
